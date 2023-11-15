@@ -11,7 +11,7 @@ def create_plot(animal_data, grating_data, title):
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=time_index, y=grating_data['GameObjectRotY'], mode='markers', name='Grating Rotation'))
-    fig.add_trace(go.Scatter(x=time_index, y=animal_data['GameObjectRotY'], mode='markers', name='Animal Rotation'))
+    fig.add_trace(go.Scatter(x=time_index, y=animal_data['GameObjectRotX'], mode='markers', name='Animal Rotation'))
     
     fig.update_layout(
         title=title,
@@ -23,11 +23,17 @@ def create_plot(animal_data, grating_data, title):
     
     fig.show()
 
-folder_path = '/Users/apaula/Nextcloud/locustVR/locustVR_data/20231113_150126'
-grating_file = '20231113_150126_Optomotor_GratingGenerator_.csv'
+#timestamp = '132700'
+timestamp = '132003'
+#timestamp = '121505'
+#timestamp = '120613'
+#timestamp = '115424'
+#timestamp = '102557'
+folder_path = f'/home/insectvr/src/build/20231115_optomotor_Data/RunData/20231115_{timestamp}'
+grating_file = f'20231115_{timestamp}_Optomotor_Grating Generator_.csv'
 grating_data = load_data(os.path.join(folder_path, grating_file))
 
 for i in range(1, 5):
-    animal_file = f'20231113_150126_Optomotor_VR{i}_.csv'
+    animal_file = f'20231115_{timestamp}_Optomotor_VR{i}_.csv'
     animal_data = load_data(os.path.join(folder_path, animal_file))
     create_plot(animal_data, grating_data, f'Optomotor Response - VR{i}')
