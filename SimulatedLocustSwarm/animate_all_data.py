@@ -89,7 +89,7 @@ def find_closest_timestamp(real_timestamp, simulated_timestamps):
     closest_rows = simulated_timestamps[simulated_timestamps == closest_time]
     return closest_rows.index
 
-def animate(i, locust_df, environment_df, sc_real, sc_sim):
+def animate(i, locust_df, environment_df, sc_real, sc_sim, past_x_sim, past_z_sim, trail_length, trail_opacity, ax):
     real_data = locust_df.iloc[:i*30+1]
     x_real = real_data['InsectPosZ']
     z_real = real_data['InsectPosX']
@@ -102,14 +102,38 @@ def animate(i, locust_df, environment_df, sc_real, sc_sim):
     z_sim = sim_data['X']
     sc_sim.set_offsets(np.c_[x_sim, z_sim])
 
+    # Store the new positions
+    past_x_sim.append(x_sim)
+    past_z_sim.append(z_sim)
 
-def create_animation(locust_df, environment_df, animation_filename):
+    # Remove the oldest positions if the length exceeds trail_length
+    if len(past_x_sim) > trail_length:
+        del past_x_sim[0]
+        del past_z_sim[0]
+
+    # Plot the trails with decreasing opacity
+    for x, z, alpha in zip(past_x_sim, past_z_sim, trail_opacity):
+        ax.scatter(x, z, c='gray', alpha=alpha)
+
+    # Update the most recent positions
+    sc_sim.set_offsets(np.c_[x_sim, z_sim])
+
+
+def create_animation(locust_df, environment_df, animation_filename, trail_length = 10 ):
     # Create the plot
     fig, ax = plt.subplots()
     
     # Initialize scatter plots
     sc_real = ax.scatter([], [], c='black', alpha=0.5, label='Real')
     sc_sim = ax.scatter([], [], c='gray', alpha=0.5, label='Simulated')
+
+    # Initialize lists to store the past positions
+    past_x_sim = []
+    past_z_sim = []
+
+    # Define trail properties
+    trail_length = 10  # Number of past positions to display
+    trail_opacity = np.linspace(0.1, 0.5, trail_length)  # Opacity values for the trail
     
     # Set labels, title, and axis limits
     ax.set_xlabel('Z Position')
@@ -121,7 +145,7 @@ def create_animation(locust_df, environment_df, animation_filename):
     ax.set_ylim(min(z_min, x_min)-10, max(z_max, x_max)+10)
     
     # Create the animation
-    ani = FuncAnimation(fig, lambda i: animate(i, locust_df, environment_df, sc_real, sc_sim), frames=(len(locust_df)//30), interval=50)
+    ani = FuncAnimation(fig, lambda i: animate(i, locust_df, environment_df, sc_real, sc_sim, past_x_sim, past_z_sim, trail_length, trail_opacity, ax), frames=(len(locust_df)//30), interval=50)
     
     # Create a writer object
     writer = FFMpegWriter(fps=20)
@@ -134,6 +158,7 @@ def create_animation(locust_df, environment_df, animation_filename):
 def generate_all_animations_in_all_folders(root_folder):
     for folder_name in os.listdir(root_folder):
         folder_path = os.path.join(root_folder, folder_name)
+        print(folder_name)
         if os.path.isdir(folder_path):
             prepared_data = prepare_data_from_pairs(folder_path)
             for key, data in prepared_data.items():
@@ -141,5 +166,5 @@ def generate_all_animations_in_all_folders(root_folder):
                 create_animation(data['locust'], data['environment'], animation_filename)
 
 # Example usage
-root_folder = "/Users/apaula/src/VRDataAnalysis/SimulatedLocustSwarm/data/20230915rundata/RunData"  # Replace with the path to your RunData folder
+root_folder = "/Users/apaula/src/VRDataAnalysis/SimulatedLocustSwarm/data/20230915rundata/selected"  # Replace with the path to your RunData folder
 generate_all_animations_in_all_folders(root_folder)
