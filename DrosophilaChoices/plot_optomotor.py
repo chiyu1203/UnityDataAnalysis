@@ -24,11 +24,11 @@ def create_plot(animal_data, grating_data, title):
     fig.show()
 
 #timestamp = '132700'
-timestamp = '132003'
+#timestamp = '132003'
 #timestamp = '121505'
 #timestamp = '120613'
 #timestamp = '115424'
-#timestamp = '102557'
+timestamp = '102557'
 folder_path = f'/home/insectvr/src/build/20231115_optomotor_Data/RunData/20231115_{timestamp}'
 grating_file = f'20231115_{timestamp}_Optomotor_Grating Generator_.csv'
 grating_data = load_data(os.path.join(folder_path, grating_file))
