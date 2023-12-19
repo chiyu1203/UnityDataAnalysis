@@ -29,13 +29,25 @@ def create_plot(animal_data, grating_data, title):
 #timestamp = '120613'
 #timestamp = '115424'
 #timestamp = '102557'
-timestamp = '20231129_114803'
-timestamp = '20231129_133727'
+#timestamp = '20231129_114803'
+#timestamp = '20231129_133727'
 #timestamp = '20231129_145109'
+#optomotor testing:
+timestamp = '20231213_125040'
+timestamp = '20231213_130740'
+timestamp = '20231213_140734'
+timestamp = '20231213_141955'
+timestamp = '20231213_142939'
+timestamp = '20231213_144108'
+timestamp = '20231213_145503'
 
+#timestamp = '20231129_133727'
+timestamp = '20231219_113700'
 
 #folder_path = f'/home/insectvr/src/build/20231115_optomotor_Data/RunData/20231115_{timestamp}'
-folder_path = f'/Users/apaula/Nextcloud/locustVR/locustVR_data/RunData_20231129/{timestamp}/'
+#folder_path = f'/Users/apaula/Nextcloud/locustVR/locustVR_data/RunData_20231129/{timestamp}/'
+folder_path = f'/home/insectvr/src/build/20231213_7minOptomotor_Data/RunData/{timestamp}/'
+
 grating_file = f'{timestamp}_Optomotor_Grating Generator_.csv'
 grating_data = load_data(os.path.join(folder_path, grating_file))
 
