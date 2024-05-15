@@ -38,7 +38,7 @@ def create_sensor_position_plot(animal_data, title):
     fig.show()
 
 # List of timestamps
-timestamps = ['20231219_143605']
+timestamps = ['20231220_154231']
 
 # Base folder path
 base_folder_path = '/home/insectvr/src/build/20231213_7minOptomotor_Data/RunData/'

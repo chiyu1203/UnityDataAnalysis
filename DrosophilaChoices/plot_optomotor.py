@@ -43,6 +43,7 @@ timestamp = '20231213_145503'
 
 #timestamp = '20231129_133727'
 timestamp = '20231219_113700'
+timestamp = '20231220_150136'
 
 #folder_path = f'/home/insectvr/src/build/20231115_optomotor_Data/RunData/20231115_{timestamp}'
 #folder_path = f'/Users/apaula/Nextcloud/locustVR/locustVR_data/RunData_20231129/{timestamp}/'

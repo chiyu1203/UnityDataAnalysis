@@ -91,11 +91,16 @@ def main():
     timestamp = '20231122_131112'
     timestamp = '20231122_133530'
     timestamp = '20231122_161757'
+    timestamp = '20231220_160646'
+    timestamp = '20240514_162026'
+
     #directory_path = '/Users/apaula/Nextcloud/locustVR/locustVR_data/RunData_20231129/' + timestamp + '/'
     directory_path = '/Users/apaula/Nextcloud/locustVR/locustVR_data/20231122_RunData/' + timestamp + '/'
+    directory_path = '/home/insectvr/src/build/20231220_stripefixation_Data/RunData/' + timestamp + '/'
+    directory_path = '/home/insectvr/src/build/20240514_testVR_Data/RunData/' + timestamp + '/'
     df1, df2, df3, df4 = load_and_prepare_data(timestamp, directory_path)
     print("Dataframe loaded:", df1.head())
-    space_disc_threshold = 0.5  # Define the threshold for space discretization
+    space_disc_threshold = 0.1  # Define the threshold for space discretization
     dfs_discretized = [discretize_space(df, space_disc_threshold) for df in [df1, df2, df3, df4]]
     dfs_discretized = [calculate_direction_of_movement(df) for df in dfs_discretized]
 
