@@ -87,6 +87,97 @@ def plot_trajectories_by_run_id(df, title_prefix="Trajectory Plot"):
         plt.grid(True)
         plt.show()
 
+def plot_transformed_trajectories_by_run_id(df, title_prefix="Trajectory Plot"):
+    """
+    Plots the trajectory of an animal for each run identified by 'run_id'.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the trajectory data with 'TransformedPosX', 'transformedPosY', and 'run_id' columns.
+    title_prefix (str): Prefix for the plot titles.
+    """
+    unique_run_ids = df['run_id'].unique()
+    
+    for run_id in unique_run_ids:
+        run_df = df[df['run_id'] == run_id]
+        plt.figure(figsize=(10, 6))
+        plt.plot(run_df['TransformedPosX'], run_df['TransformedPosY'], marker='o', linestyle='-', markersize=2)
+        plt.title(f"{title_prefix} - Run ID {run_id}")
+        plt.xlabel('TransformedPosX')
+        plt.ylabel('TransformedPosY')
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.grid(True)
+        plt.show()
+
+def plot_comparison_trajectories_by_run_id(df, title_prefix="Trajectory Comparison"):
+    """
+    Plots the SensPos, OffsetPos, and TransformedPos trajectories of an animal for each run identified by 'run_id'.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the trajectory data with 'SensPosX', 'SensPosY', 'OffsetPosX', 'OffsetPosY', 'TransformedPosX', 'TransformedPosY', and 'run_id' columns.
+    title_prefix (str): Prefix for the plot titles.
+    """
+    unique_run_ids = df['run_id'].unique()
+    
+    for run_id in unique_run_ids:
+        run_df = df[df['run_id'] == run_id].iloc[10:]  # Exclude the first 10 rows
+        
+        
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        
+        # Plot original positions
+        axes[0].plot(run_df['SensPosX'], run_df['SensPosY'], marker='o', linestyle='-', markersize=2)
+        axes[0].set_title(f"{title_prefix} - Original Positions - Run ID {run_id}")
+        axes[0].set_xlabel('SensPosX')
+        axes[0].set_ylabel('SensPosY')
+        axes[0].set_aspect('equal', adjustable='box')
+        axes[0].grid(True)
+        
+        # Plot offset positions
+        axes[1].plot(run_df['OffsetPosX'], run_df['OffsetPosY'], marker='o', linestyle='-', markersize=2)
+        axes[1].set_title(f"{title_prefix} - Offset Positions - Run ID {run_id}")
+        axes[1].set_xlabel('OffsetPosX')
+        axes[1].set_ylabel('OffsetPosY')
+        axes[1].set_aspect('equal', adjustable='box')
+        axes[1].grid(True)
+        
+        # Plot transformed positions
+        axes[2].plot(run_df['TransformedPosX'], run_df['TransformedPosY'], marker='o', linestyle='-', markersize=2)
+        axes[2].set_title(f"{title_prefix} - Transformed Positions - Run ID {run_id}")
+        axes[2].set_xlabel('TransformedPosX')
+        axes[2].set_ylabel('TransformedPosY')
+        axes[2].set_aspect('equal', adjustable='box')
+        axes[2].grid(True)
+        
+        plt.tight_layout()
+        plt.show()
+
+def plot_all_trajectories_by_unique_run_id(dfs, current_step, title="All Trajectories Colored by unique_run_id"):
+    """
+    Plots all trajectories from all DataFrames colored by unique run ID.
+
+    Parameters:
+    dfs (list of pd.DataFrame): List of DataFrames containing the trajectory data with 'TransformedPosX', 'TransformedPosY', and 'unique_run_id' columns.
+    title (str): Title for the plot.
+    """
+    combined_df = pd.concat(dfs)
+    combined_df = combined_df[combined_df['CurrentStep'] == current_step]
+
+    plt.figure(figsize=(24, 16))
+    for unique_run_id in combined_df['unique_run_id'].unique():
+        trial_df = combined_df[combined_df['unique_run_id'] == unique_run_id].iloc[10:]  # Exclude the first 10 rows
+        plt.plot(trial_df['TransformedPosX'], trial_df['TransformedPosY'], marker='o', linestyle='-', markersize=2, label=f'Trial ID {unique_run_id}')
+    #x scale
+    plt.xlim(-150, 150)
+    #y scale
+    plt.ylim(-150, 150)
+    plt.title(title)
+    plt.xlabel('TransformedPosX')
+    plt.ylabel('TransformedPosY')
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
 def plot_polar_histograms_by_run_id(df, title_prefix="Polar Histogram"):
     """
     Plots the polar histogram of GameObjectRotY for each run identified by 'run_id'.
@@ -112,3 +203,24 @@ def plot_polar_histograms_by_run_id(df, title_prefix="Polar Histogram"):
         plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor='k')
         plt.title(f"{title_prefix} - Run ID {run_id} - Step {run_df['CurrentStep'].iloc[0]}")
         plt.show()
+
+def plot_polar_histogram(dfs, current_step, title_prefix="Polar Histogram", num_bins=36):
+    """
+    Plots the polar histogram of GameObjectRotY for each run identified by 'run_id'.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the trajectory data with 'GameObjectRotY' and 'run_id' columns.
+    title_prefix (str): Prefix for the plot titles.
+    """
+    combined_df = pd.concat(dfs)
+    combined_df = combined_df[combined_df['CurrentStep'] == current_step]
+    rot_y_values = combined_df[combined_df['GameObjectRotY'] != 0]['GameObjectRotY']
+
+    plt.figure(figsize=(8, 8))
+    direction_values = rot_y_values / 180 * np.pi
+    counts, bin_edges = np.histogram(direction_values, bins=num_bins, range=(0, 2*np.pi))
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    plt.subplot(projection='polar')
+    plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor='k')
+    plt.title(f"{title_prefix} - Step {combined_df['CurrentStep'].iloc[0]}")
+    plt.show()

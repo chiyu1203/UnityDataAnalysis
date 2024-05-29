@@ -1,7 +1,59 @@
 import numpy as np
+import pandas as pd
 
 def add_run_id(df):
     df['run_id'] = (df['CurrentStep'] != df['CurrentStep'].shift()).cumsum()
+    return df
+#add unique run id by combining run_id and trial_timestamp and vr
+def add_unique_run_id(df):
+    df['unique_run_id'] = df['run_id'].astype(str) + '_' + df['trial_timestamp'] + '_' + df['VR'].astype(str)
+    return df
+
+
+def transform_positions(df):
+    """
+    Transforms the SensPosX and SensPosY positions for each run_id in the DataFrame.
+    The transformation is based on the position and rotation offsets calculated from row number 10.
+    
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the trajectory data with 'SensPosX', 'SensPosY', 'GameObjectRotY', 'SensRotY', and 'run_id' columns.
+    
+    Returns:
+    pd.DataFrame: DataFrame with new columns 'TransformedPosX' and 'TransformedPosY'.
+    """
+    transformed_dfs = []
+    
+    unique_run_ids = df['run_id'].unique()
+    
+    for run_id in unique_run_ids:
+        run_df = df[df['run_id'] == run_id].copy()
+        
+        if len(run_df) > 10:
+            x_offset = run_df.iloc[10]['SensPosX']
+            y_offset = run_df.iloc[10]['SensPosY']
+            rotation_offset = run_df.iloc[10]['GameObjectRotY'] - run_df.iloc[10]['SensRotY']
+            
+            # Apply the offsets
+            run_df['OffsetPosX'] = run_df['SensPosX'] - x_offset
+            run_df['OffsetPosY'] = run_df['SensPosY'] - y_offset
+
+            # Convert rotation offset to radians
+            rotation_offset_rad = np.deg2rad(rotation_offset)
+            
+            # Calculate the transformed positions
+            run_df['TransformedPosX'] = (
+                run_df['OffsetPosX'] * np.cos(rotation_offset_rad) - 
+                run_df['OffsetPosY'] * np.sin(rotation_offset_rad)
+            )
+            run_df['TransformedPosY'] = (
+                run_df['OffsetPosX'] * np.sin(rotation_offset_rad) + 
+                run_df['OffsetPosY'] * np.cos(rotation_offset_rad)
+            )
+            
+            transformed_dfs.append(run_df)
+    
+    # Concatenate all transformed DataFrames
+    df = pd.concat(transformed_dfs)
     return df
 
 def discretize_space(df, space_disc_threshold):
