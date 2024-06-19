@@ -151,7 +151,7 @@ def plot_comparison_trajectories_by_run_id(df, title_prefix="Trajectory Comparis
         plt.tight_layout()
         plt.show()
 
-def plot_all_trajectories_by_unique_run_id(dfs, current_step, title="All Trajectories Colored by unique_run_id"):
+def plot_all_trajectories_by_unique_run_id(dfs, current_step, title="All Trajectories Colored by unique_run_id", xylim = 150):
     """
     Plots all trajectories from all DataFrames colored by unique run ID.
 
@@ -167,9 +167,9 @@ def plot_all_trajectories_by_unique_run_id(dfs, current_step, title="All Traject
         trial_df = combined_df[combined_df['unique_run_id'] == unique_run_id].iloc[10:]  # Exclude the first 10 rows
         plt.plot(trial_df['TransformedPosX'], trial_df['TransformedPosY'], marker='o', linestyle='-', markersize=2, label=f'Trial ID {unique_run_id}')
     #x scale
-    plt.xlim(-150, 150)
+    plt.xlim(-xylim, xylim)
     #y scale
-    plt.ylim(-150, 150)
+    plt.ylim(-xylim, xylim)
     plt.title(title)
     plt.xlabel('TransformedPosX')
     plt.ylabel('TransformedPosY')
@@ -223,4 +223,32 @@ def plot_polar_histogram(dfs, current_step, title_prefix="Polar Histogram", num_
     plt.subplot(projection='polar')
     plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor='k')
     plt.title(f"{title_prefix} - Step {combined_df['CurrentStep'].iloc[0]}")
+    plt.show()
+
+# plot polar histogram with a red line at one or several angles
+def plot_polar_histogram_with_red_lines(dfs, current_step, title_prefix="Polar Histogram", num_bins=36, red_lines=None):
+    """
+    Plots the polar histogram of GameObjectRotY for each run identified by 'run_id' with red lines at specified angles.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the trajectory data with 'GameObjectRotY' and 'run_id' columns.
+    title_prefix (str): Prefix for the plot titles.
+    red_lines (list of float): List of angles in degrees where red lines should be drawn.
+    """
+    combined_df = pd.concat(dfs)
+    combined_df = combined_df[combined_df['CurrentStep'] == current_step]
+    rot_y_values = combined_df[combined_df['GameObjectRotY'] != 0]['GameObjectRotY']
+
+    plt.figure(figsize=(8, 8))
+    direction_values = rot_y_values / 180 * np.pi
+    counts, bin_edges = np.histogram(direction_values, bins=num_bins, range=(0, 2*np.pi))
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    plt.subplot(projection='polar')
+    plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor='k')
+    plt.title(f"{title_prefix} - Step {combined_df['CurrentStep'].iloc[0]}")
+    
+    if red_lines:
+        for red_line in red_lines:
+            plt.axvline(x=red_line/180*np.pi, color='red', linestyle='--')
+    
     plt.show()

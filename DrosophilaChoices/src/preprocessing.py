@@ -76,3 +76,51 @@ def calculate_direction_of_movement(df):
     df['delta_y'] = df['SensPosY'].diff()
     df['movement_direction'] = np.arctan2(df['delta_y'], df['delta_x']) * (180 / np.pi)
     return df
+
+def filter_by_mean_speed(dfs, speed_threshold=20):
+    """
+    Filters out runs where the mean speed is higher than the given threshold.
+
+    Parameters:
+    dfs (list of pd.DataFrame): List of DataFrames containing the trajectory data with 'unique_run_id' and 'speed_mm_s' columns.
+    speed_threshold (float): The speed threshold for filtering (in mm/s).
+
+    Returns:
+    list of pd.DataFrame: List of DataFrames with filtered runs.
+    """
+    filtered_dfs = []
+    
+    for df in dfs:
+        unique_run_ids = df['unique_run_id'].unique()
+        
+        for unique_run_id in unique_run_ids:
+            run_df = df[df['unique_run_id'] == unique_run_id]
+            if run_df['speed_mm_s'].mean() <= speed_threshold:
+                filtered_dfs.append(run_df)
+    
+    return filtered_dfs
+
+def filter_by_total_displacement(dfs, distance_threshold=5):
+    """
+    Filters out runs where the mean speed is higher than the given threshold.
+
+    Parameters:
+    dfs (list of pd.DataFrame): List of DataFrames containing the trajectory data with 'unique_run_id' and 'speed_mm_s' columns.
+    speed_threshold (float): The speed threshold for filtering (in mm/s).
+
+    Returns:
+    list of pd.DataFrame: List of DataFrames with filtered runs.
+    """
+    filtered_dfs = []
+    
+    for df in dfs:
+        unique_run_ids = df['unique_run_id'].unique()
+        
+        for unique_run_id in unique_run_ids:
+            run_df = df[df['unique_run_id'] == unique_run_id]
+            last_position = run_df.iloc[-1][['TransformedPosX', 'TransformedPosY']]
+            total_distance = np.sqrt(last_position['TransformedPosX']**2 + last_position['TransformedPosY']**2)
+            if total_distance >= distance_threshold:
+                filtered_dfs.append(run_df)
+    
+    return filtered_dfs
