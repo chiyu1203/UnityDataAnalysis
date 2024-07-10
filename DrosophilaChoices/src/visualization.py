@@ -245,7 +245,7 @@ def plot_polar_histogram_with_red_lines(dfs, current_step, title_prefix="Polar H
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     plt.subplot(projection='polar')
     plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor='k')
-    plt.title(f"{title_prefix} - Step {combined_df['CurrentStep'].iloc[0]}")
+    #plt.title(f"{title_prefix} - Step {combined_df['CurrentStep'].iloc[0]}")
     
     if red_lines:
         for red_line in red_lines:
