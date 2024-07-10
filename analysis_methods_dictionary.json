@@ -1,0 +1,36 @@
+{
+    "experiment_name": "swarm",
+    "overwrite_curated_dataset": true,
+    "graph_colour_code": [
+        "r",
+        "y",
+        "m",
+        "c",
+        "k",
+        "b",
+        "g",
+        "r"
+    ],
+    "debug_mode": false,
+    "filtering_method": "sg_filter",
+    "plotting_tbt_overview": true,
+    "plotting_trajectory": true,
+    "plotting_event_related_trajectory": false,
+    "plotting_deceleration_accerleration": false,
+    "plotting_optomotor_response": true,
+    "load_experiment_condition_from_database": true,
+    "select_animals_by_condition": true,
+    "analysis_by_stimulus_type": false,
+    "camera_fps": 100,
+    "trackball_radius": 100,
+    "monitor_fps": 144,
+    "stim_duration": 20,
+    "interval_duration": 10,
+    "prestim_duration": 180,
+    "stim_type": [
+        270,
+        180,
+        90,
+        0
+    ]
+}
