@@ -15,21 +15,14 @@ analysis_methods = {
     "plotting_event_related_trajectory": False,
     "plotting_deceleration_accerleration": False,
     "plotting_optomotor_response": True,
-    "load_experiment_condition_from_database": True,
+    "generate_locust_vr_matrices": True,
     "select_animals_by_condition": True,
     "analysis_by_stimulus_type": False,
-    "camera_fps": 100,
+    "camera_fps": 120,
     "trackball_radius": 50,
     "monitor_fps": 60,
-    "stim_duration": 20,
-    "interval_duration": 10,
-    "prestim_duration": 180,
-    "stim_type": [
-        270,
-        180,
-        90,
-        0,
-    ],
+    "body_length": 0.12,
+    "growth_condition": "G",
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:
