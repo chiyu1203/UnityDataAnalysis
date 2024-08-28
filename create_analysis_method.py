@@ -4,7 +4,7 @@ file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experiment_name": "swarm",
     "overwrite_curated_dataset": True,
-    "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
+    "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],
     "debug_mode": False,
     "fictrac_posthoc_analysis": True,
     "use_led_to_align_stimulus_timing": True,
@@ -16,6 +16,7 @@ analysis_methods = {
     "plotting_deceleration_accerleration": False,
     "plotting_optomotor_response": True,
     "generate_locust_vr_matrices": True,
+    "load_individual_data": True,
     "select_animals_by_condition": True,
     "analysis_by_stimulus_type": False,
     "camera_fps": 120,
