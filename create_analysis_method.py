@@ -20,9 +20,9 @@ analysis_methods = {
     "select_animals_by_condition": True,
     "analysis_by_stimulus_type": False,
     "camera_fps": 120,
-    "trackball_radius": 50,
+    "trackball_radius_cm": 0.5,
     "monitor_fps": 60,
-    "body_length": 0.12,
+    "body_length": 12,
     "growth_condition": "G",
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
