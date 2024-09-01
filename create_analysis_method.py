@@ -19,6 +19,7 @@ analysis_methods = {
     "load_individual_data": True,
     "select_animals_by_condition": True,
     "analysis_by_stimulus_type": False,
+    "analyse_turning_behaviour": False,
     "camera_fps": 120,
     "trackball_radius_cm": 0.5,
     "monitor_fps": 60,

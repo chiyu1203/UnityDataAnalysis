@@ -25,6 +25,7 @@
  "load_individual_data": true,
  "select_animals_by_condition": true,
  "analysis_by_stimulus_type": false,
+ "analyse_turning_behaviour": false,
  "camera_fps": 120,
  "trackball_radius_cm": 0.5,
  "monitor_fps": 60,
