@@ -155,10 +155,10 @@ def read_simulated_data(this_file, analysis_methods):
             if (
                 i == 0
             ):  ## need to add this condition because I hardcode to make the first empty scene 240 sec
-                this_condition["duration"] = 240
+                meta_condition = (this_condition, 240)
             else:
-                this_condition["duration"] = tmp["sequences"][i]["duration"]
-            conditions.append(this_condition)
+                meta_condition = (this_condition, tmp["sequences"][i]["duration"])
+            conditions.append(meta_condition)
 
         if len(df) > 0:
             ts = []
@@ -187,8 +187,7 @@ def analyse_focal_animal(
     y_simulated_animal,
     conditions,
 ):
-    print("read locust data")
-    # track_ball_radius = analysis_methods.get("trackball_radius")
+    # track_ball_radius = analysis_methods.get("trackball_radius_cm")
     # monitor_fps = analysis_methods.get("monitor_fps")
     # camera_fps = analysis_methods.get("camera_fps")
     scene_name = analysis_methods.get("experiment_name")
@@ -210,12 +209,10 @@ def analyse_focal_animal(
     elif this_file.suffix == ".csv":
         with open(this_file, mode="r") as f:
             df = pd.read_csv(f)
-
+    # replace 0.0 with np.nan since there are probably generated when switching to the scene
     df["GameObjectPosX"].replace(0.0, np.nan, inplace=True)
     df["GameObjectPosZ"].replace(0.0, np.nan, inplace=True)
     df["GameObjectRotY"].replace(0.0, np.nan, inplace=True)
-
-    df["SensRotY"].replace(0.0, np.nan, inplace=True)
     df["Current Time"] = pd.to_datetime(
         df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
     )
@@ -251,10 +248,11 @@ def analyse_focal_animal(
         fchop = str(this_current_time.iloc[0]).split(".")[0]
         fchop = re.sub(r"\s+", "_", fchop)
         fchop = re.sub(r":", "", fchop)
-        heading_direction = df["GameObjectRotY"][this_range]
+        # heading_direction = df["GameObjectRotY"][this_range]
         x = df["GameObjectPosX"][this_range]
         y = df["GameObjectPosZ"][this_range]
         xy = np.vstack((x.to_numpy(), y.to_numpy()))
+        # since I introduced nan earlier for the switch scene, I need to fill them with some values otherwise, smoothing methods will fail
         xy = bfill(xy)
         ts = df["Current Time"][this_range]
         trial_no = df["CurrentTrial"][this_range]
@@ -263,9 +261,6 @@ def analyse_focal_animal(
         if time_series_analysis:
             print("work in progress")
             elapsed_time = (ts - ts.min()).dt.total_seconds()
-            df["elapsed_time"] = (
-                df["Current Time"] - df["Current Time"].min()
-            ).dt.total_seconds()
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(xy[0], 59, 3, axis=0)
                 Y = savgol_filter(xy[1], 59, 3, axis=0)
@@ -277,6 +272,7 @@ def analyse_focal_animal(
             )  ##need to discuss with Pavan whether it is fair to use Unity clock as elapsed time to calculate speed
             loss = np.nan
         else:
+            ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
             loss, X, Y = removeNoiseVR(xy[0], xy[1])
             loss = 1 - loss
             if len(X) == 0:
@@ -316,7 +312,9 @@ def analyse_focal_animal(
 
         std = np.sqrt(2 * (1 - meanVector))
         if time_series_analysis:
-            tdist = np.sum(travel_distance_fbf)
+            tdist = np.sum(
+                travel_distance_fbf
+            )  ##note this distance can be a lot larger than calculating with spatial discretisation
         else:
             tdist = len(dX) * BODY_LENGTH
 
@@ -328,19 +326,19 @@ def analyse_focal_animal(
             mu = [conditions[id]["Mu"]] * len(dX)
             spe = [conditions[id]["LocustSpeed"]] * len(dX)
         elif scene_name.lower() == "choice":
-            if conditions[id]["agent"] == "LeaderLocust":
+            if conditions[id][0]["agent"] == "LeaderLocust":
                 o = ["gn_locust"] * len(dX)
-            elif conditions[id]["agent"] == "":
+            elif conditions[id][0]["agent"] == "":
                 o = ["empty_trial"] * len(dX)
-            d = [conditions[id]["distance"]] * len(dX)
-            f_angle = [conditions[id]["heading_angle"]] * len(dX)
-            mu = [conditions[id]["walking_direction"]] * len(dX)
-            spe = [conditions[id]["simulated_speed"]] * len(dX)
+            d = [conditions[id][0]["distance"]] * len(dX)
+            du = [conditions[id][1]] * len(dX)
+            f_angle = [conditions[id][0]["heading_angle"]] * len(dX)
+            mu = [conditions[id][0]["walking_direction"]] * len(dX)
+            spe = [conditions[id][0]["simulated_speed"]] * len(dX)
 
         groups = [growth_condition] * len(dX)
         if time_series_analysis:
             print("since the length is different, I should also reorganise the timing")
-            f_angle = [f_angle[0]]
         else:
             df_curated = pd.DataFrame(
                 {
@@ -362,6 +360,7 @@ def analyse_focal_animal(
                 df_curated["initial_distance"] = d
                 df_curated["heading_angle"] = f_angle
                 f_angle = [f_angle[0]]
+                df_curated["duration"] = du
 
         f = [f[0]]
         loss = [loss[0]]
@@ -377,6 +376,7 @@ def analyse_focal_animal(
         tD = [tdist]
         sins = [sin]
         coss = [cos]
+        du = [du[0]]
 
         df_summary = pd.DataFrame(
             {
@@ -401,30 +401,7 @@ def analyse_focal_animal(
             df_summary["object_type"] = o
             df_summary["initial_distance"] = d
             df_summary["heading_angle"] = f_angle
-
-        with lock:
-            if time_series_analysis:
-                print(
-                    "if using time series analysis, there should be a better way to organise the data"
-                )
-            else:
-                store = pd.HDFStore(curated_file_path)
-                store.append(
-                    "name_of_frame",
-                    df_curated,
-                    format="t",
-                    data_columns=df_curated.columns,
-                )
-                store.close()
-            store = pd.HDFStore(summary_file_path)
-            store.append(
-                "name_of_frame",
-                df_summary,
-                format="t",
-                data_columns=df_summary.columns,
-            )
-            store.close()
-
+            df_summary["duration"] = du
         if analysis_methods.get("plotting_trajectory") == True:
             if scene_name.lower() == "swarm":
                 if df_summary["density"][0] > 0:
@@ -466,10 +443,38 @@ def analyse_focal_animal(
                         marker=".",
                     )
 
+        #######################Sections to save data
+        if analysis_methods.get("debug_mode") == False:
+            with lock:
+                if time_series_analysis:
+                    print(
+                        "if using time series analysis, there should be a better way to organise the data"
+                    )
+                else:
+                    store = pd.HDFStore(curated_file_path)
+                    store.append(
+                        "name_of_frame",
+                        df_curated,
+                        format="t",
+                        data_columns=df_curated.columns,
+                    )
+                    store.close()
+                store = pd.HDFStore(summary_file_path)
+                store.append(
+                    "name_of_frame",
+                    df_summary,
+                    format="t",
+                    data_columns=df_summary.columns,
+                )
+                store.close()
+
         heading_direction_across_trials.append(angles)
         x_across_trials.append(x)
         y_across_trials.append(y)
-        ts_across_trials.append(ts)
+        if time_series_analysis:
+            ts_across_trials.append(elapsed_time)
+        else:
+            ts_across_trials.append(ts)
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
     if analysis_methods.get("plotting_trajectory") == True:
         fig.savefig(trajectory_fig_path)
@@ -490,7 +495,7 @@ def preprocess_matrex_data(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     num_vr = 4
     for i in range(num_vr):
-        i = i + 1
+        # i = i + 1
         scene_name = analysis_methods.get("experiment_name")
         if scene_name.lower() == "swarm":
             vr_pattern = f"*SimulatedLocustsVR{i+1}*"
