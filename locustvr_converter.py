@@ -198,8 +198,8 @@ def analyse_focal_animal(
     analyze_one_session_only = True
     BODY_LENGTH = analysis_methods.get("body_length")
     growth_condition = analysis_methods.get("growth_condition")
-    generate_locust_vr_matrices = analysis_methods.get("generate_locust_vr_matrices")
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset")
+    time_series_analysis = analysis_methods.get("time_series_analysis")
     heading_direction_across_trials = []
     x_across_trials = []
     y_across_trials = []
@@ -228,39 +228,38 @@ def analyse_focal_animal(
     experiment_id = re.sub(r":", "", experiment_id)
     curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
-    if analysis_methods.get("analyse_turning_behaviour") == True:
-        trim_seconds = 1.0
-        df["elapsed_time"] = (
-            df["Current Time"] - df["Current Time"].min()
-        ).dt.total_seconds()
-        grouped = df.groupby(["CurrentTrial", "CurrentStep"])
-        tmp = grouped.apply(
-            lambda x: x[
-                (x["elapsed_time"] >= trim_seconds)
-                & (x["elapsed_time"] <= x["elapsed_time"].max() - trim_seconds)
-            ]
-        ).reset_index(drop=True)
-        tmp["dif_orientation"] = tmp["SensRotY"].diff()
-        tmp_grouped = tmp.groupby(["CurrentTrial", "CurrentStep"])
-        tmp["cumsum"] = tmp_grouped["dif_orientation"].transform(pd.Series.cumsum)
 
-        # df.groupby(["CurrentTrial", "CurrentStep"])["dif_orientation"].cumsum()
-        for name, entries in tmp_grouped:
-            plt.plot
-            # entries["dif_orientation"] = entries["SensRotY"].diff()
-            # print(entries["dif_orientation"].cumsum().head(10))
-            print(f'First 2 entries for the "{name}" category:')
-            print(30 * "-")
-            print(entries["cumsum"].head(5), "\n\n")
-            print(entries["SensRotY"].head(5), "\n\n")
-
-    if overwrite_curated_dataset == True and curated_file_path.is_file():
-        curated_file_path.unlink()
-        try:
-            summary_file_path.unlink()
-        except OSError as e:
-            # If it fails, inform the user.
-            print("Error: %s - %s." % (e.filename, e.strerror))
+    # trim_seconds = 1.0
+    # df["elapsed_time"] = (
+    #     df["Current Time"] - df["Current Time"].min()
+    # ).dt.total_seconds()
+    # grouped = df.groupby(["CurrentTrial", "CurrentStep"])
+    # tmp = grouped.apply(
+    #     lambda x: x[
+    #         (x["elapsed_time"] >= trim_seconds)
+    #         & (x["elapsed_time"] <= x["elapsed_time"].max() - trim_seconds)
+    #     ]
+    # ).reset_index(drop=True)
+    # tmp["dif_orientation"] = tmp["SensRotY"].diff()
+    # tmp_grouped = tmp.groupby(["CurrentTrial", "CurrentStep"])
+    # tmp["cumsum"] = tmp_grouped["dif_orientation"].transform(pd.Series.cumsum)
+    # for name, entries in tmp_grouped:
+    #     print(f'First 2 entries for the "{name}" category:')
+    #     print(30 * "-")
+    #     print(entries["cumsum"].head(5), "\n\n")
+    #     print(entries["SensRotY"].head(5), "\n\n")
+    if time_series_analysis:
+        print(
+            "will delete here later as both analysis needs to deal with overwriting curated dataset"
+        )
+    else:
+        if overwrite_curated_dataset == True and curated_file_path.is_file():
+            curated_file_path.unlink()
+            try:
+                summary_file_path.unlink()
+            except OSError as e:
+                # If it fails, inform the user.
+                print("Error: %s - %s." % (e.filename, e.strerror))
     if analysis_methods.get("plotting_trajectory") == True:
         fig, (ax1, ax2) = plt.subplots(
             nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
@@ -284,86 +283,114 @@ def analyse_focal_animal(
         trial_no = df["CurrentTrial"][this_range]
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
-        if generate_locust_vr_matrices:
             ## Needs to tune this part later to make this work. And then we probably dont need bfill nan anymore. probably
 
-            fig, (ax1, ax2) = plt.subplots(
-                nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
-            )
-            ax1.set_title("raw trace")
-            ax2.set_title("spacial discritisation")
-            ax1.plot(xy[0], xy[1])
-            trajectory_fig_path = (
-                this_file.parent / f"{experiment_id}_trajectory_{id}.png"
-            )
+            # trajectory_fig_path = (
+            #     this_file.parent / f"{experiment_id}_trajectory_{id}.png"
+            # )
             # fig.savefig(trajectory_fig_path)
-
-            if id == 3:
-                print("ready to fight")
+        if time_series_analysis:
+            print("work in progress")
+            elapsed_time = (ts - ts.min()).dt.total_seconds()
+            df["elapsed_time"] = (
+                df["Current Time"] - df["Current Time"].min()
+            ).dt.total_seconds()
+            if analysis_methods.get("filtering_method") == "sg_filter":
+                X = savgol_filter(xy[0], 59, 3, axis=0)
+                Y = savgol_filter(xy[1], 59, 3, axis=0)
+            else:
+                X = xy[0]
+                Y = xy[1]
+            travel_distance_fbf = np.sqrt(
+                np.add(np.square(np.diff(X)), np.square(np.diff(Y)))
+            )
+            loss = np.nan
+        else:
             loss, X, Y = removeNoiseVR(xy[0], xy[1])
             loss = 1 - loss
             if len(X) == 0:
                 print("all is noise")
                 continue
-            rX, rY = rotate_vector(X, Y, -90 * np.pi / 180)
+
+        rX, rY = rotate_vector(X, Y, -90 * np.pi / 180)
+        if time_series_analysis:
+            (dX, dY) = (np.array(rX), np.array(rY))
+        else:
             newindex = diskretize(rX, rY, BODY_LENGTH)
             dX = np.array([rX[i] for i in newindex]).T
             dY = np.array([rY[i] for i in newindex]).T
-            ax2.plot(dX, dY)
-            trajectory_fig_path = (
-                this_file.parent / f"{experiment_id}_trajectory_{id}.png"
+
+            # fig, (ax1, ax2) = plt.subplots(
+            #     nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
+            # )
+            # ax1.set_title("raw trace")
+            # ax2.set_title("spacial discritisation")
+            # ax1.plot(xy[0], xy[1])
+            # ax2.plot(dX, dY)
+            # trajectory_fig_path = (
+            #     this_file.parent / f"{experiment_id}_trajectory_{id}.png"
+            # )
+            # fig.savefig(trajectory_fig_path)
+        # fig, (ax1, ax2) = plt.subplots(
+        #     nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
+        # )
+        angles = np.array(ListAngles(dX, dY))
+        # needs flip along x axis when converting ["GameObjectRotY"] to match the one calculated from rotated X,Y
+        # This means the 360-["GameObjectRotY"]* np.pi / 180. However, because this is raw data without any smoothing. It is noisy.
+        # angle1 = (360 - heading_direction.values) * np.pi / 180
+        # test = heading_direction.to_numpy()
+        # angle1 = np.array([(360-test[i]) * np.pi / 180 for i in newindex]).T
+        # ax1.scatter(np.arange(angles.shape[0]), angles, c="r")
+        c = np.cos(angles)
+        s = np.sin(angles)
+        if len(angles) == 0:
+            (xm, ym, meanAngle, meanVector, sin, cos) = (
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
             )
-            fig.savefig(trajectory_fig_path)
-            angles = np.array(ListAngles(dX, dY))
-            # angles = heading_direction[newindex].to_numpy() * np.pi / 180
-            # test = heading_direction.to_numpy()
-            # angle1 = np.array([(test[i]) * np.pi / 180 for i in newindex]).T
-            # plt.scatter(np.arange(angle1.shape[0]), angle1, c="b")
-            # plt.scatter(np.arange(angles.shape[0]), angles, c="r")
-            c = np.cos(angles)
-            s = np.sin(angles)
-            if len(angles) == 0:
-                (xm, ym, meanAngle, meanVector, sin, cos) = (
-                    np.nan,
-                    np.nan,
-                    np.nan,
-                    np.nan,
-                    np.nan,
-                    np.nan,
-                )
-            else:
-                xm = np.sum(c) / len(angles)
-                ym = np.sum(s) / len(angles)
+        else:
+            xm = np.sum(c) / len(angles)
+            ym = np.sum(s) / len(angles)
 
-                meanAngle = atan2(ym, xm)
-                meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
-                    angles
-                )
-                sin = meanVector * np.sin(meanAngle)
-                cos = meanVector * np.cos(meanAngle)
+            meanAngle = atan2(ym, xm)
+            meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
+                angles
+            )
+            sin = meanVector * np.sin(meanAngle)
+            cos = meanVector * np.cos(meanAngle)
 
-            std = np.sqrt(2 * (1 - meanVector))
+        std = np.sqrt(2 * (1 - meanVector))
+        if time_series_analysis:
+            tdist = np.sum(travel_distance_fbf)
+        else:
             tdist = len(dX) * BODY_LENGTH
 
-            f = [fchop] * len(dX)
-            loss = [loss] * len(dX)
-            if scene_name.lower() == "swarm":
-                o = [conditions[id]["Kappa"]] * len(dX)
-                d = [conditions[id]["Density"]] * len(dX)
-                mu = [conditions[id]["Mu"]] * len(dX)
-                spe = [conditions[id]["LocustSpeed"]] * len(dX)
-            elif scene_name.lower() == "choice":
-                if conditions[id]["agent"] == "LeaderLocust":
-                    o = ["gn_locust"] * len(dX)
-                elif conditions[id]["agent"] == "":
-                    o = ["empty_trial"] * len(dX)
-                d = [conditions[id]["distance"]] * len(dX)
-                f_angle = [conditions[id]["heading_angle"]] * len(dX)
-                mu = [conditions[id]["walking_direction"]] * len(dX)
-                spe = [conditions[id]["simulated_speed"]] * len(dX)
+        f = [fchop] * len(dX)
+        loss = [loss] * len(dX)
+        if scene_name.lower() == "swarm":
+            o = [conditions[id]["Kappa"]] * len(dX)
+            d = [conditions[id]["Density"]] * len(dX)
+            mu = [conditions[id]["Mu"]] * len(dX)
+            spe = [conditions[id]["LocustSpeed"]] * len(dX)
+        elif scene_name.lower() == "choice":
+            if conditions[id]["agent"] == "LeaderLocust":
+                o = ["gn_locust"] * len(dX)
+            elif conditions[id]["agent"] == "":
+                o = ["empty_trial"] * len(dX)
+            d = [conditions[id]["distance"]] * len(dX)
+            f_angle = [conditions[id]["heading_angle"]] * len(dX)
+            mu = [conditions[id]["walking_direction"]] * len(dX)
+            spe = [conditions[id]["simulated_speed"]] * len(dX)
 
-            groups = [growth_condition] * len(dX)
-
+        groups = [growth_condition] * len(dX)
+        if time_series_analysis:
+            print("since the length is different, I should also reorganise the timing")
+            f_angle = [f_angle[0]]
+        else:
             df_curated = pd.DataFrame(
                 {
                     "X": dX,
@@ -385,46 +412,51 @@ def analyse_focal_animal(
                 df_curated["heading_angle"] = f_angle
                 f_angle = [f_angle[0]]
 
-            f = [f[0]]
-            loss = [loss[0]]
-            o = [o[0]]
-            d = [d[0]]
-            mu = [mu[0]]
-            spe = [spe[0]]
-            groups = [groups[0]]
-            V = [meanVector]
-            MA = [meanAngle]
-            ST = [std]
-            lX = [dX[-1]]
-            tD = [tdist]
-            sins = [sin]
-            coss = [cos]
+        f = [f[0]]
+        loss = [loss[0]]
+        o = [o[0]]
+        d = [d[0]]
+        mu = [mu[0]]
+        spe = [spe[0]]
+        groups = [groups[0]]
+        V = [meanVector]
+        MA = [meanAngle]
+        ST = [std]
+        lX = [dX[-1]]
+        tD = [tdist]
+        sins = [sin]
+        coss = [cos]
 
-            df_summary = pd.DataFrame(
-                {
-                    "fname": f,
-                    "loss": loss,
-                    "mu": mu,
-                    "agent_speed": spe,
-                    "groups": groups,
-                    "mean_angle": MA,
-                    "vector": V,
-                    "variance": ST,
-                    "distX": lX,
-                    "distTotal": tD,
-                    "sin": sins,
-                    "cos": coss,
-                }
-            )
-            if scene_name.lower() == "swarm":
-                df_summary["density"] = d
-                df_summary["order"] = o
-            elif scene_name.lower() == "choice":
-                df_summary["object_type"] = o
-                df_summary["initial_distance"] = d
-                df_summary["heading_angle"] = f_angle
+        df_summary = pd.DataFrame(
+            {
+                "fname": f,
+                "loss": loss,
+                "mu": mu,
+                "agent_speed": spe,
+                "groups": groups,
+                "mean_angle": MA,
+                "vector": V,
+                "variance": ST,
+                "distX": lX,
+                "distTotal": tD,
+                "sin": sins,
+                "cos": coss,
+            }
+        )
+        if scene_name.lower() == "swarm":
+            df_summary["density"] = d
+            df_summary["order"] = o
+        elif scene_name.lower() == "choice":
+            df_summary["object_type"] = o
+            df_summary["initial_distance"] = d
+            df_summary["heading_angle"] = f_angle
 
-            with lock:
+        with lock:
+            if time_series_analysis:
+                print(
+                    "if using time series analysis, there should be a better way to organise the data"
+                )
+            else:
                 store = pd.HDFStore(curated_file_path)
                 store.append(
                     "name_of_frame",
@@ -433,30 +465,14 @@ def analyse_focal_animal(
                     data_columns=df_curated.columns,
                 )
                 store.close()
-                store = pd.HDFStore(summary_file_path)
-                store.append(
-                    "name_of_frame",
-                    df_summary,
-                    format="t",
-                    data_columns=df_summary.columns,
-                )
-                store.close()
-        if analysis_methods.get("analyse_turning_behaviour") == True:
-            print("analyse turning behaviour based on jaw vector")
-            # xy = bfill(xy)
-            # ts = df["Current Time"][this_range]
-            # trial_no = df["CurrentTrial"][this_range]
-            # heading_direction = df["GameObjectRotY"][this_range]
-        if analysis_methods.get("filtering_method") == "sg_filter":
-            x_all = savgol_filter(xy[0], 71, 3, axis=0)
-            y_all = savgol_filter(xy[1], 71, 3, axis=0)
-        else:
-            x_all = xy[0]
-            y_all = xy[1]
-        elapsed_time = (ts - ts.min()).dt.total_seconds()
-        df["elapsed_time"] = (
-            df["Current Time"] - df["Current Time"].min()
-        ).dt.total_seconds()
+            store = pd.HDFStore(summary_file_path)
+            store.append(
+                "name_of_frame",
+                df_summary,
+                format="t",
+                data_columns=df_summary.columns,
+            )
+            store.close()
 
         if analysis_methods.get("plotting_trajectory") == True:
             if scene_name.lower() == "swarm":
@@ -499,7 +515,7 @@ def analyse_focal_animal(
                         marker=".",
                     )
 
-        heading_direction_across_trials.append(heading_direction)
+        heading_direction_across_trials.append(angles)
         x_across_trials.append(x)
         y_across_trials.append(y)
         ts_across_trials.append(ts)
@@ -604,6 +620,7 @@ def preprocess_matrex_data(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     num_vr = 4
     for i in range(num_vr):
+        i = i + 1
         scene_name = analysis_methods.get("experiment_name")
         if scene_name.lower() == "swarm":
             vr_pattern = f"*SimulatedLocustsVR{i+1}*"
@@ -612,7 +629,8 @@ def preprocess_matrex_data(thisDir, json_file):
         found_result = find_file(thisDir, vr_pattern)
         if found_result is None:
             return print(f"file with {vr_pattern} not found")
-        elif scene_name.lower() == "choice" and i > 0:
+        # elif scene_name.lower() == "choice" and i > 0:
+        elif scene_name.lower() == "choice" and "ts_simulated_animal" in locals():
             print(
                 "Information about simulated locusts are shared across rigs in the choice scene, so start analysing focal animals"
             )
