@@ -322,20 +322,28 @@ def analyse_focal_animal(
             # plt.scatter(np.arange(angles.shape[0]), angles, c="r")
             c = np.cos(angles)
             s = np.sin(angles)
-            xm = np.sum(c) / len(angles)
-            ym = np.sum(s) / len(angles)
+            if len(angles) == 0:
+                (xm, ym, meanAngle, meanVector, sin, cos) = (
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                )
+            else:
+                xm = np.sum(c) / len(angles)
+                ym = np.sum(s) / len(angles)
 
-            meanAngle = atan2(ym, xm)
-            meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
-                angles
-            )
+                meanAngle = atan2(ym, xm)
+                meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
+                    angles
+                )
+                sin = meanVector * np.sin(meanAngle)
+                cos = meanVector * np.cos(meanAngle)
 
             std = np.sqrt(2 * (1 - meanVector))
-
             tdist = len(dX) * BODY_LENGTH
-
-            sin = meanVector * np.sin(meanAngle)
-            cos = meanVector * np.cos(meanAngle)
 
             f = [fchop] * len(dX)
             loss = [loss] * len(dX)
@@ -345,13 +353,16 @@ def analyse_focal_animal(
                 mu = [conditions[id]["Mu"]] * len(dX)
                 spe = [conditions[id]["LocustSpeed"]] * len(dX)
             elif scene_name.lower() == "choice":
-                o = [conditions[id]["agent"]] * len(dX)
+                if conditions[id]["agent"] == "LeaderLocust":
+                    o = ["gn_locust"] * len(dX)
+                elif conditions[id]["agent"] == "":
+                    o = ["empty_trial"] * len(dX)
                 d = [conditions[id]["distance"]] * len(dX)
                 f_angle = [conditions[id]["heading_angle"]] * len(dX)
                 mu = [conditions[id]["walking_direction"]] * len(dX)
                 spe = [conditions[id]["simulated_speed"]] * len(dX)
 
-            growth_condition = [growth_condition] * len(dX)
+            groups = [growth_condition] * len(dX)
 
             df_curated = pd.DataFrame(
                 {
@@ -362,7 +373,7 @@ def analyse_focal_animal(
                     "density": d,
                     "mu": mu,
                     "agent_speed": spe,
-                    "groups": growth_condition,
+                    "groups": groups,
                 }
             )
             if scene_name.lower() == "swarm":
@@ -380,7 +391,7 @@ def analyse_focal_animal(
             d = [d[0]]
             mu = [mu[0]]
             spe = [spe[0]]
-            growth_condition = [growth_condition[0]]
+            groups = [groups[0]]
             V = [meanVector]
             MA = [meanAngle]
             ST = [std]
@@ -395,7 +406,7 @@ def analyse_focal_animal(
                     "loss": loss,
                     "mu": mu,
                     "agent_speed": spe,
-                    "groups": growth_condition,
+                    "groups": groups,
                     "mean_angle": MA,
                     "vector": V,
                     "variance": ST,
@@ -473,7 +484,7 @@ def analyse_focal_animal(
                         alpha=df_summary["order"].map(alpha_dictionary)[0],
                     )
             elif scene_name.lower() == "choice":
-                if df_summary["object_type"][0] == "":
+                if df_summary["object_type"][0] == "empty_trial":
                     ax1.scatter(
                         dX,
                         dY,
