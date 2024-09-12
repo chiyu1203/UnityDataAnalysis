@@ -2,7 +2,7 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
-    "experiment_name": "swarm",
+    "experiment_name": "choice",
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],
     "debug_mode": False,
@@ -20,7 +20,7 @@ analysis_methods = {
     "select_animals_by_condition": True,
     "analysis_by_stimulus_type": False,
     "analyse_turning_behaviour": False,
-    "camera_fps": 120,
+    "camera_fps": 100,
     "trackball_radius_cm": 0.5,
     "monitor_fps": 60,
     "body_length": 12,

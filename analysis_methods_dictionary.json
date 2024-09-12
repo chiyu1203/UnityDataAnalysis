@@ -1,5 +1,5 @@
 {
- "experiment_name": "swarm",
+ "experiment_name": "choice",
  "overwrite_curated_dataset": true,
  "graph_colour_code": [
   "r",
@@ -26,7 +26,7 @@
  "select_animals_by_condition": true,
  "analysis_by_stimulus_type": false,
  "analyse_turning_behaviour": false,
- "camera_fps": 120,
+ "camera_fps": 100,
  "trackball_radius_cm": 0.5,
  "monitor_fps": 60,
  "body_length": 12,
