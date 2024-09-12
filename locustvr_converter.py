@@ -137,8 +137,6 @@ def read_simulated_data(this_file, analysis_methods):
                         "simulated_speed": tmp["objects"][0]["speed"],
                     }
                     condition_dict[condition_id] = condition
-                    # conditions.setdefault(1, {})[4] = 7
-                # conditions.append(condition)
 
         json_pattern = "*sequenceConfig.json"
         found_result = find_file(thisDir, json_pattern)
@@ -212,13 +210,11 @@ def analyse_focal_animal(
     elif this_file.suffix == ".csv":
         with open(this_file, mode="r") as f:
             df = pd.read_csv(f)
-    # print(df.columns)
+
     df["GameObjectPosX"].replace(0.0, np.nan, inplace=True)
     df["GameObjectPosZ"].replace(0.0, np.nan, inplace=True)
     df["GameObjectRotY"].replace(0.0, np.nan, inplace=True)
-    # sens pos is the data from fictrac
-    # df["SensPosX"].replace(0.0, np.nan, inplace=True)
-    # df["SensPosY"].replace(0.0, np.nan, inplace=True)
+
     df["SensRotY"].replace(0.0, np.nan, inplace=True)
     df["Current Time"] = pd.to_datetime(
         df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
@@ -229,25 +225,6 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
 
-    # trim_seconds = 1.0
-    # df["elapsed_time"] = (
-    #     df["Current Time"] - df["Current Time"].min()
-    # ).dt.total_seconds()
-    # grouped = df.groupby(["CurrentTrial", "CurrentStep"])
-    # tmp = grouped.apply(
-    #     lambda x: x[
-    #         (x["elapsed_time"] >= trim_seconds)
-    #         & (x["elapsed_time"] <= x["elapsed_time"].max() - trim_seconds)
-    #     ]
-    # ).reset_index(drop=True)
-    # tmp["dif_orientation"] = tmp["SensRotY"].diff()
-    # tmp_grouped = tmp.groupby(["CurrentTrial", "CurrentStep"])
-    # tmp["cumsum"] = tmp_grouped["dif_orientation"].transform(pd.Series.cumsum)
-    # for name, entries in tmp_grouped:
-    #     print(f'First 2 entries for the "{name}" category:')
-    #     print(30 * "-")
-    #     print(entries["cumsum"].head(5), "\n\n")
-    #     print(entries["SensRotY"].head(5), "\n\n")
     if time_series_analysis:
         print(
             "will delete here later as both analysis needs to deal with overwriting curated dataset"
@@ -283,12 +260,6 @@ def analyse_focal_animal(
         trial_no = df["CurrentTrial"][this_range]
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
-            ## Needs to tune this part later to make this work. And then we probably dont need bfill nan anymore. probably
-
-            # trajectory_fig_path = (
-            #     this_file.parent / f"{experiment_id}_trajectory_{id}.png"
-            # )
-            # fig.savefig(trajectory_fig_path)
         if time_series_analysis:
             print("work in progress")
             elapsed_time = (ts - ts.min()).dt.total_seconds()
@@ -303,7 +274,7 @@ def analyse_focal_animal(
                 Y = xy[1]
             travel_distance_fbf = np.sqrt(
                 np.add(np.square(np.diff(X)), np.square(np.diff(Y)))
-            )
+            )  ##need to discuss with Pavan whether it is fair to use Unity clock as elapsed time to calculate speed
             loss = np.nan
         else:
             loss, X, Y = removeNoiseVR(xy[0], xy[1])
@@ -319,28 +290,8 @@ def analyse_focal_animal(
             newindex = diskretize(rX, rY, BODY_LENGTH)
             dX = np.array([rX[i] for i in newindex]).T
             dY = np.array([rY[i] for i in newindex]).T
-
-            # fig, (ax1, ax2) = plt.subplots(
-            #     nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
-            # )
-            # ax1.set_title("raw trace")
-            # ax2.set_title("spacial discritisation")
-            # ax1.plot(xy[0], xy[1])
-            # ax2.plot(dX, dY)
-            # trajectory_fig_path = (
-            #     this_file.parent / f"{experiment_id}_trajectory_{id}.png"
-            # )
-            # fig.savefig(trajectory_fig_path)
-        # fig, (ax1, ax2) = plt.subplots(
-        #     nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
-        # )
         angles = np.array(ListAngles(dX, dY))
-        # needs flip along x axis when converting ["GameObjectRotY"] to match the one calculated from rotated X,Y
-        # This means the 360-["GameObjectRotY"]* np.pi / 180. However, because this is raw data without any smoothing. It is noisy.
-        # angle1 = (360 - heading_direction.values) * np.pi / 180
-        # test = heading_direction.to_numpy()
-        # angle1 = np.array([(360-test[i]) * np.pi / 180 for i in newindex]).T
-        # ax1.scatter(np.arange(angles.shape[0]), angles, c="r")
+
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
@@ -528,87 +479,6 @@ def analyse_focal_animal(
         y_across_trials,
         ts_across_trials,
     )
-
-
-"""
-used to align dataset
-    df.set_index(df["Current Time"], inplace=True)
-    for id in range(len(ts_simulated_animal)):
-        this_ts = ts_simulated_animal[id]
-        try:
-            df[df.index == this_ts]
-            if (id + 1) < len(ts_simulated_animal):
-                next_ts = ts_simulated_animal[id + 1]
-                try:
-                    print(next_ts[0])
-                    this_range = (df.index > this_ts) & (df.index < next_ts[0])
-                except:
-                    this_range = (df.index > this_ts) & (df.index < next_ts)
-            else:
-                print(df.iloc[len(df) - 1, :])
-                this_range = (df.index > this_ts) & (df.index < df.index[len(df) - 1])
-            fchop = str(this_ts)
-        except:
-            this_range = (df.index > this_ts[0]) & (
-                df.index < this_ts[len(this_ts) - 1]
-            )
-            fchop = str(this_ts[0]).split(".")[0]
-"""
-
-
-"""
-might be useful in the future
-    # ts = pd.to_datetime(df["Current Time"], format="%Y-%m-%d %H_%M_%S")
-    # df["step_distance"] = np.sqrt(
-    #     (df["SensPosX"].diff()) ** 2 + (df["SensPosY"].diff()) ** 2
-    # )
-    # heading_direction = df["SensRotY"]
-    # df["step_distance_mm"] = df["step_distance"] * track_ball_radius
-    # # calculate time between each step with Current Time: Timestamp('2024-05-16 14:16:35.300000')
-    # df["time_diff"] = df["Current Time"].diff()
-    # df["time_diff_ms"] = df["time_diff"].dt.total_seconds() * 1000
-    # # calculate speed of each step
-    # df["speed_mm_s"] = df["step_distance_mm"] / df["time_diff_ms"] * 1000
-
-
-    
-    if dir_list[0]==dir_list[1]:
-        for this_dir in dir_list[::num_vr]:
-            h5_dirs=find_file(this_dir,h5_pattern)
-            fig = plt.figure(figsize=(18, 5),tight_layout=True)
-            ax1 = plt.subplot2grid((1, 18), (0, 0),colspan=8)
-            ax2 = plt.subplot2grid((1, 18), (0, 8))
-            ax3 = plt.subplot2grid((1, 18), (0, 9),colspan=8)
-            ax4 = plt.subplot2grid((1, 18), (0, 17))
-            for idx,this_file in enumerate(h5_dirs):
-                this_color=colour_code[idx]
-                if this_file.stem in ['VR4_Swarm_2024-08-16_131719_score','VR4_Swarm_2024-08-16_145857_score']:
-                    continue
-                df = pd.read_hdf(this_file)
-                df_stim = df.loc[(df['loss'] < 0.05) & (df['distTotal'] >= 12)&(df ['density'] > 0)] 
-                df_stim = df_stim.reset_index(drop=True)
-                ax1.set_xscale('log')
-                ax1.set_ylim([-4,4])        
-                ax3.set_xscale('log')
-                ax3.set_ylim([1,2000])
-                ax1.scatter(df_stim['order'], df_stim['mean_angle'],c=this_color)
-                ax3.scatter(df_stim['order'], df_stim['distTotal'],c=this_color)
-                ax2.set_ylim([-4,4])
-                ax2.set_yticks([])
-                ax2.set_xticks([])
-                ax4.set_ylim([1,1000])
-                ax4.set_yticks([])
-                ax4.set_xticks([])
-                df_isi = df.loc[(df['loss'] < 0.05) & (df['distTotal'] >= 12)&(df ['density'] == 0)]
-                df_isi = df_isi.reset_index(drop=True)
-                if len(df_isi)>0:
-                    ax2.scatter(df_isi.iloc[0]['order']/2, df_isi.iloc[0]['mean_angle'],c=this_color)
-                    #ax2.scatter(df.iloc[-1]['order'], df.iloc[-1]['mean_angle'],c=this_color,alpha=0.2)
-                    ax4.scatter(df_isi.iloc[0]['order']/2, df_isi.iloc[0]['distTotal'],c=this_color)
-                    #ax4.scatter(df.iloc[-1]['order'], df.iloc[-1]['distTotal'],c=this_color,alpha=0.2)    
-
-
-"""
 
 
 def preprocess_matrex_data(thisDir, json_file):
