@@ -18,7 +18,7 @@ analysis_methods = {
     "load_individual_data": True,
     "select_animals_by_condition": True,
     "analysis_by_stimulus_type": False,
-    "time_series_analysis": True,
+    "time_series_analysis": False,
     "camera_fps": 100,
     "trackball_radius_cm": 0.5,
     "monitor_fps": 60,

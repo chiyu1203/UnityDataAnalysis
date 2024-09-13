@@ -24,7 +24,7 @@
  "load_individual_data": true,
  "select_animals_by_condition": true,
  "analysis_by_stimulus_type": false,
- "time_series_analysis": true,
+ "time_series_analysis": false,
  "camera_fps": 100,
  "trackball_radius_cm": 0.5,
  "monitor_fps": 60,
