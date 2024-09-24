@@ -346,7 +346,6 @@ def analyse_focal_animal(
                     "Y": dY,
                     "fname": f,
                     "loss": loss,
-                    "density": d,
                     "mu": mu,
                     "agent_speed": spe,
                     "groups": groups,
@@ -586,8 +585,8 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
-    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
-    thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
+    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
+    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     json_file = r"C:\Users\neuroPC\Documents\GitHub\UnityDataAnalysis\analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
