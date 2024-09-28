@@ -221,16 +221,18 @@ def analyse_focal_animal(
     experiment_id = re.sub(r":", "", experiment_id)
     curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
+    agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
 
     if time_series_analysis:
         print(
             "will delete here later as both analysis needs to deal with overwriting curated dataset"
         )
     else:
-        if overwrite_curated_dataset == True and curated_file_path.is_file():
-            curated_file_path.unlink()
+        if overwrite_curated_dataset == True and summary_file_path.is_file():
+            summary_file_path.unlink()
             try:
-                summary_file_path.unlink()
+                curated_file_path.unlink()
+                agent_file_path.unlink()
             except OSError as e:
                 # If it fails, inform the user.
                 print("Error: %s - %s." % (e.filename, e.strerror))
@@ -256,6 +258,7 @@ def analyse_focal_animal(
         xy = bfill(xy)
         ts = df["Current Time"][this_range]
         trial_no = df["CurrentTrial"][this_range]
+
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
         if time_series_analysis:
@@ -279,7 +282,9 @@ def analyse_focal_animal(
                 print("all is noise")
                 continue
 
-        rX, rY = rotate_vector(X, Y, -90 * np.pi / 180)
+        rX, rY = rotate_vector(
+            X, Y, -90 * np.pi / 180
+        )  # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
         if time_series_analysis:
             (dX, dY) = (np.array(rX), np.array(rY))
         else:
@@ -360,6 +365,56 @@ def analyse_focal_animal(
                 df_curated["heading_angle"] = f_angle
                 f_angle = [f_angle[0]]
                 df_curated["duration"] = du
+                ##load information about simulated locusts
+                if scene_name.lower() == "choice":
+                    if (
+                        id % 2 == 0
+                    ):  # stimulus trial is always the odd trial under choice scene
+                        pass
+                        # print("no information about ISI stored in choice assay")
+                    else:
+                        agent_xy = np.vstack(
+                            (
+                                x_simulated_animal[id // 2].to_numpy(),
+                                y_simulated_animal[id // 2].to_numpy(),
+                            )
+                        )
+                        # agent_ts = ts_simulated_animal[id // 2].to_numpy() TS information should be sorted out before making curated data
+                        agent_rX, agent_rY = rotate_vector(
+                            agent_xy[0], agent_xy[1], -90 * np.pi / 180
+                        )
+                        if time_series_analysis:
+                            (agent_dX, agent_dY) = (
+                                np.array(agent_rX),
+                                np.array(agent_rY),
+                            )
+                        else:
+                            agent_dX = np.array([agent_rX[i] for i in newindex]).T
+                            agent_dY = np.array([agent_rY[i] for i in newindex]).T
+                            # agent_TS = np.array([agent_ts[i] for i in newindex]).T TS information should be sorted out before making curated data
+
+                elif scene_name.lower() == "swarm":
+                    print("work in progress")
+                if "agent_dX" in locals():
+                    df_agent = pd.DataFrame(
+                        {
+                            "X": agent_dX,
+                            "Y": agent_dY,
+                            "fname": [fchop] * len(agent_dX),
+                            "mu": mu,
+                            "agent_speed": spe,
+                            # "ts": agent_TS,TS information should be sorted out before making curated data
+                        }
+                    )
+                    if scene_name.lower() == "swarm":
+                        print(
+                            "there is a unsovled bug about how to name the number of agent"
+                        )
+                        df_agent["agent_no"] = d
+                    elif scene_name.lower() == "choice":
+                        df_agent["agent_no"] = [0] * len(
+                            agent_dX
+                        )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
 
         f = [f[0]]
         loss = [loss[0]]
@@ -401,6 +456,7 @@ def analyse_focal_animal(
             df_summary["initial_distance"] = d
             df_summary["heading_angle"] = f_angle
             df_summary["duration"] = du
+
         if analysis_methods.get("plotting_trajectory") == True:
             if scene_name.lower() == "swarm":
                 if df_summary["density"][0] > 0:
@@ -441,6 +497,13 @@ def analyse_focal_animal(
                         c=np.arange(len(dY)),
                         marker=".",
                     )
+                    if "agent_dX" in locals():
+                        ax2.plot(
+                            agent_dX,
+                            agent_dY,
+                            c="k",
+                            linewidth=1,
+                        )
 
         #######################Sections to save data
         if analysis_methods.get("debug_mode") == False:
@@ -458,6 +521,16 @@ def analyse_focal_animal(
                         data_columns=df_curated.columns,
                     )
                     store.close()
+                    if "df_agent" in locals():
+                        store = pd.HDFStore(agent_file_path)
+                        store.append(
+                            "position_information",
+                            df_agent,
+                            format="t",
+                            data_columns=df_agent.columns,
+                        )
+                        store.close()
+
                 store = pd.HDFStore(summary_file_path)
                 store.append(
                     "name_of_frame",
@@ -474,6 +547,8 @@ def analyse_focal_animal(
             ts_across_trials.append(elapsed_time)
         else:
             ts_across_trials.append(ts)
+        if "agent_dX" in locals():
+            del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
     if analysis_methods.get("plotting_trajectory") == True:
         fig.savefig(trajectory_fig_path)
@@ -494,7 +569,6 @@ def preprocess_matrex_data(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     num_vr = 4
     for i in range(num_vr):
-        # i = i + 1
         scene_name = analysis_methods.get("experiment_name")
         if scene_name.lower() == "swarm":
             vr_pattern = f"*SimulatedLocustsVR{i+1}*"
@@ -585,8 +659,8 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
-    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
-    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
+    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
+    thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     json_file = r"C:\Users\neuroPC\Documents\GitHub\UnityDataAnalysis\analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
