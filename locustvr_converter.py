@@ -16,6 +16,7 @@ current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file, find_nearest
+from data_cleaning import load_temperature_data
 from funcs import *
 
 lock = Lock()
@@ -186,10 +187,11 @@ def analyse_focal_animal(
     x_simulated_animal,
     y_simulated_animal,
     conditions,
+    tem_df=None,
 ):
     # track_ball_radius = analysis_methods.get("trackball_radius_cm")
     # monitor_fps = analysis_methods.get("monitor_fps")
-    # camera_fps = analysis_methods.get("camera_fps")
+    camera_fps = analysis_methods.get("camera_fps")
     scene_name = analysis_methods.get("experiment_name")
     alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
     analyze_one_session_only = True
@@ -222,20 +224,24 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
     agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
+    full_file_path = this_file.parent / f"{experiment_id}_XYfull.h5"
+    if tem_df is not None:
+        frequency_milisecond = int(1000 / camera_fps)
+        tem_df = tem_df.resample(f"{frequency_milisecond}L").interpolate()
+        df.set_index("Current Time", drop=False, inplace=True)
+        aligned_THP = tem_df.reindex(df.index, method="nearest")
+        df = df.join(aligned_THP)
+        del tem_df
 
-    if time_series_analysis:
-        print(
-            "will delete here later as both analysis needs to deal with overwriting curated dataset"
-        )
-    else:
-        if overwrite_curated_dataset == True and summary_file_path.is_file():
-            summary_file_path.unlink()
-            try:
-                curated_file_path.unlink()
-                agent_file_path.unlink()
-            except OSError as e:
-                # If it fails, inform the user.
-                print("Error: %s - %s." % (e.filename, e.strerror))
+    if overwrite_curated_dataset == True and summary_file_path.is_file():
+        summary_file_path.unlink()
+        try:
+            curated_file_path.unlink()
+            agent_file_path.unlink()
+            full_file_path.unlink()
+        except OSError as e:
+            # If it fails, inform the user.
+            print("Error: %s - %s." % (e.filename, e.strerror))
     if analysis_methods.get("plotting_trajectory") == True:
         fig, (ax1, ax2) = plt.subplots(
             nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
@@ -258,6 +264,17 @@ def analyse_focal_animal(
         xy = bfill(xy)
         ts = df["Current Time"][this_range]
         trial_no = df["CurrentTrial"][this_range]
+        if id % 2 > 0:
+            df_simulated = pd.concat(
+                [
+                    ts_simulated_animal[id // 2],
+                    x_simulated_animal[id // 2],
+                    y_simulated_animal[id // 2],
+                ],
+                axis=1,
+            )
+            df_simulated.set_index("Current Time", inplace=True)
+            df_simulated = df_simulated.reindex(ts.index, method="nearest")
 
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
@@ -287,10 +304,18 @@ def analyse_focal_animal(
         )  # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
         if time_series_analysis:
             (dX, dY) = (np.array(rX), np.array(rY))
+            temperature = df["Temperature ˚C (ºC)"][this_range].values
+            humidity = df["Relative Humidity (%)"][this_range].values
+
         else:
             newindex = diskretize(rX, rY, BODY_LENGTH)
-            dX = np.array([rX[i] for i in newindex]).T
-            dY = np.array([rY[i] for i in newindex]).T
+            dX = np.array(rX)[newindex]
+            dY = np.array(rY)[newindex]
+            # dX = np.array([rX[i] for i in newindex]).T
+            # dY = np.array([rY[i] for i in newindex]).T
+            temperature = df.iloc[newindex]["Temperature ˚C (ºC)"]
+            humidity = df.iloc[newindex]["Relative Humidity (%)"]
+
         angles = np.array(ListAngles(dX, dY))
 
         c = np.cos(angles)
@@ -342,79 +367,79 @@ def analyse_focal_animal(
             spe = [conditions[id][0]["simulated_speed"]] * len(dX)
 
         groups = [growth_condition] * len(dX)
-        if time_series_analysis:
-            print("since the length is different, I should also reorganise the timing")
-        else:
-            df_curated = pd.DataFrame(
-                {
-                    "X": dX,
-                    "Y": dY,
-                    "fname": f,
-                    "loss": loss,
-                    "mu": mu,
-                    "agent_speed": spe,
-                    "groups": groups,
-                }
-            )
-            if scene_name.lower() == "swarm":
-                df_curated["density"] = d
-                df_curated["order"] = o
-            elif scene_name.lower() == "choice":
-                df_curated["object_type"] = o
-                df_curated["initial_distance"] = d
-                df_curated["heading_angle"] = f_angle
-                f_angle = [f_angle[0]]
-                df_curated["duration"] = du
-                ##load information about simulated locusts
-                if scene_name.lower() == "choice":
-                    if (
-                        id % 2 == 0
-                    ):  # stimulus trial is always the odd trial under choice scene
-                        pass
-                        # print("no information about ISI stored in choice assay")
-                    else:
-                        agent_xy = np.vstack(
-                            (
-                                x_simulated_animal[id // 2].to_numpy(),
-                                y_simulated_animal[id // 2].to_numpy(),
-                            )
+        df_curated = pd.DataFrame(
+            {
+                "X": dX,
+                "Y": dY,
+                "fname": f,
+                "mu": mu,
+                "agent_speed": spe,
+            }
+        )
+        if "temperature" in locals():
+            df_curated["temperature"] = temperature
+            df_curated["humidity"] = humidity
+        if scene_name.lower() == "swarm":
+            df_curated["density"] = d
+            df_curated["order"] = o
+        elif scene_name.lower() == "choice":
+            df_curated["object_type"] = o
+            df_curated["initial_distance"] = d
+            df_curated["heading_angle"] = f_angle
+            f_angle = [f_angle[0]]
+            df_curated["duration"] = du
+            ##load information about simulated locusts
+            if scene_name.lower() == "choice":
+                if (
+                    id % 2 == 0
+                ):  # stimulus trial is always the odd trial under choice scene
+                    pass
+                    # print("no information about ISI stored in choice assay")
+                else:
+                    agent_xy = np.vstack(
+                        (
+                            df_simulated["GameObjectPosX"].values,
+                            df_simulated["GameObjectPosZ"].values,
                         )
-                        # agent_ts = ts_simulated_animal[id // 2].to_numpy() TS information should be sorted out before making curated data
-                        agent_rX, agent_rY = rotate_vector(
-                            agent_xy[0], agent_xy[1], -90 * np.pi / 180
-                        )
-                        if time_series_analysis:
-                            (agent_dX, agent_dY) = (
-                                np.array(agent_rX),
-                                np.array(agent_rY),
-                            )
-                        else:
-                            agent_dX = np.array([agent_rX[i] for i in newindex]).T
-                            agent_dY = np.array([agent_rY[i] for i in newindex]).T
-                            # agent_TS = np.array([agent_ts[i] for i in newindex]).T TS information should be sorted out before making curated data
-
-                elif scene_name.lower() == "swarm":
-                    print("work in progress")
-                if "agent_dX" in locals():
-                    df_agent = pd.DataFrame(
-                        {
-                            "X": agent_dX,
-                            "Y": agent_dY,
-                            "fname": [fchop] * len(agent_dX),
-                            "mu": mu,
-                            "agent_speed": spe,
-                            # "ts": agent_TS,TS information should be sorted out before making curated data
-                        }
                     )
-                    if scene_name.lower() == "swarm":
-                        print(
-                            "there is a unsovled bug about how to name the number of agent"
+                    # agent_ts = ts_simulated_animal[id // 2].to_numpy() TS information should be sorted out before making curated data
+                    agent_rX, agent_rY = rotate_vector(
+                        agent_xy[0], agent_xy[1], -90 * np.pi / 180
+                    )
+                    if time_series_analysis:
+                        (agent_dX, agent_dY) = (
+                            np.array(agent_rX),
+                            np.array(agent_rY),
                         )
-                        df_agent["agent_no"] = d
-                    elif scene_name.lower() == "choice":
-                        df_agent["agent_no"] = [0] * len(
-                            agent_dX
-                        )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
+                    else:
+                        agent_dX = np.array(agent_rX)[newindex]
+                        agent_dY = np.array(agent_rY)[newindex]
+                        # agent_dX = np.array([agent_rX[i] for i in newindex]).T
+                        # agent_dY = np.array([agent_rY[i] for i in newindex]).T
+                        # agent_TS = np.array([agent_ts[i] for i in newindex]).T TS information should be sorted out before making curated data
+
+            elif scene_name.lower() == "swarm":
+                print("work in progress")
+            if "agent_dX" in locals():
+                df_agent = pd.DataFrame(
+                    {
+                        "X": agent_dX,
+                        "Y": agent_dY,
+                        "fname": [fchop] * len(agent_dX),
+                        "mu": mu,
+                        "agent_speed": spe,
+                        # "ts": agent_TS,TS information should be sorted out before making curated data
+                    }
+                )
+                if scene_name.lower() == "swarm":
+                    print(
+                        "there is a unsovled bug about how to name the number of agent"
+                    )
+                    df_agent["agent_no"] = d
+                elif scene_name.lower() == "choice":
+                    df_agent["agent_no"] = [0] * len(
+                        agent_dX
+                    )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
 
         f = [f[0]]
         loss = [loss[0]]
@@ -508,28 +533,36 @@ def analyse_focal_animal(
         #######################Sections to save data
         if analysis_methods.get("debug_mode") == False:
             with lock:
-                if time_series_analysis:
-                    print(
-                        "if using time series analysis, there should be a better way to organise the data"
-                    )
-                else:
-                    store = pd.HDFStore(curated_file_path)
+                # if time_series_analysis:
+                #     store = pd.HDFStore(full_file_path)
+                #     store.append(
+                #         "name_of_frame",
+                #         df_curated,
+                #         format="t",
+                #         data_columns=df_curated.columns,
+                #     )
+                #     store.close()
+                #     print(
+                #         "if using time series analysis, there should be a better way to organise the data"
+                #     )
+                # else:
+                store = pd.HDFStore(curated_file_path)
+                store.append(
+                    "name_of_frame",
+                    df_curated,
+                    format="t",
+                    data_columns=df_curated.columns,
+                )
+                store.close()
+                if "df_agent" in locals():
+                    store = pd.HDFStore(agent_file_path)
                     store.append(
-                        "name_of_frame",
-                        df_curated,
+                        "position_information",
+                        df_agent,
                         format="t",
-                        data_columns=df_curated.columns,
+                        data_columns=df_agent.columns,
                     )
                     store.close()
-                    if "df_agent" in locals():
-                        store = pd.HDFStore(agent_file_path)
-                        store.append(
-                            "position_information",
-                            df_agent,
-                            format="t",
-                            data_columns=df_agent.columns,
-                        )
-                        store.close()
 
                 store = pd.HDFStore(summary_file_path)
                 store.append(
@@ -567,6 +600,20 @@ def preprocess_matrex_data(thisDir, json_file):
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
+    tem_pattern = f"DL220THP*.csv"
+    found_result = find_file(thisDir, tem_pattern)
+    ## here to load temperature data
+    if found_result is None:
+        tmp_df = None
+        print(f"temperature file not found")
+
+    else:
+        if isinstance(found_result, list):
+            print(f"Multiple temperature files are detected.")
+            for this_file in found_result:
+                tem_df = load_temperature_data(this_file)
+        else:
+            tem_df = load_temperature_data(found_result)
     num_vr = 4
     for i in range(num_vr):
         scene_name = analysis_methods.get("experiment_name")
@@ -640,6 +687,7 @@ def preprocess_matrex_data(thisDir, json_file):
                         x_simulated_animal,
                         y_simulated_animal,
                         conditions,
+                        tem_df,
                     )
             elif len(found_result.stem) > 0:
                 (
@@ -654,13 +702,15 @@ def preprocess_matrex_data(thisDir, json_file):
                     x_simulated_animal,
                     y_simulated_animal,
                     conditions,
+                    tem_df,
                 )
 
 
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
-    thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
+    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
+    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = r"C:\Users\neuroPC\Documents\GitHub\UnityDataAnalysis\analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
