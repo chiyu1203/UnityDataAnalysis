@@ -221,10 +221,16 @@ def analyse_focal_animal(
     experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
     experiment_id = re.sub(r"\s+", "_", experiment_id)
     experiment_id = re.sub(r":", "", experiment_id)
-    curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
-    summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
-    agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
-    full_file_path = this_file.parent / f"{experiment_id}_XYfull.h5"
+    if time_series_analysis:
+        curated_file_path = this_file.parent / f"{experiment_id}_XY_full.h5"
+        summary_file_path = this_file.parent / f"{experiment_id}_score_full.h5"
+        agent_file_path = this_file.parent / f"{experiment_id}_agent_full.h5"
+
+    else:
+        curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
+        summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
+        agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
+
     if tem_df is not None:
         frequency_milisecond = int(1000 / camera_fps)
         tem_df = tem_df.resample(f"{frequency_milisecond}L").interpolate()
@@ -238,7 +244,6 @@ def analyse_focal_animal(
         try:
             curated_file_path.unlink()
             agent_file_path.unlink()
-            full_file_path.unlink()
         except OSError as e:
             # If it fails, inform the user.
             print("Error: %s - %s." % (e.filename, e.strerror))
@@ -533,45 +538,21 @@ def analyse_focal_animal(
         #######################Sections to save data
         if analysis_methods.get("debug_mode") == False:
             with lock:
-                # if time_series_analysis:
-                #     store = pd.HDFStore(full_file_path)
-                #     store.append(
-                #         "name_of_frame",
-                #         df_curated,
-                #         format="t",
-                #         data_columns=df_curated.columns,
-                #     )
-                #     store.close()
-                #     print(
-                #         "if using time series analysis, there should be a better way to organise the data"
-                #     )
-                # else:
-                store = pd.HDFStore(curated_file_path)
-                store.append(
-                    "name_of_frame",
-                    df_curated,
-                    format="t",
-                    data_columns=df_curated.columns,
-                )
-                store.close()
                 if "df_agent" in locals():
-                    store = pd.HDFStore(agent_file_path)
+                    file_list = [curated_file_path, summary_file_path, agent_file_path]
+                    data_frame_list = [df_curated, df_summary, df_agent]
+                else:
+                    file_list = [curated_file_path, summary_file_path]
+                    data_frame_list = [df_curated, df_summary]
+                for this_name, this_pd in zip(file_list, data_frame_list):
+                    store = pd.HDFStore(this_name)
                     store.append(
-                        "position_information",
-                        df_agent,
+                        "name_of_frame",
+                        this_pd,
                         format="t",
-                        data_columns=df_agent.columns,
+                        data_columns=this_pd.columns,
                     )
                     store.close()
-
-                store = pd.HDFStore(summary_file_path)
-                store.append(
-                    "name_of_frame",
-                    df_summary,
-                    format="t",
-                    data_columns=df_summary.columns,
-                )
-                store.close()
 
         heading_direction_across_trials.append(angles)
         x_across_trials.append(x)
@@ -710,7 +691,8 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
-    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
+    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = r"C:\Users\neuroPC\Documents\GitHub\UnityDataAnalysis\analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
