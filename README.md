@@ -1,4 +1,7 @@
-### Unity VR data analysis
+# Unity VR data analysis
+
+## Data base structure
+The default structure comes the Unity program is good. However, there were slight differences between Scenes and how agent's location is logged.
 
 ## Install Hdf5view
 
@@ -8,13 +11,13 @@ The easiest way to view hdf file without coding is to install Hdf5 viwer, which 
 
 In Windows PC, the file to download is something like HDFView-3.1.3-win10_64-vs16.zip
 
-## Install Visual Studio Code
+### Install Visual Studio Code
 
 This is optional but in case some functions interact with the host pc is editor-dependant. I would suggest to use Visual Studio Code.
 
 After installing the VS code, remember to install extension on Visual Studio Code: 
 
-press ctrl + shift + x or click on Extensions when you are in the VS code window, install _Python_, _Code Runner_, *Code Spell Checker*.
+press *ctrl + shift + x* or click on Extensions when you are in the VS code window, install _Python_, _Code Runner_, *Code Spell Checker*.
 
 The following extension are optional depends on your need
 
@@ -33,12 +36,12 @@ Then inside the WSL environment, you should install _Kubernetes_
 Lastly some formatter would be helpful but this is optional. I use _Black Formatter_ , _Rainbow CSV _
 
 
-## Install Git
+### Install Git
 
-Use the default setting to install git and create a folder called "GitHub" (at Documents, this will be handy later)
+Use the default setting to install git and create a folder called *GitHub* (at Documents, this will be handy later)
 
 
-## Clone this repository on Visual Studio Code
+### Clone this repository on Visual Studio Code
 
 On this page, click *Code* above the repository and then At the *Clone* section, copy the https path.
 
@@ -67,7 +70,7 @@ conda config --set channel_priority strict
 conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel
 conda install numpy"<=2.0.0"
 ```
-### Other packages required to run this analysis
+## Other packages required to run this analysis
 
 There are useful tools stored in another repository so after you cloned this repo, remember to clone the other as well.
 
@@ -75,7 +78,7 @@ There are useful tools stored in another repository so after you cloned this rep
 git clone https://github.com/chiyu1203/utilities.git
 ```
 
-**Start coding**
+# Start coding
 
 ## How to use the analysis pipeline and jupyter notebook
 
@@ -85,21 +88,23 @@ The analysis methods are organised into a json file, which is created from a pyt
 
 Therefore, each project has its own json file. Below explains what those analysis methods are about.
 
-    "overwrite_curated_dataset": whether to overwrite the existing HDF file or not. If True, delete the old curated dataset.
+    "experiment_name": "choice", In the analysis pipeline, this means Scene name, which is used to check datasets from different logging system.
 
-    "debug_mode": whether to save any output during data analysis. If True, then do not save any output
+    "overwrite_curated_dataset": boolean, whether to overwrite the existing HDF file or not. If True, delete the old curated dataset.
 
-    "time_series_analysis": analyse where animals move across trials. If True, select a fileter method to remove tracking noise, If false, spatial discretisation will be applied to analyse animal's trajectory.
-    
-    "filtering_method": what kind of filter to apply for time series analysis
-    
-    "plotting_trajectory": whether to plot the trajectory of the animals in the experiment.
-    
-    "plotting_event_related_trajectory": whether to plot a heat map of animal's trajectory after the stimulus onset
-    
-    "plotting_deceleration_accerleration": whether to plot the average deceleration and accerleration onset of the animals (this is still under construction)
+    "debug_mode": boolean, whether to save any output during data analysis. If True, then do not save any output
 
-    "load_individual_data" and "select_animals_by_condition": these are used in the jypter notebook to extract specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
+    "time_series_analysis": boolean, analyse where animals move across trials. If True, select a fileter method to remove tracking noise, If false, spatial discretisation will be applied to analyse animal's trajectory.
+    
+    "filtering_method": 'sg_filter', default is to use savgol_filter. Any string other than that will lead to no filter. 
+    
+    "plotting_trajectory": boolean, whether to plot the trajectory of the animals in the experiment.
+    
+    "plotting_event_related_trajectory": boolean, whether to plot a heat map of animal's trajectory after the stimulus onset
+    
+    "plotting_deceleration_accerleration": boolean, whether to plot average deceleration and accerleration onset of the animals (this is still under construction)
+
+    "load_individual_data" and "select_animals_by_condition": boolean, these are used in the jypter notebook to extract specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
 
     "camera_fps": 100, #default video acqusition rate in matrexVR
     
@@ -107,9 +112,9 @@ Therefore, each project has its own json file. Below explains what those analysi
     
     "monitor_fps": 60,#default monitor target render frequency in matrexVR
     
-    "body_length": 4,#Unit: cm default body length use in spatial discretisation.
+    "body_length": 4, #Unit: cm default body length use in spatial discretisation.
     
-    "growth_condition": "G",#"G" for gregarious "S" for solitarious animals
+    "growth_condition": "G", Note: "G" for gregarious "S" for solitarious animals
 
 Use **time_series_analysis.ipynb**, if you want do analyse stimulus-evoked responses in details.
 
