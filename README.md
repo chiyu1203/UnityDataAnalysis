@@ -33,7 +33,7 @@ Note that WSL does not share all of the extensions from Windows so you need to c
 
 Then inside the WSL environment, you should install _Kubernetes_
 
-Lastly some formatter would be helpful but this is optional. I use _Black Formatter_ , _Rainbow CSV _
+Lastly some formatter would be helpful but this is optional. I use _Black Formatter_ , _Rainbow CSV_
 
 
 ### Install Git
@@ -68,7 +68,7 @@ conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel pytables
-
+```
 [Optional] if you ever want to load database from an excel sheet
 ```
 conda install openpyxl
