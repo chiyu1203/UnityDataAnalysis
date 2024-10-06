@@ -62,22 +62,37 @@ Open the anaconda prompt and create a virtual environment via conda
 Below is the command to install packages via conda environment 
 
 ```
-conda create --name tracking_analysis --channel conda-forge python=3.11
-conda activate tracking_analysis
+conda create --name unity_analysis --channel conda-forge python=3.11
+conda activate unity_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
-conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel
-conda install numpy"<=2.0.0"
-```
-## Other packages required to run this analysis
+conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel pytables
 
-There are useful tools stored in another repository so after you cloned this repo, remember to clone the other as well.
+[Optional] if you ever want to load database from an excel sheet
+```
+conda install openpyxl
+```
+```
+If environmental.yaml or requirements.txt works, try creating the virtual environment with the file.
+```
+conda env create -f environment.yml
+conda create --name unity_analysis --file requirements.txt
+```
+It seems that environment.yml is better for environment with packages installed via conda....
+
+## Other modules required to run this analysis
+
+There are useful tools stored in another repository so after you cloned UnityDataAnalaysis, remember to clone utilities as well and place them all under the GitHub folder
 
 ```
 git clone https://github.com/chiyu1203/utilities.git
 ```
-
+[Optional] to export the environment for other PCs, try the following commands
+```
+conda env export > environment.yml --no-builds
+conda list -e > requirements.txt
+```
 # Start coding
 
 ## How to use the analysis pipeline and jupyter notebook
@@ -92,7 +107,7 @@ Therefore, each project has its own json file. Below explains what those analysi
 
     "overwrite_curated_dataset": boolean, whether to overwrite the existing HDF file or not. If True, delete the old curated dataset.
 
-    "debug_mode": boolean, whether to save any output during data analysis. If True, then do not save any output
+    "dont_save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then do not save any output
 
     "time_series_analysis": boolean, analyse where animals move across trials. If True, select a fileter method to remove tracking noise, If false, spatial discretisation will be applied to analyse animal's trajectory.
     
@@ -105,6 +120,8 @@ Therefore, each project has its own json file. Below explains what those analysi
     "plotting_deceleration_accerleration": boolean, whether to plot average deceleration and accerleration onset of the animals (this is still under construction)
 
     "load_individual_data" and "select_animals_by_condition": boolean, these are used in the jypter notebook to extract specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
+    
+    "graph_colour_code": array of string, just a helper array to know which colour is used.
 
     "camera_fps": 100, #default video acqusition rate in matrexVR
     
