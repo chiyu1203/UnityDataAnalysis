@@ -4,7 +4,7 @@
 import time
 import pandas as pd
 import numpy as np
-import os, gzip, re, csv, json, sys
+import os, gzip, re, json, sys
 from pathlib import Path
 from threading import Lock
 from matplotlib import cm
@@ -15,7 +15,7 @@ from scipy.signal import savgol_filter
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
-from useful_tools import find_file, find_nearest
+from useful_tools import find_file
 from data_cleaning import load_temperature_data
 from funcs import *
 
@@ -41,7 +41,7 @@ COL = MplColorHelper(colormap_name, 0, 8)
 def ffill(arr):
     mask = np.isnan(arr)
     if arr.ndim == 1:
-        print("work in progress")
+        Warning("work in progress")
         # idx = np.where(~mask, np.arange(mask.shape[0]), 0)
         # np.maximum.accumulate(idx, out=idx)
         # out = arr[np.arange(idx.shape[0])[None], idx]
@@ -82,7 +82,7 @@ def read_simulated_data(this_file, analysis_methods):
         simulated_speed = df.columns[10]
         density = int(n_locusts.split(":")[1]) / (
             int(boundary_size.split(":")[1]) ** 2 / 10000
-        )
+        )#change the unit to m2
         conditions = {
             "Density": density,
             mu.split(":")[0]: int(mu.split(":")[1]),
@@ -99,15 +99,15 @@ def read_simulated_data(this_file, analysis_methods):
             y = None
     elif scene_name.lower() == "choice":
         conditions = []
-        vr_pattern = "*_Choice_*.json"
-        found_result = find_file(thisDir, vr_pattern)
+        agent_pattern = "*_Choice_*.json"
+        found_result = find_file(thisDir, agent_pattern)
         if found_result is None:
-            return print(f"file with {vr_pattern} not found")
+            return print(f"file with {agent_pattern} not found")
         else:
             condition_dict = {}
             if isinstance(found_result, list):
                 print(
-                    f"Analyze {vr_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+                    f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
                 )
 
                 for this_file in found_result:
@@ -153,12 +153,12 @@ def read_simulated_data(this_file, analysis_methods):
             )
 
             this_condition = condition_dict[this_condition_file]
-            if (
-                i == 0
-            ):  ## need to add this condition because I hardcode to make the first empty scene 240 sec
-                meta_condition = (this_condition, 240)
-            else:
-                meta_condition = (this_condition, tmp["sequences"][i]["duration"])
+            # if (
+            #     i == 0
+            # ):  ## need to add this condition because I hardcode to make the first empty scene 240 sec
+            #     meta_condition = (this_condition, 240)
+            # else:
+            meta_condition = (this_condition, tmp["sequences"][i]["duration"])
             conditions.append(meta_condition)
 
         if len(df) > 0:
@@ -191,11 +191,15 @@ def analyse_focal_animal(
 ):
     # track_ball_radius = analysis_methods.get("trackball_radius_cm")
     # monitor_fps = analysis_methods.get("monitor_fps")
+    plotting_trajectory=analysis_methods.get("plotting_trajectory")
+    dont_save_output=analysis_methods.get("dont_save_output")
     camera_fps = analysis_methods.get("camera_fps")
     scene_name = analysis_methods.get("experiment_name")
     alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
     analyze_one_session_only = True
-    BODY_LENGTH = analysis_methods.get("body_length")
+    BODY_LENGTH3 = (
+        analysis_methods.get("body_length") * 3
+    )  ## multiple 3 because 3 body length is used for spatial discretisation in Sayin et al.
     growth_condition = analysis_methods.get("growth_condition")
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset")
     time_series_analysis = analysis_methods.get("time_series_analysis")
@@ -211,8 +215,8 @@ def analyse_focal_animal(
     elif this_file.suffix == ".csv":
         with open(this_file, mode="r") as f:
             df = pd.read_csv(f)
-    # replace 0.0 with np.nan since there are probably generated when switching to the scene
-    df["GameObjectPosX"].replace(0.0, np.nan, inplace=True)
+    # replace 0.0 with np.nan since they are generated during scene-switching
+    df["GameObjectPosX"].replace(0.0, np.nan, inplace=True)##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df["GameObjectPosZ"].replace(0.0, np.nan, inplace=True)
     df["GameObjectRotY"].replace(0.0, np.nan, inplace=True)
     df["Current Time"] = pd.to_datetime(
@@ -221,7 +225,7 @@ def analyse_focal_animal(
     experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
     experiment_id = re.sub(r"\s+", "_", experiment_id)
     experiment_id = re.sub(r":", "", experiment_id)
-    if time_series_analysis:
+    if time_series_analysis:## need to think about whether to name them the same regardless analysis methods
         curated_file_path = this_file.parent / f"{experiment_id}_XY_full.h5"
         summary_file_path = this_file.parent / f"{experiment_id}_score_full.h5"
         agent_file_path = this_file.parent / f"{experiment_id}_agent_full.h5"
@@ -230,10 +234,13 @@ def analyse_focal_animal(
         curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
         summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
         agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
-
-    if tem_df is not None:
+    
+    if tem_df is None:
+        df["Temperature ˚C (ºC)"]=np.nan
+        df["Relative Humidity (%)"]=np.nan
+    else:
         frequency_milisecond = int(1000 / camera_fps)
-        tem_df = tem_df.resample(f"{frequency_milisecond}L").interpolate()
+        tem_df = tem_df.resample(f"{frequency_milisecond}L").interpolate() #FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
         aligned_THP = tem_df.reindex(df.index, method="nearest")
         df = df.join(aligned_THP)
@@ -247,7 +254,7 @@ def analyse_focal_animal(
         except OSError as e:
             # If it fails, inform the user.
             print("Error: %s - %s." % (e.filename, e.strerror))
-    if analysis_methods.get("plotting_trajectory") == True:
+    if plotting_trajectory == True:
         fig, (ax1, ax2) = plt.subplots(
             nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
         )
@@ -269,7 +276,7 @@ def analyse_focal_animal(
         xy = bfill(xy)
         ts = df["Current Time"][this_range]
         trial_no = df["CurrentTrial"][this_range]
-        if id % 2 > 0:
+        if scene_name== "choice" and id % 2 > 0:
             df_simulated = pd.concat(
                 [
                     ts_simulated_animal[id // 2],
@@ -284,7 +291,6 @@ def analyse_focal_animal(
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
         if time_series_analysis:
-            print("work in progress")
             elapsed_time = (ts - ts.min()).dt.total_seconds()
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(xy[0], 59, 3, axis=0)
@@ -313,7 +319,7 @@ def analyse_focal_animal(
             humidity = df["Relative Humidity (%)"][this_range].values
 
         else:
-            newindex = diskretize(rX, rY, BODY_LENGTH)
+            newindex = diskretize(rX, rY, BODY_LENGTH3)
             dX = np.array(rX)[newindex]
             dY = np.array(rY)[newindex]
             # dX = np.array([rX[i] for i in newindex]).T
@@ -351,7 +357,7 @@ def analyse_focal_animal(
                 travel_distance_fbf
             )  ##note this distance can be a lot larger than calculating with spatial discretisation
         else:
-            tdist = len(dX) * BODY_LENGTH
+            tdist = len(dX) * BODY_LENGTH3
 
         f = [fchop] * len(dX)
         loss = [loss] * len(dX)
@@ -360,6 +366,7 @@ def analyse_focal_animal(
             d = [conditions[id]["Density"]] * len(dX)
             mu = [conditions[id]["Mu"]] * len(dX)
             spe = [conditions[id]["LocustSpeed"]] * len(dX)
+            du = [conditions[id]["duration"]] * len(dX)
         elif scene_name.lower() == "choice":
             if conditions[id][0]["agent"] == "LeaderLocust":
                 o = ["gn_locust"] * len(dX)
@@ -379,8 +386,11 @@ def analyse_focal_animal(
                 "fname": f,
                 "mu": mu,
                 "agent_speed": spe,
+                "duration": du
             }
         )
+        if "elapsed_time" in locals():
+            df_curated["ts"]=elapsed_time
         if "temperature" in locals():
             df_curated["temperature"] = temperature
             df_curated["humidity"] = humidity
@@ -392,7 +402,7 @@ def analyse_focal_animal(
             df_curated["initial_distance"] = d
             df_curated["heading_angle"] = f_angle
             f_angle = [f_angle[0]]
-            df_curated["duration"] = du
+
             ##load information about simulated locusts
             if scene_name.lower() == "choice":
                 if (
@@ -424,7 +434,7 @@ def analyse_focal_animal(
                         # agent_TS = np.array([agent_ts[i] for i in newindex]).T TS information should be sorted out before making curated data
 
             elif scene_name.lower() == "swarm":
-                print("work in progress")
+                Warning("work in progress")
             if "agent_dX" in locals():
                 df_agent = pd.DataFrame(
                     {
@@ -433,7 +443,6 @@ def analyse_focal_animal(
                         "fname": [fchop] * len(agent_dX),
                         "mu": mu,
                         "agent_speed": spe,
-                        # "ts": agent_TS,TS information should be sorted out before making curated data
                     }
                 )
                 if scene_name.lower() == "swarm":
@@ -476,6 +485,7 @@ def analyse_focal_animal(
                 "distTotal": tD,
                 "sin": sins,
                 "cos": coss,
+                "duration":du,
             }
         )
         if scene_name.lower() == "swarm":
@@ -485,11 +495,11 @@ def analyse_focal_animal(
             df_summary["object_type"] = o
             df_summary["initial_distance"] = d
             df_summary["heading_angle"] = f_angle
-            df_summary["duration"] = du
 
-        if analysis_methods.get("plotting_trajectory") == True:
+        if plotting_trajectory == True:
             if scene_name.lower() == "swarm":
                 if df_summary["density"][0] > 0:
+                    ## if using plot instead of scatter plot
                     # ax2.plot(
                     #     dX, dY, color=np.arange(len(dY)), alpha=df_curated.iloc[id]["alpha"]
                     # )
@@ -502,6 +512,7 @@ def analyse_focal_animal(
                         alpha=df_summary["order"].map(alpha_dictionary)[0],
                     )
                 else:
+                    ## if using plot instead of scatter plot
                     # ax1.plot(
                     #     dX, dY, alpha=df_curated.iloc[id]["alpha"]
                     # )
@@ -536,7 +547,7 @@ def analyse_focal_animal(
                         )
 
         #######################Sections to save data
-        if analysis_methods.get("debug_mode") == False:
+        if dont_save_output == False:
             with lock:
                 if "df_agent" in locals():
                     file_list = [curated_file_path, summary_file_path, agent_file_path]
@@ -564,7 +575,7 @@ def analyse_focal_animal(
         if "agent_dX" in locals():
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
-    if analysis_methods.get("plotting_trajectory") == True:
+    if plotting_trajectory == True and dont_save_output == False:
         fig.savefig(trajectory_fig_path)
     return (
         heading_direction_across_trials,
@@ -585,7 +596,7 @@ def preprocess_matrex_data(thisDir, json_file):
     found_result = find_file(thisDir, tem_pattern)
     ## here to load temperature data
     if found_result is None:
-        tmp_df = None
+        tem_df = None
         print(f"temperature file not found")
 
     else:
@@ -596,15 +607,16 @@ def preprocess_matrex_data(thisDir, json_file):
         else:
             tem_df = load_temperature_data(found_result)
     num_vr = 4
+    ## here to load simulated agent's data
     for i in range(num_vr):
         scene_name = analysis_methods.get("experiment_name")
         if scene_name.lower() == "swarm":
-            vr_pattern = f"*SimulatedLocustsVR{i+1}*"
+            agent_pattern = f"*SimulatedLocustsVR{i+1}*"
         elif scene_name.lower() == "choice":
-            vr_pattern = f"*Leader*"
-        found_result = find_file(thisDir, vr_pattern)
+            agent_pattern = f"*Leader*"
+        found_result = find_file(thisDir, agent_pattern)
         if found_result is None:
-            return print(f"file with {vr_pattern} not found")
+            return print(f"file with {agent_pattern} not found")
         # elif scene_name.lower() == "choice" and i > 0:
         elif scene_name.lower() == "choice" and "ts_simulated_animal" in locals():
             print(
@@ -617,16 +629,24 @@ def preprocess_matrex_data(thisDir, json_file):
             conditions = []
             if isinstance(found_result, list):
                 print(
-                    f"Analyze {vr_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+                    f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
                 )
-
-                for this_file in found_result:
+                json_pattern = "*sequenceConfig.json"
+                json_file = find_file(thisDir, json_pattern)
+                with open(json_file, "r") as f:
+                    print(f"load conditions from file {json_file}")
+                    tmp = json.loads(f.read())
+                for idx in  range(len(tmp["sequences"])):
+                    this_file=found_result[idx]
+                #for idx, this_file in enumerate(found_result):
                     ts, x, y, condition = read_simulated_data(
                         this_file, analysis_methods
                     )
                     ts_simulated_animal.append(ts)
                     x_simulated_animal.append(x)
                     y_simulated_animal.append(y)
+                    if scene_name.lower() == "swarm":
+                        condition['duration'] = tmp["sequences"][idx]["duration"]
                     conditions.append(condition)
 
             elif len(found_result.stem) > 0:
@@ -646,14 +666,16 @@ def preprocess_matrex_data(thisDir, json_file):
                     x_simulated_animal.append(x)
                     y_simulated_animal.append(y)
                     conditions.append(condition)
-        locust_pattern = f"*_VR{i+1}*"
-        found_result = find_file(thisDir, locust_pattern)
+
+    ## here to load focal_animal's data
+        animal_name_pattern = f"*_VR{i+1}*"
+        found_result = find_file(thisDir, animal_name_pattern)
         if found_result is None:
-            return print(f"file with {locust_pattern} not found")
+            return print(f"file with {animal_name_pattern} not found")
         else:
             if isinstance(found_result, list):
                 print(
-                    f"Analyze {locust_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+                    f"Analyze {animal_name_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
                 )
                 for this_file in found_result:
                     (
@@ -689,11 +711,11 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
-    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
+    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
-    thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
+    #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
-    json_file = r"C:\Users\neuroPC\Documents\GitHub\UnityDataAnalysis\analysis_methods_dictionary.json"
+    json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
     toc = time.perf_counter()
