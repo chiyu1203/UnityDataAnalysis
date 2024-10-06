@@ -73,7 +73,7 @@ conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pan
 ```
 conda install openpyxl
 ```
-```
+
 If environmental.yaml or requirements.txt works, try creating the virtual environment with the file.
 ```
 conda env create -f environment.yml
@@ -103,7 +103,7 @@ The analysis methods are organised into a json file, which is created from a pyt
 
 Therefore, each project has its own json file. Below explains what those analysis methods are about.
 
-    "experiment_name": "choice", In the analysis pipeline, this means Scene name, which is used to check datasets from different logging system.
+    "experiment_name": "choice", this means Scene name in the unity programme, which is used to check datasets from different logging system.
 
     "overwrite_curated_dataset": boolean, whether to overwrite the existing HDF file or not. If True, delete the old curated dataset.
 
