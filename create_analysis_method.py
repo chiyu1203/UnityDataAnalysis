@@ -2,13 +2,12 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
-    "experiment_name": "choice",
+    "experiment_name": "swarm",
     "overwrite_curated_dataset": True,
     "dont_save_output": False,
     "time_series_analysis": False,
     "filtering_method": "sg_filter",
-    "plotting_trajectory": False,
-    "plotting_deceleration_accerleration": False,
+    "plotting_trajectory": True,
     "load_individual_data": True,
     "select_animals_by_condition": True,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],

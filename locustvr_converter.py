@@ -79,7 +79,7 @@ def read_simulated_data(this_file, analysis_methods):
         boundary_size = df.columns[7]
         mu = df.columns[8]
         kappa = df.columns[9]
-        simulated_speed = df.columns[10]
+        agent_speed = df.columns[10]
         density = int(n_locusts.split(":")[1]) / (
             int(boundary_size.split(":")[1]) ** 2 / 10000
         )#change the unit to m2
@@ -87,7 +87,7 @@ def read_simulated_data(this_file, analysis_methods):
             "Density": density,
             mu.split(":")[0]: int(mu.split(":")[1]),
             kappa.split(":")[0]: float(kappa.split(":")[1]),
-            simulated_speed.split(":")[0]: float(simulated_speed.split(":")[1]),
+            agent_speed.split(":")[0]: float(agent_speed.split(":")[1]),
         }
         if len(df) > 0:
             ts = pd.to_datetime(df["Timestamp"], format="%Y-%m-%d %H:%M:%S.%f")
@@ -120,7 +120,7 @@ def read_simulated_data(this_file, analysis_methods):
                             "distance": tmp["objects"][0]["position"]["radius"],
                             "heading_angle": tmp["objects"][0]["position"]["angle"],
                             "walking_direction": tmp["objects"][0]["mu"],
-                            "simulated_speed": tmp["objects"][0]["speed"],
+                            "agent_speed": tmp["objects"][0]["speed"],
                         }
                         condition_dict[condition_id] = condition
                     # conditions.append(condition)
@@ -135,7 +135,7 @@ def read_simulated_data(this_file, analysis_methods):
                         "distance": tmp["objects"][0]["position"]["radius"],
                         "heading_angle": tmp["objects"][0]["position"]["angle"],
                         "walking_direction": tmp["objects"][0]["mu"],
-                        "simulated_speed": tmp["objects"][0]["speed"],
+                        "agent_speed": tmp["objects"][0]["speed"],
                     }
                     condition_dict[condition_id] = condition
 
@@ -362,10 +362,10 @@ def analyse_focal_animal(
         f = [fchop] * len(dX)
         loss = [loss] * len(dX)
         if scene_name.lower() == "swarm":
-            o = [conditions[id]["Kappa"]] * len(dX)
-            d = [conditions[id]["Density"]] * len(dX)
-            mu = [conditions[id]["Mu"]] * len(dX)
-            spe = [conditions[id]["LocustSpeed"]] * len(dX)
+            o = [conditions[id]["kappa"]] * len(dX)
+            d = [conditions[id]["density"]] * len(dX)
+            mu = [conditions[id]["mu"]] * len(dX)
+            spe = [conditions[id]["agent_speed"]] * len(dX)
             du = [conditions[id]["duration"]] * len(dX)
         elif scene_name.lower() == "choice":
             if conditions[id][0]["agent"] == "LeaderLocust":
@@ -376,7 +376,7 @@ def analyse_focal_animal(
             du = [conditions[id][1]] * len(dX)
             f_angle = [conditions[id][0]["heading_angle"]] * len(dX)
             mu = [conditions[id][0]["walking_direction"]] * len(dX)
-            spe = [conditions[id][0]["simulated_speed"]] * len(dX)
+            spe = [conditions[id][0]["agent_speed"]] * len(dX)
 
         groups = [growth_condition] * len(dX)
         df_curated = pd.DataFrame(
@@ -396,7 +396,7 @@ def analyse_focal_animal(
             df_curated["humidity"] = humidity
         if scene_name.lower() == "swarm":
             df_curated["density"] = d
-            df_curated["order"] = o
+            df_curated["kappa"] = o
         elif scene_name.lower() == "choice":
             df_curated["object_type"] = o
             df_curated["initial_distance"] = d
@@ -490,7 +490,7 @@ def analyse_focal_animal(
         )
         if scene_name.lower() == "swarm":
             df_summary["density"] = d
-            df_summary["order"] = o
+            df_summary["kappa"] = o
         elif scene_name.lower() == "choice":
             df_summary["object_type"] = o
             df_summary["initial_distance"] = d
@@ -509,7 +509,7 @@ def analyse_focal_animal(
                         dY,
                         c=np.arange(len(dY)),
                         marker=".",
-                        alpha=df_summary["order"].map(alpha_dictionary)[0],
+                        alpha=df_summary["kappa"].map(alpha_dictionary)[0],
                     )
                 else:
                     ## if using plot instead of scatter plot
@@ -521,7 +521,7 @@ def analyse_focal_animal(
                         dY,
                         c=np.arange(len(dY)),
                         marker=".",
-                        alpha=df_summary["order"].map(alpha_dictionary)[0],
+                        alpha=df_summary["kappa"].map(alpha_dictionary)[0],
                     )
             elif scene_name.lower() == "choice":
                 if df_summary["object_type"][0] == "empty_trial":
