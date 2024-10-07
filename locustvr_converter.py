@@ -362,10 +362,10 @@ def analyse_focal_animal(
         f = [fchop] * len(dX)
         loss = [loss] * len(dX)
         if scene_name.lower() == "swarm":
-            o = [conditions[id]["kappa"]] * len(dX)
-            d = [conditions[id]["density"]] * len(dX)
-            mu = [conditions[id]["mu"]] * len(dX)
-            spe = [conditions[id]["agent_speed"]] * len(dX)
+            o = [conditions[id]["Kappa"]] * len(dX)
+            d = [conditions[id]["Density"]] * len(dX)
+            mu = [conditions[id]["Mu"]] * len(dX)
+            spe = [conditions[id]["LocustSpeed"]] * len(dX)
             du = [conditions[id]["duration"]] * len(dX)
         elif scene_name.lower() == "choice":
             if conditions[id][0]["agent"] == "LeaderLocust":
@@ -592,8 +592,8 @@ def preprocess_matrex_data(thisDir, json_file):
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
-    tem_pattern = f"DL220THP*.csv"
-    found_result = find_file(thisDir, tem_pattern)
+
+    found_result = find_file(thisDir,"matrexVR*.txt","DL220THP*.csv")
     ## here to load temperature data
     if found_result is None:
         tem_df = None
@@ -601,11 +601,13 @@ def preprocess_matrex_data(thisDir, json_file):
 
     else:
         if isinstance(found_result, list):
-            print(f"Multiple temperature files are detected.")
+            print(f"Multiple temperature files are detected. Have not figured out how to deal with this.")
             for this_file in found_result:
                 tem_df = load_temperature_data(this_file)
         else:
             tem_df = load_temperature_data(found_result)
+        if 'Celsius(°C)' in tem_df.columns: #make the column name consistent with data from DL220 logger
+            tem_df.rename(columns={'Celsius(°C)': 'Temperature ˚C (ºC)', 'Humidity(%rh)': 'Relative Humidity (%)'}, inplace=True)
     num_vr = 4
     ## here to load simulated agent's data
     for i in range(num_vr):
@@ -613,7 +615,7 @@ def preprocess_matrex_data(thisDir, json_file):
         if scene_name.lower() == "swarm":
             agent_pattern = f"*SimulatedLocustsVR{i+1}*"
         elif scene_name.lower() == "choice":
-            agent_pattern = f"*Leader*"
+            agent_pattern = "*Leader*"
         found_result = find_file(thisDir, agent_pattern)
         if found_result is None:
             return print(f"file with {agent_pattern} not found")
@@ -712,7 +714,7 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
-    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
+    #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
