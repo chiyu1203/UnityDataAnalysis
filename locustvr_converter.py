@@ -82,7 +82,7 @@ def read_simulated_data(this_file, analysis_methods):
         agent_speed = df.columns[10]
         density = int(n_locusts.split(":")[1]) / (
             int(boundary_size.split(":")[1]) ** 2 / 10000
-        )#change the unit to m2
+        )  # change the unit to m2
         conditions = {
             "Density": density,
             mu.split(":")[0]: int(mu.split(":")[1]),
@@ -191,8 +191,8 @@ def analyse_focal_animal(
 ):
     # track_ball_radius = analysis_methods.get("trackball_radius_cm")
     # monitor_fps = analysis_methods.get("monitor_fps")
-    plotting_trajectory=analysis_methods.get("plotting_trajectory")
-    dont_save_output=analysis_methods.get("dont_save_output")
+    plotting_trajectory = analysis_methods.get("plotting_trajectory")
+    dont_save_output = analysis_methods.get("dont_save_output")
     camera_fps = analysis_methods.get("camera_fps")
     scene_name = analysis_methods.get("experiment_name")
     alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
@@ -216,7 +216,9 @@ def analyse_focal_animal(
         with open(this_file, mode="r") as f:
             df = pd.read_csv(f)
     # replace 0.0 with np.nan since they are generated during scene-switching
-    df["GameObjectPosX"].replace(0.0, np.nan, inplace=True)##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
+    df["GameObjectPosX"].replace(
+        0.0, np.nan, inplace=True
+    )  ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df["GameObjectPosZ"].replace(0.0, np.nan, inplace=True)
     df["GameObjectRotY"].replace(0.0, np.nan, inplace=True)
     df["Current Time"] = pd.to_datetime(
@@ -225,7 +227,9 @@ def analyse_focal_animal(
     experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
     experiment_id = re.sub(r"\s+", "_", experiment_id)
     experiment_id = re.sub(r":", "", experiment_id)
-    if time_series_analysis:## need to think about whether to name them the same regardless analysis methods
+    if (
+        time_series_analysis
+    ):  ## need to think about whether to name them the same regardless analysis methods
         curated_file_path = this_file.parent / f"{experiment_id}_XY_full.h5"
         summary_file_path = this_file.parent / f"{experiment_id}_score_full.h5"
         agent_file_path = this_file.parent / f"{experiment_id}_agent_full.h5"
@@ -234,16 +238,19 @@ def analyse_focal_animal(
         curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
         summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
         agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
-    
+
     if tem_df is None:
-        df["Temperature ˚C (ºC)"]=np.nan
-        df["Relative Humidity (%)"]=np.nan
+        df["Temperature ˚C (ºC)"] = np.nan
+        df["Relative Humidity (%)"] = np.nan
     else:
         frequency_milisecond = int(1000 / camera_fps)
-        tem_df = tem_df.resample(f"{frequency_milisecond}L").interpolate() #FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
+        tem_df = tem_df.resample(
+            f"{frequency_milisecond}L"
+        ).interpolate()  # FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
         aligned_THP = tem_df.reindex(df.index, method="nearest")
-        df = df.join(aligned_THP)
+        df = df.join(aligned_THP.astype(np.float32))
+        #df = df.join(aligned_THP)
         del tem_df
 
     if overwrite_curated_dataset == True and summary_file_path.is_file():
@@ -262,21 +269,24 @@ def analyse_focal_animal(
         ax2.set_title("Trial")
     for id in range(len(conditions)):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
-        this_current_time = df["Current Time"][this_range]
-        if len(this_current_time) == 0:
+        # ts = df["Current Time"][this_range].astype("datetime64[ms]")
+        ts = df["Current Time"][this_range]
+        if len(ts) == 0:
             break
-        fchop = str(this_current_time.iloc[0]).split(".")[0]
+        fchop = str(ts.iloc[0]).split(".")[0]
         fchop = re.sub(r"\s+", "_", fchop)
         fchop = re.sub(r":", "", fchop)
         # heading_direction = df["GameObjectRotY"][this_range]
+        # x = df["GameObjectPosX"][this_range].astype(np.float32)
+        # y = df["GameObjectPosZ"][this_range].astype(np.float32)
         x = df["GameObjectPosX"][this_range]
         y = df["GameObjectPosZ"][this_range]
         xy = np.vstack((x.to_numpy(), y.to_numpy()))
         # since I introduced nan earlier for the switch scene, I need to fill them with some values otherwise, smoothing methods will fail
         xy = bfill(xy)
-        ts = df["Current Time"][this_range]
+        # trial_no = df["CurrentTrial"][this_range].astype("int16")
         trial_no = df["CurrentTrial"][this_range]
-        if scene_name== "choice" and id % 2 > 0:
+        if scene_name == "choice" and id % 2 > 0:
             df_simulated = pd.concat(
                 [
                     ts_simulated_animal[id // 2],
@@ -291,7 +301,8 @@ def analyse_focal_animal(
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
         if time_series_analysis:
-            elapsed_time = (ts - ts.min()).dt.total_seconds()
+            elapsed_time = np.float32((ts - ts.min()).dt.total_seconds().values)
+            #elapsed_time = (ts - ts.min()).dt.total_seconds().values
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(xy[0], 59, 3, axis=0)
                 Y = savgol_filter(xy[1], 59, 3, axis=0)
@@ -314,20 +325,21 @@ def analyse_focal_animal(
             X, Y, -90 * np.pi / 180
         )  # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
         if time_series_analysis:
-            (dX, dY) = (np.array(rX), np.array(rY))
-            temperature = df["Temperature ˚C (ºC)"][this_range].values
-            humidity = df["Relative Humidity (%)"][this_range].values
-
+            (dX, dY) = (np.array(rX, dtype=np.float32), np.array(rY, dtype=np.float32))
+            # (dX, dY) = (np.array(rX), np.array(rY))
+            temperature = df[this_range]["Temperature ˚C (ºC)"].values
+            humidity = df[this_range]["Relative Humidity (%)"].values
         else:
             newindex = diskretize(rX, rY, BODY_LENGTH3)
-            dX = np.array(rX)[newindex]
-            dY = np.array(rY)[newindex]
-            # dX = np.array([rX[i] for i in newindex]).T
-            # dY = np.array([rY[i] for i in newindex]).T
-            temperature = df.iloc[newindex]["Temperature ˚C (ºC)"]
-            humidity = df.iloc[newindex]["Relative Humidity (%)"]
+            dX = np.array(rX, dtype=np.float32)[newindex]
+            dY = np.array(rY, dtype=np.float32)[newindex]
+            # dX = np.array(rX)[newindex]
+            # dY = np.array(rY)[newindex]
+            temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
+            humidity = df.iloc[newindex]["Relative Humidity (%)"].values
 
-        angles = np.array(ListAngles(dX, dY))
+        angles = np.array(ListAngles(dX, dY), dtype=np.float32)
+        #angles = np.array(ListAngles(dX, dY))
 
         c = np.cos(angles)
         s = np.sin(angles)
@@ -348,9 +360,10 @@ def analyse_focal_animal(
             meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
                 angles
             )
-            sin = meanVector * np.sin(meanAngle)
-            cos = meanVector * np.cos(meanAngle)
-
+            # sin = meanVector * np.sin(meanAngle)
+            # cos = meanVector * np.cos(meanAngle)
+            sin = meanVector * np.sin(meanAngle, dtype=np.float32)
+            cos = meanVector * np.cos(meanAngle, dtype=np.float32)
         std = np.sqrt(2 * (1 - meanVector))
         if time_series_analysis:
             tdist = np.sum(
@@ -380,20 +393,13 @@ def analyse_focal_animal(
 
         groups = [growth_condition] * len(dX)
         df_curated = pd.DataFrame(
-            {
-                "X": dX,
-                "Y": dY,
-                "fname": f,
-                "mu": mu,
-                "agent_speed": spe,
-                "duration": du
-            }
+            {"X": dX, "Y": dY, "fname": f, "mu": mu, "agent_speed": spe, "duration": du}
         )
         if "elapsed_time" in locals():
-            df_curated["ts"]=elapsed_time
+            df_curated["ts"] = list(elapsed_time)
         if "temperature" in locals():
-            df_curated["temperature"] = temperature
-            df_curated["humidity"] = humidity
+            df_curated["temperature"] = list(temperature)
+            df_curated["humidity"] = list(humidity)
         if scene_name.lower() == "swarm":
             df_curated["density"] = d
             df_curated["kappa"] = o
@@ -417,7 +423,6 @@ def analyse_focal_animal(
                             df_simulated["GameObjectPosZ"].values,
                         )
                     )
-                    # agent_ts = ts_simulated_animal[id // 2].to_numpy() TS information should be sorted out before making curated data
                     agent_rX, agent_rY = rotate_vector(
                         agent_xy[0], agent_xy[1], -90 * np.pi / 180
                     )
@@ -429,17 +434,14 @@ def analyse_focal_animal(
                     else:
                         agent_dX = np.array(agent_rX)[newindex]
                         agent_dY = np.array(agent_rY)[newindex]
-                        # agent_dX = np.array([agent_rX[i] for i in newindex]).T
-                        # agent_dY = np.array([agent_rY[i] for i in newindex]).T
-                        # agent_TS = np.array([agent_ts[i] for i in newindex]).T TS information should be sorted out before making curated data
 
             elif scene_name.lower() == "swarm":
                 Warning("work in progress")
             if "agent_dX" in locals():
                 df_agent = pd.DataFrame(
                     {
-                        "X": agent_dX,
-                        "Y": agent_dY,
+                        "X": np.float32(agent_dX),
+                        "Y": np.float32(agent_dY),
                         "fname": [fchop] * len(agent_dX),
                         "mu": mu,
                         "agent_speed": spe,
@@ -456,19 +458,19 @@ def analyse_focal_animal(
                     )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
 
         f = [f[0]]
-        loss = [loss[0]]
+        loss = [np.float32(loss[0])]
         o = [o[0]]
         d = [d[0]]
         mu = [mu[0]]
         spe = [spe[0]]
         groups = [groups[0]]
-        V = [meanVector]
-        MA = [meanAngle]
-        ST = [std]
+        V = [np.float32(meanVector)]
+        MA = [np.float32(meanAngle)]
+        ST = [np.float32(std)]
         lX = [dX[-1]]
         tD = [tdist]
-        sins = [sin]
-        coss = [cos]
+        sins = [np.float32(sin)]
+        coss = [np.float32(cos)]
         du = [du[0]]
 
         df_summary = pd.DataFrame(
@@ -485,7 +487,7 @@ def analyse_focal_animal(
                 "distTotal": tD,
                 "sin": sins,
                 "cos": coss,
-                "duration":du,
+                "duration": du,
             }
         )
         if scene_name.lower() == "swarm":
@@ -566,8 +568,8 @@ def analyse_focal_animal(
                     store.close()
 
         heading_direction_across_trials.append(angles)
-        x_across_trials.append(x)
-        y_across_trials.append(y)
+        x_across_trials.append(dX)
+        y_across_trials.append(dY)
         if time_series_analysis:
             ts_across_trials.append(elapsed_time)
         else:
@@ -576,6 +578,7 @@ def analyse_focal_animal(
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
     if plotting_trajectory == True and dont_save_output == False:
+        #plt.show()
         fig.savefig(trajectory_fig_path)
     return (
         heading_direction_across_trials,
@@ -593,7 +596,7 @@ def preprocess_matrex_data(thisDir, json_file):
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    found_result = find_file(thisDir,"matrexVR*.txt","DL220THP*.csv")
+    found_result = find_file(thisDir, "matrexVR*.txt", "DL220THP*.csv")
     ## here to load temperature data
     if found_result is None:
         tem_df = None
@@ -601,13 +604,23 @@ def preprocess_matrex_data(thisDir, json_file):
 
     else:
         if isinstance(found_result, list):
-            print(f"Multiple temperature files are detected. Have not figured out how to deal with this.")
+            print(
+                f"Multiple temperature files are detected. Have not figured out how to deal with this."
+            )
             for this_file in found_result:
                 tem_df = load_temperature_data(this_file)
         else:
             tem_df = load_temperature_data(found_result)
-        if 'Celsius(°C)' in tem_df.columns: #make the column name consistent with data from DL220 logger
-            tem_df.rename(columns={'Celsius(°C)': 'Temperature ˚C (ºC)', 'Humidity(%rh)': 'Relative Humidity (%)'}, inplace=True)
+        if (
+            "Celsius(°C)" in tem_df.columns
+        ):  # make the column name consistent with data from DL220 logger
+            tem_df.rename(
+                columns={
+                    "Celsius(°C)": "Temperature ˚C (ºC)",
+                    "Humidity(%rh)": "Relative Humidity (%)",
+                },
+                inplace=True,
+            )
     num_vr = 4
     ## here to load simulated agent's data
     for i in range(num_vr):
@@ -638,9 +651,9 @@ def preprocess_matrex_data(thisDir, json_file):
                 with open(json_file, "r") as f:
                     print(f"load conditions from file {json_file}")
                     tmp = json.loads(f.read())
-                for idx in  range(len(tmp["sequences"])):
-                    this_file=found_result[idx]
-                #for idx, this_file in enumerate(found_result):
+                for idx in range(len(tmp["sequences"])):
+                    this_file = found_result[idx]
+                    # for idx, this_file in enumerate(found_result):
                     ts, x, y, condition = read_simulated_data(
                         this_file, analysis_methods
                     )
@@ -648,7 +661,7 @@ def preprocess_matrex_data(thisDir, json_file):
                     x_simulated_animal.append(x)
                     y_simulated_animal.append(y)
                     if scene_name.lower() == "swarm":
-                        condition['duration'] = tmp["sequences"][idx]["duration"]
+                        condition["duration"] = tmp["sequences"][idx]["duration"]
                     conditions.append(condition)
 
             elif len(found_result.stem) > 0:
@@ -669,7 +682,7 @@ def preprocess_matrex_data(thisDir, json_file):
                     y_simulated_animal.append(y)
                     conditions.append(condition)
 
-    ## here to load focal_animal's data
+        ## here to load focal_animal's data
         animal_name_pattern = f"*_VR{i+1}*"
         found_result = find_file(thisDir, animal_name_pattern)
         if found_result is None:
@@ -714,8 +727,9 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
+    #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
-    #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
+    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
