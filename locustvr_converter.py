@@ -19,6 +19,8 @@ from useful_tools import find_file
 from data_cleaning import load_temperature_data
 from funcs import *
 
+# removeNoiseVR
+# diskretize
 lock = Lock()
 
 
@@ -190,10 +192,10 @@ def analyse_focal_animal(
     tem_df=None,
 ):
     # track_ball_radius = analysis_methods.get("trackball_radius_cm")
-    # monitor_fps = analysis_methods.get("monitor_fps")
+    monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory")
     dont_save_output = analysis_methods.get("dont_save_output")
-    camera_fps = analysis_methods.get("camera_fps")
+    # camera_fps = analysis_methods.get("camera_fps")
     scene_name = analysis_methods.get("experiment_name")
     alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
     analyze_one_session_only = True
@@ -243,14 +245,14 @@ def analyse_focal_animal(
         df["Temperature ˚C (ºC)"] = np.nan
         df["Relative Humidity (%)"] = np.nan
     else:
-        frequency_milisecond = int(1000 / camera_fps)
+        frequency_milisecond = int(1000 / monitor_fps)
         tem_df = tem_df.resample(
             f"{frequency_milisecond}L"
         ).interpolate()  # FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
         aligned_THP = tem_df.reindex(df.index, method="nearest")
         df = df.join(aligned_THP.astype(np.float32))
-        #df = df.join(aligned_THP)
+        # df = df.join(aligned_THP)
         del tem_df
 
     if overwrite_curated_dataset == True and summary_file_path.is_file():
@@ -302,7 +304,7 @@ def analyse_focal_animal(
             break
         if time_series_analysis:
             elapsed_time = np.float32((ts - ts.min()).dt.total_seconds().values)
-            #elapsed_time = (ts - ts.min()).dt.total_seconds().values
+            # elapsed_time = (ts - ts.min()).dt.total_seconds().values
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(xy[0], 59, 3, axis=0)
                 Y = savgol_filter(xy[1], 59, 3, axis=0)
@@ -320,31 +322,34 @@ def analyse_focal_animal(
             if len(X) == 0:
                 print("all is noise")
                 continue
+        theta = np.radians(-90)  # much faster method that use rotation matrix
+        # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+        rot_matrix = np.array(
+            [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+        )
+        rXY = rot_matrix @ np.vstack((X, Y))
 
-        rX, rY = rotate_vector(
-            X, Y, -90 * np.pi / 180
-        )  # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
         if time_series_analysis:
-            (dX, dY) = (np.array(rX, dtype=np.float32), np.array(rY, dtype=np.float32))
-            # (dX, dY) = (np.array(rX), np.array(rY))
+            (dX, dY) = (rXY[0], rXY[1])
             temperature = df[this_range]["Temperature ˚C (ºC)"].values
             humidity = df[this_range]["Relative Humidity (%)"].values
         else:
-            newindex = diskretize(rX, rY, BODY_LENGTH3)
-            dX = np.array(rX, dtype=np.float32)[newindex]
-            dY = np.array(rY, dtype=np.float32)[newindex]
+            newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
+            dX = rXY[0][newindex]
+            dY = rXY[1][newindex]
             # dX = np.array(rX)[newindex]
             # dY = np.array(rY)[newindex]
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
 
-        angles = np.array(ListAngles(dX, dY), dtype=np.float32)
-        #angles = np.array(ListAngles(dX, dY))
+        # angles = np.degrees(np.arctan2(dY, dX)) % 360 ## return angles in degree, between 0 and 360
+        angles = np.arctan2(np.diff(dY), np.diff(dX))
+        # angles = np.array(ListAngles(dX, dY))
 
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
-            (xm, ym, meanAngle, meanVector, sin, cos) = (
+            (xm, ym, meanAngle, meanVector, VecSin, VecCos) = (
                 np.nan,
                 np.nan,
                 np.nan,
@@ -356,14 +361,14 @@ def analyse_focal_animal(
             xm = np.sum(c) / len(angles)
             ym = np.sum(s) / len(angles)
 
-            meanAngle = atan2(ym, xm)
+            meanAngle = np.arctan2(ym, xm)
             meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
                 angles
             )
             # sin = meanVector * np.sin(meanAngle)
             # cos = meanVector * np.cos(meanAngle)
-            sin = meanVector * np.sin(meanAngle, dtype=np.float32)
-            cos = meanVector * np.cos(meanAngle, dtype=np.float32)
+            VecSin = meanVector * np.sin(meanAngle, dtype=np.float32)
+            VecCos = meanVector * np.cos(meanAngle, dtype=np.float32)
         std = np.sqrt(2 * (1 - meanVector))
         if time_series_analysis:
             tdist = np.sum(
@@ -423,17 +428,20 @@ def analyse_focal_animal(
                             df_simulated["GameObjectPosZ"].values,
                         )
                     )
-                    agent_rX, agent_rY = rotate_vector(
-                        agent_xy[0], agent_xy[1], -90 * np.pi / 180
-                    )
+                    # agent_rX, agent_rY = rotate_vector(
+                    #     agent_xy[0], agent_xy[1], -90 * np.pi / 180
+                    # )
+                    # theta = np.radians(-90)  # much faster method that use rotation matrix
+                    # # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+                    # rot_matrix = np.array(
+                    #     [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+                    # )
+                    agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
                     if time_series_analysis:
-                        (agent_dX, agent_dY) = (
-                            np.array(agent_rX),
-                            np.array(agent_rY),
-                        )
+                        (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
                     else:
-                        agent_dX = np.array(agent_rX)[newindex]
-                        agent_dY = np.array(agent_rY)[newindex]
+                        agent_dX = agent_rXY[0][newindex]
+                        agent_dY = agent_rXY[1][newindex]
 
             elif scene_name.lower() == "swarm":
                 Warning("work in progress")
@@ -469,8 +477,8 @@ def analyse_focal_animal(
         ST = [np.float32(std)]
         lX = [dX[-1]]
         tD = [tdist]
-        sins = [np.float32(sin)]
-        coss = [np.float32(cos)]
+        VecSins = [np.float32(VecSin)]
+        VecCoss = [np.float32(VecCos)]
         du = [du[0]]
 
         df_summary = pd.DataFrame(
@@ -485,8 +493,8 @@ def analyse_focal_animal(
                 "variance": ST,
                 "distX": lX,
                 "distTotal": tD,
-                "sin": sins,
-                "cos": coss,
+                "sin": VecSins,
+                "cos": VecCoss,
                 "duration": du,
             }
         )
@@ -578,7 +586,7 @@ def analyse_focal_animal(
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
     if plotting_trajectory == True and dont_save_output == False:
-        #plt.show()
+        # plt.show()
         fig.savefig(trajectory_fig_path)
     return (
         heading_direction_across_trials,
@@ -726,9 +734,10 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
-    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
-    #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
-    #thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
+    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
+    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
+    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
+    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
