@@ -5,7 +5,7 @@ analysis_methods = {
     "experiment_name": "swarm",
     "overwrite_curated_dataset": True,
     "dont_save_output": False,
-    "time_series_analysis": False,
+    "time_series_analysis": True,
     "filtering_method": "sg_filter",
     "plotting_trajectory": True,
     "load_individual_data": True,
@@ -16,6 +16,7 @@ analysis_methods = {
     "monitor_fps": 60,
     "body_length": 4,
     "growth_condition": "G",
+    "analysis_window": [-10, 10],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:
