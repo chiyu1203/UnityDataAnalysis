@@ -182,6 +182,28 @@ def read_simulated_data(this_file, analysis_methods):
     return ts, x, y, conditions
 
 
+def prepare_data(df, this_range):
+    ts = df.loc[this_range, "Current Time"]
+    if ts.empty:
+        return None
+    # x, y = df.loc[this_range, ["GameObjectPosX", "GameObjectPosZ"]].T
+    x = df["GameObjectPosX"][this_range]
+    y = df["GameObjectPosZ"][this_range]
+
+    xy = np.vstack((x.to_numpy(), y.to_numpy()))
+    xy = bfill(xy)  # Fill missing values for smoother analysis
+    trial_no = df.loc[this_range, "CurrentTrial"]
+    return ts, xy, trial_no
+
+
+def load_file(file):
+    if file.suffix == ".gz":
+        with gzip.open(file, "rb") as f:
+            return pd.read_csv(f)
+    elif file.suffix == ".csv":
+        return pd.read_csv(file)
+
+
 def analyse_focal_animal(
     this_file,
     analysis_methods,
@@ -191,55 +213,47 @@ def analyse_focal_animal(
     conditions,
     tem_df=None,
 ):
-    # track_ball_radius = analysis_methods.get("trackball_radius_cm")
+
     monitor_fps = analysis_methods.get("monitor_fps")
-    plotting_trajectory = analysis_methods.get("plotting_trajectory")
-    save_output = analysis_methods.get("save_output")
     # camera_fps = analysis_methods.get("camera_fps")
+    plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
+    save_output = analysis_methods.get("save_output", False)
+    overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
+    time_series_analysis = analysis_methods.get("time_series_analysis", False)
     scene_name = analysis_methods.get("experiment_name")
     alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
     analyze_one_session_only = True
     BODY_LENGTH3 = (
-        analysis_methods.get("body_length") * 3
+        analysis_methods.get("body_length", 4) * 3
     )  ## multiple 3 because 3 body length is used for spatial discretisation in Sayin et al.
     growth_condition = analysis_methods.get("growth_condition")
-    overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset")
-    time_series_analysis = analysis_methods.get("time_series_analysis")
-    heading_direction_across_trials = []
-    x_across_trials = []
-    y_across_trials = []
-    ts_across_trials = []
-    if type(this_file) == str:
-        this_file = Path(this_file)
-    if this_file.suffix == ".gz":
-        with gzip.open(this_file, "rb") as f:
-            df = pd.read_csv(f)
-    elif this_file.suffix == ".csv":
-        with open(this_file, mode="r") as f:
-            df = pd.read_csv(f)
+
+    this_file = Path(this_file) if isinstance(this_file, str) else this_file
+    df = load_file(this_file)
     # replace 0.0 with np.nan since they are generated during scene-switching
-    df["GameObjectPosX"].replace(
-        0.0, np.nan, inplace=True
-    )  ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
-    df["GameObjectPosZ"].replace(0.0, np.nan, inplace=True)
-    df["GameObjectRotY"].replace(0.0, np.nan, inplace=True)
+    ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
+    df.replace(
+        {
+            "GameObjectPosX": {0.0: np.nan},
+            "GameObjectPosZ": {0.0: np.nan},
+            "GameObjectRotY": {0.0: np.nan},
+        },
+        inplace=True,
+    )
     df["Current Time"] = pd.to_datetime(
         df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
     )
     experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
     experiment_id = re.sub(r"\s+", "_", experiment_id)
     experiment_id = re.sub(r":", "", experiment_id)
-    if (
-        time_series_analysis
-    ):  ## need to think about whether to name them the same regardless analysis methods
-        curated_file_path = this_file.parent / f"{experiment_id}_XY_full.h5"
-        summary_file_path = this_file.parent / f"{experiment_id}_score_full.h5"
-        agent_file_path = this_file.parent / f"{experiment_id}_agent_full.h5"
-
-    else:
-        curated_file_path = this_file.parent / f"{experiment_id}_XY.h5"
-        summary_file_path = this_file.parent / f"{experiment_id}_score.h5"
-        agent_file_path = this_file.parent / f"{experiment_id}_agent.h5"
+    # experiment_id = re.sub(
+    #     r"\s+|:", "_", f'{df["VR"][0]} {df["Current Time"][0].split(".")[0]}'
+    # )#AttributeError: 'Timestamp' object has no attribute 'split'
+    file_suffix = "full" if time_series_analysis else ""
+    curated_file_path = this_file.parent / f"{experiment_id}_XY_{file_suffix}.h5"
+    summary_file_path = this_file.parent / f"{experiment_id}_score_{file_suffix}.h5"
+    agent_file_path = this_file.parent / f"{experiment_id}_agent_{file_suffix}.h5"
+    # need to think about whether to name them the same regardless analysis methods
 
     if tem_df is None:
         df["Temperature ˚C (ºC)"] = np.nan
@@ -254,40 +268,66 @@ def analyse_focal_animal(
         df = df.join(aligned_THP.astype(np.float32))
         # df = df.join(aligned_THP)
         del tem_df
+    # if tem_df is not None:
+    #     tem_df = tem_df.resample(f"{int(1000 / monitor_fps)}ms").interpolate()
+    #     df.set_index("Current Time", inplace=True)
+    #     df = df.join(tem_df.reindex(df.index, method="nearest").astype(np.float32))
+    #     del tem_df
+    # else:
+    #     df["Temperature ˚C (ºC)"] = np.nan
+    #     df["Relative Humidity (%)"] = np.nan
 
-    if overwrite_curated_dataset == True and summary_file_path.is_file():
-        summary_file_path.unlink()
-        try:
-            curated_file_path.unlink()
-            agent_file_path.unlink()
-        except OSError as e:
-            # If it fails, inform the user.
-            print("Error: %s - %s." % (e.filename, e.strerror))
-    if plotting_trajectory == True:
-        fig, (ax1, ax2) = plt.subplots(
-            nrows=1, ncols=2, figsize=(18, 7), tight_layout=True
-        )
+    # if overwrite_curated_dataset and summary_file_path.is_file():
+    #     summary_file_path.unlink(missing_ok=True)
+    #     curated_file_path.unlink(missing_ok=True)
+    #     agent_file_path.unlink(missing_ok=True)
+
+    # if overwrite_curated_dataset == True and summary_file_path.is_file():
+    #     summary_file_path.unlink()
+    #     try:
+    #         curated_file_path.unlink()
+    #         agent_file_path.unlink()
+    #     except OSError as e:
+    #         # If it fails, inform the user.
+    #         print("Error: %s - %s." % (e.filename, e.strerror))
+
+    if plotting_trajectory:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
         ax1.set_title("ISI")
         ax2.set_title("Trial")
-    for id in range(len(conditions)):
+
+    (
+        heading_direction_across_trials,
+        x_across_trials,
+        y_across_trials,
+        ts_across_trials,
+    ) = ([], [], [], [])
+
+    # for id in range(len(conditions)):
+    for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
         # ts = df["Current Time"][this_range].astype("datetime64[ms]")
-        ts = df["Current Time"][this_range]
-        if len(ts) == 0:
+        # ts = df["Current Time"][this_range]
+
+        data = prepare_data(df, this_range)
+        if data is None:
             break
-        fchop = str(ts.iloc[0]).split(".")[0]
-        fchop = re.sub(r"\s+", "_", fchop)
-        fchop = re.sub(r":", "", fchop)
+        ts, xy, trial_no = data
+
+        # fchop = str(ts.iloc[0]).split(".")[0]
+        # fchop = re.sub(r"\s+", "_", fchop)
+        # fchop = re.sub(r":", "", fchop)
+        fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
         # heading_direction = df["GameObjectRotY"][this_range]
         # x = df["GameObjectPosX"][this_range].astype(np.float32)
         # y = df["GameObjectPosZ"][this_range].astype(np.float32)
-        x = df["GameObjectPosX"][this_range]
-        y = df["GameObjectPosZ"][this_range]
-        xy = np.vstack((x.to_numpy(), y.to_numpy()))
-        # since I introduced nan earlier for the switch scene, I need to fill them with some values otherwise, smoothing methods will fail
-        xy = bfill(xy)
-        # trial_no = df["CurrentTrial"][this_range].astype("int16")
-        trial_no = df["CurrentTrial"][this_range]
+        # x = df["GameObjectPosX"][this_range]
+        # y = df["GameObjectPosZ"][this_range]
+        # xy = np.vstack((x.to_numpy(), y.to_numpy()))
+        # # since I introduced nan earlier for the switch scene, I need to fill them with some values otherwise, smoothing methods will fail
+        # xy = bfill(xy)
+        # # trial_no = df["CurrentTrial"][this_range].astype("int16")
+        # trial_no = df["CurrentTrial"][this_range]
         if scene_name == "choice" and id % 2 > 0:
             df_simulated = pd.concat(
                 [
@@ -302,6 +342,26 @@ def analyse_focal_animal(
 
         if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
+
+        elapsed_time = (
+            (ts - ts.min()).dt.total_seconds().values if time_series_analysis else None
+        )
+        # Optional filtering and noise removal
+        X, Y = (
+            (savgol_filter(xy[0], 59, 3), savgol_filter(xy[1], 59, 3))
+            if time_series_analysis
+            else removeNoiseVR(xy[0], xy[1])[1:]
+        )
+        rXY = np.array(
+            [
+                [np.cos(np.radians(-90)), -np.sin(np.radians(-90))],
+                [np.sin(np.radians(-90)), np.cos(np.radians(-90))],
+            ]
+        ) @ np.vstack((X, Y))
+
+        # Calculate mean angles, vector, etc.
+        angles = np.arctan2(np.diff(rXY[1]), np.diff(rXY[0]))
+
         if time_series_analysis:
             elapsed_time = np.float32((ts - ts.min()).dt.total_seconds().values)
             # elapsed_time = (ts - ts.min()).dt.total_seconds().values
