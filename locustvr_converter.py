@@ -194,7 +194,7 @@ def analyse_focal_animal(
     # track_ball_radius = analysis_methods.get("trackball_radius_cm")
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory")
-    dont_save_output = analysis_methods.get("dont_save_output")
+    save_output = analysis_methods.get("save_output")
     # camera_fps = analysis_methods.get("camera_fps")
     scene_name = analysis_methods.get("experiment_name")
     alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
@@ -557,7 +557,7 @@ def analyse_focal_animal(
                         )
 
         #######################Sections to save data
-        if dont_save_output == False:
+        if save_output == True:
             with lock:
                 if "df_agent" in locals():
                     file_list = [curated_file_path, summary_file_path, agent_file_path]
@@ -585,7 +585,7 @@ def analyse_focal_animal(
         if "agent_dX" in locals():
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
-    if plotting_trajectory == True and dont_save_output == False:
+    if plotting_trajectory == True and save_output == True:
         # plt.show()
         fig.savefig(trajectory_fig_path)
     return (

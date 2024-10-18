@@ -4,7 +4,7 @@ file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experiment_name": "swarm",
     "overwrite_curated_dataset": True,
-    "dont_save_output": False,
+    "save_output": False,
     "time_series_analysis": True,
     "filtering_method": "sg_filter",
     "plotting_trajectory": True,
