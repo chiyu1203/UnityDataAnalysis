@@ -17,10 +17,8 @@ parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file
 from data_cleaning import load_temperature_data
-from funcs import *
+from funcs import removeNoiseVR, diskretize
 
-# removeNoiseVR
-# diskretize
 lock = Lock()
 
 
@@ -243,12 +241,14 @@ def analyse_focal_animal(
     df["Current Time"] = pd.to_datetime(
         df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
     )
-    experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
-    experiment_id = re.sub(r"\s+", "_", experiment_id)
-    experiment_id = re.sub(r":", "", experiment_id)
-    # experiment_id = re.sub(
-    #     r"\s+|:", "_", f'{df["VR"][0]} {df["Current Time"][0].split(".")[0]}'
-    # )#AttributeError: 'Timestamp' object has no attribute 'split'
+    experiment_id = re.sub(
+        r"\s+|:",
+        "_",
+        f'{df["VR"][0]} {df["Current Time"][0].strftime("%Y-%m-%d %H:%M:%S")}',
+    )
+    # experiment_id1 = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
+    # experiment_id1 = re.sub(r"\s+", "_", experiment_id)
+    # experiment_id1 = re.sub(r":", "", experiment_id)
     file_suffix = "full" if time_series_analysis else ""
     curated_file_path = this_file.parent / f"{experiment_id}_XY_{file_suffix}.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score_{file_suffix}.h5"
@@ -277,10 +277,10 @@ def analyse_focal_animal(
     #     df["Temperature ˚C (ºC)"] = np.nan
     #     df["Relative Humidity (%)"] = np.nan
 
-    # if overwrite_curated_dataset and summary_file_path.is_file():
-    #     summary_file_path.unlink(missing_ok=True)
-    #     curated_file_path.unlink(missing_ok=True)
-    #     agent_file_path.unlink(missing_ok=True)
+    if overwrite_curated_dataset and summary_file_path.is_file():
+        summary_file_path.unlink(missing_ok=True)
+        curated_file_path.unlink(missing_ok=True)
+        agent_file_path.unlink(missing_ok=True)
 
     # if overwrite_curated_dataset == True and summary_file_path.is_file():
     #     summary_file_path.unlink()
@@ -295,7 +295,6 @@ def analyse_focal_animal(
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
         ax1.set_title("ISI")
         ax2.set_title("Trial")
-
     (
         heading_direction_across_trials,
         x_across_trials,
@@ -308,16 +307,13 @@ def analyse_focal_animal(
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
         # ts = df["Current Time"][this_range].astype("datetime64[ms]")
         # ts = df["Current Time"][this_range]
-
         data = prepare_data(df, this_range)
         if data is None:
             break
         ts, xy, trial_no = data
-
-        # fchop = str(ts.iloc[0]).split(".")[0]
-        # fchop = re.sub(r"\s+", "_", fchop)
-        # fchop = re.sub(r":", "", fchop)
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
+        if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
+            break
         # heading_direction = df["GameObjectRotY"][this_range]
         # x = df["GameObjectPosX"][this_range].astype(np.float32)
         # y = df["GameObjectPosZ"][this_range].astype(np.float32)
@@ -340,40 +336,17 @@ def analyse_focal_animal(
             df_simulated.set_index("Current Time", inplace=True)
             df_simulated = df_simulated.reindex(ts.index, method="nearest")
 
-        if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
-            break
-
         elapsed_time = (
             (ts - ts.min()).dt.total_seconds().values if time_series_analysis else None
         )
-        # Optional filtering and noise removal
-        X, Y = (
-            (savgol_filter(xy[0], 59, 3), savgol_filter(xy[1], 59, 3))
-            if time_series_analysis
-            else removeNoiseVR(xy[0], xy[1])[1:]
-        )
-        rXY = np.array(
-            [
-                [np.cos(np.radians(-90)), -np.sin(np.radians(-90))],
-                [np.sin(np.radians(-90)), np.cos(np.radians(-90))],
-            ]
-        ) @ np.vstack((X, Y))
-
-        # Calculate mean angles, vector, etc.
-        angles = np.arctan2(np.diff(rXY[1]), np.diff(rXY[0]))
 
         if time_series_analysis:
-            elapsed_time = np.float32((ts - ts.min()).dt.total_seconds().values)
-            # elapsed_time = (ts - ts.min()).dt.total_seconds().values
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(xy[0], 59, 3, axis=0)
                 Y = savgol_filter(xy[1], 59, 3, axis=0)
             else:
                 X = xy[0]
                 Y = xy[1]
-            travel_distance_fbf = np.sqrt(
-                np.add(np.square(np.diff(X)), np.square(np.diff(Y)))
-            )  ##need to discuss with Pavan whether it is fair to use Unity clock as elapsed time to calculate speed
             loss = np.nan
         else:
             ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
@@ -382,12 +355,16 @@ def analyse_focal_animal(
             if len(X) == 0:
                 print("all is noise")
                 continue
-        theta = np.radians(-90)  # much faster method that use rotation matrix
-        # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+
+        theta = np.radians(-90)  # applying rotation matrix to rotate the coordinates
+        # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
         rot_matrix = np.array(
             [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
         )
         rXY = rot_matrix @ np.vstack((X, Y))
+
+        # Calculate mean angles, vector, etc.
+        angles = np.arctan2(np.diff(rXY[1]), np.diff(rXY[0]))
 
         if time_series_analysis:
             (dX, dY) = (rXY[0], rXY[1])
@@ -397,26 +374,13 @@ def analyse_focal_animal(
             newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
             dX = rXY[0][newindex]
             dY = rXY[1][newindex]
-            # dX = np.array(rX)[newindex]
-            # dY = np.array(rY)[newindex]
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
-
-        # angles = np.degrees(np.arctan2(dY, dX)) % 360 ## return angles in degree, between 0 and 360
-        angles = np.arctan2(np.diff(dY), np.diff(dX))
-        # angles = np.array(ListAngles(dX, dY))
 
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
-            (xm, ym, meanAngle, meanVector, VecSin, VecCos) = (
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-            )
+            xm = ym = meanAngle = meanVector = VecSin = VecCos = np.nan
         else:
             xm = np.sum(c) / len(angles)
             ym = np.sum(s) / len(angles)
@@ -430,21 +394,21 @@ def analyse_focal_animal(
             VecSin = meanVector * np.sin(meanAngle, dtype=np.float32)
             VecCos = meanVector * np.cos(meanAngle, dtype=np.float32)
         std = np.sqrt(2 * (1 - meanVector))
-        if time_series_analysis:
-            tdist = np.sum(
-                travel_distance_fbf
-            )  ##note this distance can be a lot larger than calculating with spatial discretisation
-        else:
-            tdist = len(dX) * BODY_LENGTH3
+
+        tdist = (
+            np.sum(np.sqrt(np.add(np.diff(X) ** 2, np.diff(Y) ** 2)))
+            if time_series_analysis
+            else len(X) * BODY_LENGTH3
+        )  ##note this distance can be a lot larger than calculating with spatial discretisation
 
         f = [fchop] * len(dX)
-        loss = [loss] * len(dX)
+
         if scene_name.lower() == "swarm":
-            o = [conditions[id]["Kappa"]] * len(dX)
-            d = [conditions[id]["Density"]] * len(dX)
-            mu = [conditions[id]["Mu"]] * len(dX)
-            spe = [conditions[id]["LocustSpeed"]] * len(dX)
-            du = [conditions[id]["duration"]] * len(dX)
+            o = [condition["Kappa"]] * len(dX)
+            d = [condition["Density"]] * len(dX)
+            mu = [condition["Mu"]] * len(dX)
+            spe = [condition["LocustSpeed"]] * len(dX)
+            du = [condition["duration"]] * len(dX)
         elif scene_name.lower() == "choice":
             if conditions[id][0]["agent"] == "LeaderLocust":
                 o = ["gn_locust"] * len(dX)
@@ -488,14 +452,6 @@ def analyse_focal_animal(
                             df_simulated["GameObjectPosZ"].values,
                         )
                     )
-                    # agent_rX, agent_rY = rotate_vector(
-                    #     agent_xy[0], agent_xy[1], -90 * np.pi / 180
-                    # )
-                    # theta = np.radians(-90)  # much faster method that use rotation matrix
-                    # # includes a minus because #the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
-                    # rot_matrix = np.array(
-                    #     [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-                    # )
                     agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
                     if time_series_analysis:
                         (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
@@ -525,37 +481,21 @@ def analyse_focal_animal(
                         agent_dX
                     )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
 
-        f = [f[0]]
-        loss = [np.float32(loss[0])]
-        o = [o[0]]
-        d = [d[0]]
-        mu = [mu[0]]
-        spe = [spe[0]]
-        groups = [groups[0]]
-        V = [np.float32(meanVector)]
-        MA = [np.float32(meanAngle)]
-        ST = [np.float32(std)]
-        lX = [dX[-1]]
-        tD = [tdist]
-        VecSins = [np.float32(VecSin)]
-        VecCoss = [np.float32(VecCos)]
-        du = [du[0]]
-
         df_summary = pd.DataFrame(
             {
-                "fname": f,
-                "loss": loss,
-                "mu": mu,
-                "agent_speed": spe,
-                "groups": groups,
-                "mean_angle": MA,
-                "vector": V,
-                "variance": ST,
-                "distX": lX,
-                "distTotal": tD,
-                "sin": VecSins,
-                "cos": VecCoss,
-                "duration": du,
+                "fname": [f[0]],
+                "loss": [loss],
+                "mu": [mu[0]],
+                "agent_speed": [spe[0]],
+                "groups": [groups[0]],
+                "mean_angle": [np.float32(meanAngle)],
+                "vector": [np.float32(meanVector)],
+                "variance": [np.float32(std)],
+                "distX": [dX[-1]],
+                "distTotal": [tdist],
+                "sin": [np.float32(VecSin)],
+                "cos": [np.float32(VecCos)],
+                "duration": [du[0]],
             }
         )
         if scene_name.lower() == "swarm":
