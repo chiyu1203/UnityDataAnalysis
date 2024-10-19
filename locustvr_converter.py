@@ -54,29 +54,7 @@ def ffill(arr):
     return out
 
 
-def reshape_multiagent_data(ts, x=None, y=None, phase=None):
-
-    number_of_duplicates = ts["Timestamp"].drop_duplicates().shape[0]
-    number_of_instances = int(ts.shape[0] / number_of_duplicates)
-    agent_id = np.tile(np.arange(number_of_instances), number_of_duplicates)
-    c_name_list = ["agent" + str(num) for num in agent_id]
-    if isinstance(y, pd.Series) == False and isinstance(phase, pd.Series) == False:
-
-        test = pd.concat([ts, x, pd.DataFrame(c_name_list)], axis=1)
-        new_df = test.pivot(index="Timestamp", columns=0, values="X")
-    elif isinstance(phase, pd.Series) == False:
-        test = pd.concat([ts, x, y, pd.DataFrame(c_name_list)], axis=1)
-        new_df = test.pivot(index="Timestamp", columns=0, values=["X", "Z"])
-    else:
-        test = pd.concat([ts, x, y, phase, pd.DataFrame(c_name_list)], axis=1)
-        new_df = test.pivot(
-            index="Timestamp", columns=0, values=["X", "Z", "VisibilityPhase"]
-        )
-        # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
-    return new_df
-
-
-def reshape_multiagent_data2(df, this_object):
+def reshape_multiagent_data(df, this_object):
     number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
     number_of_instances = int(df.shape[0] / number_of_duplicates)
     agent_id = np.tile(
@@ -107,7 +85,6 @@ def prepare_data(df, this_range):
     ts = df.loc[this_range, "Current Time"]
     if ts.empty:
         return None
-    # x, y = df.loc[this_range, ["GameObjectPosX", "GameObjectPosZ"]].T
     x = df["GameObjectPosX"][this_range]
     y = df["GameObjectPosZ"][this_range]
 
@@ -237,7 +214,6 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
                             "speed": tmp["objects"][0]["speed"],
                         }
                         condition_dict[condition_id] = condition
-                    # conditions.append(condition)
 
             elif len(found_result.stem) > 0:
                 with open(found_result, "r") as f:
@@ -265,12 +241,6 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
             )
 
             this_condition = condition_dict[this_condition_file]
-            # if (
-            #     i == 0
-            # ):  ## need to add this condition because I hardcode to make the first empty scene 240 sec
-            #     meta_condition = (this_condition, 240)
-            # else:
-            # meta_condition = (this_condition, tmp["sequences"][i]["duration"]) Can not use dictionary to add duration because dictionary is mutable
             meta_condition = (this_condition, tmp["sequences"][i]["duration"])
             conditions.append(meta_condition)
 
@@ -301,7 +271,6 @@ def analyse_focal_animal(
 ):
 
     monitor_fps = analysis_methods.get("monitor_fps")
-    # camera_fps = analysis_methods.get("camera_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
@@ -330,11 +299,6 @@ def analyse_focal_animal(
     df["Current Time"] = pd.to_datetime(
         df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
     )
-    # experiment_id = re.sub(
-    #     r"\s+|:",
-    #     "_",
-    #     f'{df["VR"][0]} {df["Current Time"][0].strftime("%Y-%m-%d %H:%M:%S")}',
-    # ) different format
     experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
     experiment_id = re.sub(r"\s+", "_", experiment_id)
     experiment_id = re.sub(r":", "", experiment_id)
@@ -363,23 +327,11 @@ def analyse_focal_animal(
     #     df.set_index("Current Time", inplace=True)
     #     df = df.join(tem_df.reindex(df.index, method="nearest").astype(np.float32))
     #     del tem_df
-    # else:
-    #     df["Temperature ˚C (ºC)"] = np.nan
-    #     df["Relative Humidity (%)"] = np.nan
 
     if overwrite_curated_dataset and summary_file_path.is_file():
         summary_file_path.unlink(missing_ok=True)
         curated_file_path.unlink(missing_ok=True)
         agent_file_path.unlink(missing_ok=True)
-
-    # if overwrite_curated_dataset == True and summary_file_path.is_file():
-    #     summary_file_path.unlink()
-    #     try:
-    #         curated_file_path.unlink()
-    #         agent_file_path.unlink()
-    #     except OSError as e:
-    #         # If it fails, inform the user.
-    #         print("Error: %s - %s." % (e.filename, e.strerror))
 
     if plotting_trajectory:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
@@ -394,24 +346,12 @@ def analyse_focal_animal(
 
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
-        # ts = df["Current Time"][this_range].astype("datetime64[ms]")
-        # ts = df["Current Time"][this_range]
         ts, xy, trial_no = prepare_data(df, this_range)
         if len(ts) == 0:
             break
         elif len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
             break
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
-        # heading_direction = df["GameObjectRotY"][this_range]
-        # x = df["GameObjectPosX"][this_range].astype(np.float32)
-        # y = df["GameObjectPosZ"][this_range].astype(np.float32)
-        # x = df["GameObjectPosX"][this_range]
-        # y = df["GameObjectPosZ"][this_range]
-        # xy = np.vstack((x.to_numpy(), y.to_numpy()))
-        # # since I introduced nan earlier for the switch scene, I need to fill them with some values otherwise, smoothing methods will fail
-        # xy = bfill(xy)
-        # # trial_no = df["CurrentTrial"][this_range].astype("int16")
-        # trial_no = df["CurrentTrial"][this_range]
         if scene_name == "choice" and id % 2 > 0:
             df_simulated = df_simulated_animal[id // 2]
             df_simulated.set_index("Current Time", inplace=True)
@@ -476,8 +416,6 @@ def analyse_focal_animal(
             meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
                 angles
             )
-            # sin = meanVector * np.sin(meanAngle)
-            # cos = meanVector * np.cos(meanAngle)
             VecSin = meanVector * np.sin(meanAngle, dtype=np.float32)
             VecCos = meanVector * np.cos(meanAngle, dtype=np.float32)
         std = np.sqrt(2 * (1 - meanVector))
@@ -631,21 +569,8 @@ def analyse_focal_animal(
                     ## if using plot instead of scatter plot
                     ax2.plot(dX, dY)
                     ##blue is earlier colour and yellow is later colour
-                    # ax2.scatter(
-                    #     dX,
-                    #     dY,
-                    #     c=np.arange(len(dY)),
-                    #     marker=".",
-                    # )
                 else:
-                    ## if using plot instead of scatter plot
                     ax1.plot(dX, dY)
-                    # ax1.scatter(
-                    #     dX,
-                    #     dY,
-                    #     c=np.arange(len(dY)),
-                    #     marker=".",
-                    # )
             elif scene_name.lower() == "choice":
                 if df_summary["type"][0] == "empty_trial":
                     ax1.scatter(
@@ -804,7 +729,7 @@ def preprocess_matrex_data(thisDir, json_file):
                             )
 
                         if isinstance(result, pd.DataFrame) == True:
-                            df_agent = reshape_multiagent_data2(result, this_object)
+                            df_agent = reshape_multiagent_data(result, this_object)
                         else:
                             df_agent = None
                         result_list.append(df_agent)
