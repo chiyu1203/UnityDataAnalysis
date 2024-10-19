@@ -67,7 +67,7 @@ conda activate unity_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
-conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel pytables
+conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel pytables deepdiff
 ```
 [Optional] if you ever want to load database from an excel sheet
 ```

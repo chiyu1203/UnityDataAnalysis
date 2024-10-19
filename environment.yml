@@ -34,6 +34,7 @@ dependencies:
   - dav1d=1.2.1
   - debugpy=1.8.6
   - decorator=5.1.1
+  - deepdiff=8.0.1
   - defusedxml=0.7.1
   - double-conversion=3.3.0
   - entrypoints=0.4
@@ -172,6 +173,7 @@ dependencies:
   - openh264=2.4.1
   - openjpeg=2.5.2
   - openssl=3.3.2
+  - orderly-set=5.2.2
   - overrides=7.7.0
   - packaging=24.1
   - pandas=2.2.3
