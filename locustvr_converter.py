@@ -11,6 +11,8 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
+from deepdiff import DeepDiff
+from pprint import pprint
 
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
@@ -52,132 +54,53 @@ def ffill(arr):
     return out
 
 
+def reshape_multiagent_data(ts, x=None, y=None, phase=None):
+
+    number_of_duplicates = ts["Timestamp"].drop_duplicates().shape[0]
+    number_of_instances = int(ts.shape[0] / number_of_duplicates)
+    agent_id = np.tile(np.arange(number_of_instances), number_of_duplicates)
+    c_name_list = ["agent" + str(num) for num in agent_id]
+    if isinstance(y, pd.Series) == False and isinstance(phase, pd.Series) == False:
+
+        test = pd.concat([ts, x, pd.DataFrame(c_name_list)], axis=1)
+        new_df = test.pivot(index="Timestamp", columns=0, values="X")
+    elif isinstance(phase, pd.Series) == False:
+        test = pd.concat([ts, x, y, pd.DataFrame(c_name_list)], axis=1)
+        new_df = test.pivot(index="Timestamp", columns=0, values=["X", "Z"])
+    else:
+        test = pd.concat([ts, x, y, phase, pd.DataFrame(c_name_list)], axis=1)
+        new_df = test.pivot(
+            index="Timestamp", columns=0, values=["X", "Z", "VisibilityPhase"]
+        )
+        # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
+    return new_df
+
+
+def reshape_multiagent_data2(df, this_object):
+    number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
+    number_of_instances = int(df.shape[0] / number_of_duplicates)
+    agent_id = np.tile(
+        np.arange(number_of_instances) + number_of_instances * this_object,
+        number_of_duplicates,
+    )
+    c_name_list = ["agent" + str(num) for num in agent_id]
+    test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
+    if "VisibilityPhase" in df.columns:
+        df_values = ["X", "Z", "VisibilityPhase"]
+
+    else:
+        df_values = ["X", "Z"]
+    new_df = test.pivot(index="Timestamp", columns=0, values=df_values)
+    # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
+    return new_df
+
+
 # Simple solution for bfill provided by financial_physician in comment below
 def bfill(arr):
     if arr.ndim == 1:
         return ffill(arr[::-1])[::-1]
     elif arr.ndim == 2:
         return ffill(arr[:, ::-1])[:, ::-1]
-
-
-def read_simulated_data(this_file, analysis_methods):
-    scene_name = analysis_methods.get("experiment_name")
-
-    print("read simulated data")
-    if type(this_file) == str:
-        this_file = Path(this_file)
-    thisDir = this_file.parent
-    if this_file.suffix == ".gz":
-        with gzip.open(this_file, "rb") as f:
-            df = pd.read_csv(f)
-    elif this_file.suffix == ".csv":
-        with open(this_file, mode="r") as f:
-            df = pd.read_csv(f)
-    print(df.columns)
-    if scene_name.lower() == "swarm":
-        n_locusts = df.columns[6]
-        boundary_size = df.columns[7]
-        mu = df.columns[8]
-        kappa = df.columns[9]
-        agent_speed = df.columns[10]
-        density = int(n_locusts.split(":")[1]) / (
-            int(boundary_size.split(":")[1]) ** 2 / 10000
-        )  # change the unit to m2
-        conditions = {
-            "Density": density,
-            mu.split(":")[0]: int(mu.split(":")[1]),
-            kappa.split(":")[0]: float(kappa.split(":")[1]),
-            agent_speed.split(":")[0]: float(agent_speed.split(":")[1]),
-        }
-        if len(df) > 0:
-            ts = pd.to_datetime(df["Timestamp"], format="%Y-%m-%d %H:%M:%S.%f")
-            x = df["X"]
-            y = df["Z"]
-        else:
-            ts = pd.to_datetime(this_file.stem[0:19], format="%Y-%m-%d_%H-%M-%S")
-            x = None
-            y = None
-    elif scene_name.lower() == "choice":
-        conditions = []
-        agent_pattern = "*_Choice_*.json"
-        found_result = find_file(thisDir, agent_pattern)
-        if found_result is None:
-            return print(f"file with {agent_pattern} not found")
-        else:
-            condition_dict = {}
-            if isinstance(found_result, list):
-                print(
-                    f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
-                )
-
-                for this_file in found_result:
-                    with open(this_file, "r") as f:
-                        print(f"load analysis methods from file {this_file}")
-                        condition_id = this_file.stem.split("_")[4]
-                        tmp = json.loads(f.read())
-                        condition = {
-                            "agent": tmp["objects"][0]["type"],
-                            "distance": tmp["objects"][0]["position"]["radius"],
-                            "heading_angle": tmp["objects"][0]["position"]["angle"],
-                            "walking_direction": tmp["objects"][0]["mu"],
-                            "agent_speed": tmp["objects"][0]["speed"],
-                        }
-                        condition_dict[condition_id] = condition
-                    # conditions.append(condition)
-
-            elif len(found_result.stem) > 0:
-                with open(found_result, "r") as f:
-                    print(f"load analysis methods from file {found_result}")
-                    condition_id = found_result.stem.split("_")[4]
-                    tmp = json.loads(f.read())
-                    condition = {
-                        "agent": tmp["objects"][0]["type"],
-                        "distance": tmp["objects"][0]["position"]["radius"],
-                        "heading_angle": tmp["objects"][0]["position"]["angle"],
-                        "walking_direction": tmp["objects"][0]["mu"],
-                        "agent_speed": tmp["objects"][0]["speed"],
-                    }
-                    condition_dict[condition_id] = condition
-
-        json_pattern = "*sequenceConfig.json"
-        found_result = find_file(thisDir, json_pattern)
-        with open(found_result, "r") as f:
-            print(f"load conditions from file {found_result}")
-            tmp = json.loads(f.read())
-        for i in range(len(tmp["sequences"])):
-            tmp["sequences"][i]["duration"]
-            this_condition_file = (
-                tmp["sequences"][i]["parameters"]["configFile"]
-                .split("_")[1]
-                .split(".")[0]
-            )
-
-            this_condition = condition_dict[this_condition_file]
-            # if (
-            #     i == 0
-            # ):  ## need to add this condition because I hardcode to make the first empty scene 240 sec
-            #     meta_condition = (this_condition, 240)
-            # else:
-            meta_condition = (this_condition, tmp["sequences"][i]["duration"])
-            conditions.append(meta_condition)
-
-        if len(df) > 0:
-            ts = []
-            x = []
-            y = []
-            for _, entries in df.groupby(["CurrentTrial", "CurrentStep"]):
-                ts.append(
-                    pd.to_datetime(
-                        entries["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
-                    )
-                )
-                x.append(entries["GameObjectPosX"])
-                y.append(entries["GameObjectPosZ"])
-        else:
-            ts = None
-            x = None
-            y = None
-    return ts, x, y, conditions
 
 
 def prepare_data(df, this_range):
@@ -202,12 +125,177 @@ def load_file(file):
         return pd.read_csv(file)
 
 
+def read_agent_data(this_file, analysis_methods, these_parameters=None):
+    scene_name = analysis_methods.get("experiment_name")
+    print("read simulated data")
+    thisDir = this_file.parent
+    if type(this_file) == str:
+        this_file = Path(this_file)
+
+    df = load_file(this_file)
+
+    print(df.columns)
+    if scene_name.lower() == "swarm":
+        n_locusts = df.columns[6]
+        boundary_size = df.columns[7]
+        density = int(n_locusts.split(":")[1]) / (
+            int(boundary_size.split(":")[1]) ** 2 / 10000
+        )
+        if these_parameters == None:
+            mu = df.columns[8]
+            kappa = df.columns[9]
+            agent_speed = df.columns[10]
+            conditions = {
+                "density": density,
+                mu.split(":")[0].lower(): int(mu.split(":")[1]),
+                kappa.split(":")[0].lower(): float(kappa.split(":")[1]),
+                "speed": float(agent_speed.split(":")[1]),
+            }
+        else:
+            mu = these_parameters["mu"]
+            kappa = these_parameters["kappa"]
+            agent_speed = these_parameters["locustSpeed"]
+            conditions = {
+                "density": density,
+                "mu": mu,
+                "kappa": kappa,
+                "speed": agent_speed,
+            }
+        # change the unit to m2
+
+        if len(df) > 0:
+            result = pd.concat(
+                [
+                    pd.to_datetime(df["Timestamp"], format="%Y-%m-%d %H:%M:%S.%f"),
+                    df["X"],
+                    df["Z"],
+                ],
+                axis=1,
+            )
+        else:
+            result = [
+                pd.to_datetime(this_file.stem[0:19], format="%Y-%m-%d_%H-%M-%S"),
+                None,
+                None,
+            ]
+
+    elif scene_name.lower() == "band":
+        conditions = {}
+        for this_item in range(len(list(these_parameters))):
+            if list(these_parameters)[this_item] == "position":
+                conditions["radial_distance"] = these_parameters["position"]["radius"]
+                conditions["polar_angle"] = these_parameters["position"]["angle"]
+            else:
+                conditions[list(these_parameters)[this_item]] = list(
+                    these_parameters.values()
+                )[this_item]
+        conditions["density"] = conditions["numberOfInstances"] / (
+            conditions["boundaryLengthX"] * conditions["boundaryLengthZ"] / 10000
+        )
+        if len(df) > 0:
+            result = pd.concat(
+                [
+                    pd.to_datetime(df["Timestamp"], format="%Y-%m-%d %H:%M:%S.%f"),
+                    df["X"],
+                    df["Z"],
+                    df["VisibilityPhase"],
+                ],
+                axis=1,
+            )
+        else:
+            result = [
+                pd.to_datetime(this_file.stem[0:19], format="%Y-%m-%d_%H-%M-%S"),
+                None,
+                None,
+                None,
+            ]
+
+    elif scene_name.lower() == "choice":
+        conditions = []
+        result = []
+        agent_pattern = "*_Choice_*.json"
+        found_result = find_file(thisDir, agent_pattern)
+        if found_result is None:
+            return print(f"file with {agent_pattern} not found")
+        else:
+            condition_dict = {}
+            if isinstance(found_result, list):
+                print(
+                    f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+                )
+
+                for this_file in found_result:
+                    with open(this_file, "r") as f:
+                        print(f"load analysis methods from file {this_file}")
+                        condition_id = this_file.stem.split("_")[4]
+                        tmp = json.loads(f.read())
+                        condition = {
+                            "type": tmp["objects"][0]["type"],
+                            "radial_distance": tmp["objects"][0]["position"]["radius"],
+                            "polar_angle": tmp["objects"][0]["position"]["angle"],
+                            "mu": tmp["objects"][0]["mu"],
+                            "speed": tmp["objects"][0]["speed"],
+                        }
+                        condition_dict[condition_id] = condition
+                    # conditions.append(condition)
+
+            elif len(found_result.stem) > 0:
+                with open(found_result, "r") as f:
+                    print(f"load analysis methods from file {found_result}")
+                    condition_id = found_result.stem.split("_")[4]
+                    tmp = json.loads(f.read())
+                    condition = {
+                        "type": tmp["objects"][0]["type"],
+                        "radial_distance": tmp["objects"][0]["position"]["radius"],
+                        "polar_angle": tmp["objects"][0]["position"]["angle"],
+                        "mu": tmp["objects"][0]["mu"],
+                        "speed": tmp["objects"][0]["speed"],
+                    }
+        json_pattern = "*sequenceConfig.json"
+        found_result = find_file(thisDir, json_pattern)
+        with open(found_result, "r") as f:
+            print(f"load conditions from file {found_result}")
+            tmp = json.loads(f.read())
+        for i in range(len(tmp["sequences"])):
+            tmp["sequences"][i]["duration"]
+            this_condition_file = (
+                tmp["sequences"][i]["parameters"]["configFile"]
+                .split("_")[1]
+                .split(".")[0]
+            )
+
+            this_condition = condition_dict[this_condition_file]
+            # if (
+            #     i == 0
+            # ):  ## need to add this condition because I hardcode to make the first empty scene 240 sec
+            #     meta_condition = (this_condition, 240)
+            # else:
+            # meta_condition = (this_condition, tmp["sequences"][i]["duration"]) Can not use dictionary to add duration because dictionary is mutable
+            meta_condition = (this_condition, tmp["sequences"][i]["duration"])
+            conditions.append(meta_condition)
+
+        if len(df) > 0:
+            v_phase = None
+            for _, entries in df.groupby(["CurrentTrial", "CurrentStep"]):
+
+                ct = pd.to_datetime(
+                    entries["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
+                )
+                result.append(
+                    pd.concat(
+                        [ct, entries["GameObjectPosX"], entries["GameObjectPosZ"]],
+                        axis=1,
+                    )
+                )  # need to add visibility phase here in the future
+        else:
+            result = [None, None, None, None]
+    return result, conditions
+
+
 def analyse_focal_animal(
     this_file,
     analysis_methods,
-    ts_simulated_animal,
-    x_simulated_animal,
-    y_simulated_animal,
+    df_simulated_animal,
     conditions,
     tem_df=None,
 ):
@@ -219,14 +307,15 @@ def analyse_focal_animal(
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
     scene_name = analysis_methods.get("experiment_name")
-    alpha_dictionary = {0.1: 0.2, 1.0: 0.4, 10.0: 0.6, 100000.0: 1}
     analyze_one_session_only = True
     BODY_LENGTH3 = (
         analysis_methods.get("body_length", 4) * 3
     )  ## multiple 3 because 3 body length is used for spatial discretisation in Sayin et al.
     growth_condition = analysis_methods.get("growth_condition")
 
-    this_file = Path(this_file) if isinstance(this_file, str) else this_file
+    if type(this_file) == str:
+        this_file = Path(this_file)
+
     df = load_file(this_file)
     # replace 0.0 with np.nan since they are generated during scene-switching
     ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
@@ -241,18 +330,18 @@ def analyse_focal_animal(
     df["Current Time"] = pd.to_datetime(
         df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
     )
-    experiment_id = re.sub(
-        r"\s+|:",
-        "_",
-        f'{df["VR"][0]} {df["Current Time"][0].strftime("%Y-%m-%d %H:%M:%S")}',
-    )
-    # experiment_id1 = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
-    # experiment_id1 = re.sub(r"\s+", "_", experiment_id)
-    # experiment_id1 = re.sub(r":", "", experiment_id)
-    file_suffix = "full" if time_series_analysis else ""
-    curated_file_path = this_file.parent / f"{experiment_id}_XY_{file_suffix}.h5"
-    summary_file_path = this_file.parent / f"{experiment_id}_score_{file_suffix}.h5"
-    agent_file_path = this_file.parent / f"{experiment_id}_agent_{file_suffix}.h5"
+    # experiment_id = re.sub(
+    #     r"\s+|:",
+    #     "_",
+    #     f'{df["VR"][0]} {df["Current Time"][0].strftime("%Y-%m-%d %H:%M:%S")}',
+    # ) different format
+    experiment_id = df["VR"][0] + " " + str(df["Current Time"][0]).split(".")[0]
+    experiment_id = re.sub(r"\s+", "_", experiment_id)
+    experiment_id = re.sub(r":", "", experiment_id)
+    file_suffix = "_full" if time_series_analysis else ""
+    curated_file_path = this_file.parent / f"{experiment_id}_XY{file_suffix}.h5"
+    summary_file_path = this_file.parent / f"{experiment_id}_score{file_suffix}.h5"
+    agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
     # need to think about whether to name them the same regardless analysis methods
 
     if tem_df is None:
@@ -264,8 +353,9 @@ def analyse_focal_animal(
             f"{frequency_milisecond}L"
         ).interpolate()  # FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
-        aligned_THP = tem_df.reindex(df.index, method="nearest")
-        df = df.join(aligned_THP.astype(np.float32))
+        df = df.join(tem_df.reindex(df.index, method="nearest").astype(np.float32))
+        # aligned_THP = tem_df.reindex(df.index, method="nearest")
+        # df = df.join(aligned_THP.astype(np.float32))
         # df = df.join(aligned_THP)
         del tem_df
     # if tem_df is not None:
@@ -302,18 +392,16 @@ def analyse_focal_animal(
         ts_across_trials,
     ) = ([], [], [], [])
 
-    # for id in range(len(conditions)):
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
         # ts = df["Current Time"][this_range].astype("datetime64[ms]")
         # ts = df["Current Time"][this_range]
-        data = prepare_data(df, this_range)
-        if data is None:
+        ts, xy, trial_no = prepare_data(df, this_range)
+        if len(ts) == 0:
             break
-        ts, xy, trial_no = data
+        elif len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
+            break
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
-        if len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
-            break
         # heading_direction = df["GameObjectRotY"][this_range]
         # x = df["GameObjectPosX"][this_range].astype(np.float32)
         # y = df["GameObjectPosZ"][this_range].astype(np.float32)
@@ -325,22 +413,20 @@ def analyse_focal_animal(
         # # trial_no = df["CurrentTrial"][this_range].astype("int16")
         # trial_no = df["CurrentTrial"][this_range]
         if scene_name == "choice" and id % 2 > 0:
-            df_simulated = pd.concat(
-                [
-                    ts_simulated_animal[id // 2],
-                    x_simulated_animal[id // 2],
-                    y_simulated_animal[id // 2],
-                ],
-                axis=1,
-            )
+            df_simulated = df_simulated_animal[id // 2]
             df_simulated.set_index("Current Time", inplace=True)
             df_simulated = df_simulated.reindex(ts.index, method="nearest")
-
-        elapsed_time = (
-            (ts - ts.min()).dt.total_seconds().values if time_series_analysis else None
-        )
+        elif (
+            scene_name != "choice"
+            and isinstance(df_simulated_animal[id], pd.DataFrame) == True
+        ):
+            these_simulated_agents = df_simulated_animal[id]
+            these_simulated_agents = these_simulated_agents.reindex(
+                ts.index, method="nearest"
+            )  ## Has an error ValueError: cannot reindex on an axis with duplicate labels
 
         if time_series_analysis:
+            elapsed_time = (ts - ts.min()).dt.total_seconds().values
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(xy[0], 59, 3, axis=0)
                 Y = savgol_filter(xy[1], 59, 3, axis=0)
@@ -350,6 +436,7 @@ def analyse_focal_animal(
             loss = np.nan
         else:
             ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
+            elapsed_time = None
             loss, X, Y = removeNoiseVR(xy[0], xy[1])
             loss = 1 - loss
             if len(X) == 0:
@@ -396,47 +483,69 @@ def analyse_focal_animal(
         std = np.sqrt(2 * (1 - meanVector))
 
         tdist = (
-            np.sum(np.sqrt(np.add(np.diff(X) ** 2, np.diff(Y) ** 2)))
+            np.sum(np.sqrt(np.add(np.square(np.diff(X)), np.square(np.diff(Y)))))
             if time_series_analysis
-            else len(X) * BODY_LENGTH3
-        )  ##note this distance can be a lot larger than calculating with spatial discretisation
+            else len(dX) * BODY_LENGTH3
+        )  ##The distance calculated based on spatial discretisation should be the shortest
 
         f = [fchop] * len(dX)
+        different_key = None
+        if isinstance(condition, list):
+            diff_con = DeepDiff(condition[0], condition[1])
+            pprint(diff_con)
+            different_key = diff_con.affected_root_keys[0]
+            condition = condition[0]
+        elif isinstance(
+            condition, tuple
+        ):  # designed for the choice assay, which use tuple to carry duration
+            duration = condition[1]  # drop the duration from the
+            condition = condition[0]
+        else:
+            pass
 
-        if scene_name.lower() == "swarm":
-            o = [condition["Kappa"]] * len(dX)
-            d = [condition["Density"]] * len(dX)
-            mu = [condition["Mu"]] * len(dX)
-            spe = [condition["LocustSpeed"]] * len(dX)
+        spe = [condition["speed"]] * len(dX)
+        mu = [condition["mu"]] * len(dX)
+        if scene_name.lower() == "swarm" or scene_name.lower() == "band":
+            order = [condition["kappa"]] * len(dX)
+            density = [condition["density"]] * len(dX)
             du = [condition["duration"]] * len(dX)
-        elif scene_name.lower() == "choice":
-            if conditions[id][0]["agent"] == "LeaderLocust":
-                o = ["gn_locust"] * len(dX)
-            elif conditions[id][0]["agent"] == "":
-                o = ["empty_trial"] * len(dX)
-            d = [conditions[id][0]["distance"]] * len(dX)
-            du = [conditions[id][1]] * len(dX)
-            f_angle = [conditions[id][0]["heading_angle"]] * len(dX)
-            mu = [conditions[id][0]["walking_direction"]] * len(dX)
-            spe = [conditions[id][0]["agent_speed"]] * len(dX)
+        if scene_name.lower() == "choice" or scene_name.lower() == "band":
+            polar_angle = [condition["polar_angle"]] * len(dX)
+            radial_distance = [condition["radial_distance"]] * len(dX)
+
+        if scene_name.lower() == "choice":
+            if condition["type"] == "LeaderLocust":
+                object_type = ["gn_moving_locust"] * len(dX)
+            elif condition["type"] == "":
+                object_type = ["empty_trial"] * len(dX)
+            du = [duration] * len(dX)
+        if scene_name.lower() == "band":
+            voff = [condition["visibleOffDuration"]] * len(dX)
+            von = [condition["visibleOnDuration"]] * len(dX)
+            f_angle = [condition["rotationAngle"]] * len(dX)
+            object_type = [condition["type"]] * len(dX)
 
         groups = [growth_condition] * len(dX)
         df_curated = pd.DataFrame(
             {"X": dX, "Y": dY, "fname": f, "mu": mu, "agent_speed": spe, "duration": du}
         )
-        if "elapsed_time" in locals():
+        if elapsed_time != None:
             df_curated["ts"] = list(elapsed_time)
         if "temperature" in locals():
             df_curated["temperature"] = list(temperature)
             df_curated["humidity"] = list(humidity)
-        if scene_name.lower() == "swarm":
-            df_curated["density"] = d
-            df_curated["kappa"] = o
-        elif scene_name.lower() == "choice":
-            df_curated["object_type"] = o
-            df_curated["initial_distance"] = d
-            df_curated["heading_angle"] = f_angle
-            f_angle = [f_angle[0]]
+        if scene_name.lower() == "swarm" or scene_name.lower() == "band":
+            df_curated["density"] = density
+            df_curated["kappa"] = order
+        if scene_name.lower() == "choice" or scene_name.lower() == "band":
+            df_curated["type"] = object_type
+            df_curated["radial_distance"] = radial_distance
+            df_curated["polar_angle"] = polar_angle
+            # Probably no need to save the following into curated database but just in case
+            # if scene_name.lower() == "band":
+            #     df_curated["visibleOffDuration"] = voff
+            #     df_curated["visibleOnDuration"] = von
+            #     df_curated["rotationAngle"] = f_angle
 
             ##load information about simulated locusts
             if scene_name.lower() == "choice":
@@ -459,8 +568,12 @@ def analyse_focal_animal(
                         agent_dX = agent_rXY[0][newindex]
                         agent_dY = agent_rXY[1][newindex]
 
-            elif scene_name.lower() == "swarm":
+            elif (
+                isinstance(df_simulated_animal[id], pd.DataFrame) == True
+                and "these_simulated_agents" in locals()
+            ):
                 Warning("work in progress")
+                pass
             if "agent_dX" in locals():
                 df_agent = pd.DataFrame(
                     {
@@ -473,20 +586,22 @@ def analyse_focal_animal(
                 )
                 if scene_name.lower() == "swarm":
                     print(
-                        "there is a unsovled bug about how to name the number of agent"
+                        "there is a unfixed bug about how to name the number of agent"
                     )
-                    df_agent["agent_no"] = d
+                    df_agent["agent_num"] = density
                 elif scene_name.lower() == "choice":
                     df_agent["agent_no"] = [0] * len(
                         agent_dX
                     )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
+                else:
+                    pass
 
         df_summary = pd.DataFrame(
             {
                 "fname": [f[0]],
                 "loss": [loss],
                 "mu": [mu[0]],
-                "agent_speed": [spe[0]],
+                "speed": [spe[0]],
                 "groups": [groups[0]],
                 "mean_angle": [np.float32(meanAngle)],
                 "vector": [np.float32(meanVector)],
@@ -498,43 +613,41 @@ def analyse_focal_animal(
                 "duration": [du[0]],
             }
         )
-        if scene_name.lower() == "swarm":
-            df_summary["density"] = d
-            df_summary["kappa"] = o
-        elif scene_name.lower() == "choice":
-            df_summary["object_type"] = o
-            df_summary["initial_distance"] = d
-            df_summary["heading_angle"] = f_angle
+        if scene_name.lower() == "swarm" or scene_name.lower() == "band":
+            df_summary["density"] = [density[0]]
+            df_summary["kappa"] = [order[0]]
+        if scene_name.lower() == "choice" or scene_name.lower() == "band":
+            df_summary["type"] = [object_type[0]]
+            df_summary["radial_distance"] = [radial_distance[0]]
+            df_summary["polar_angle"] = [polar_angle[0]]
+        if scene_name.lower() == "band":
+            df_summary["visibleOffDuration"] = [voff[0]]
+            df_summary["visibleOnDuration"] = [von[0]]
+            df_summary["rotationAngle"] = [f_angle[0]]
 
         if plotting_trajectory == True:
-            if scene_name.lower() == "swarm":
+            if scene_name.lower() == "swarm" or scene_name.lower() == "band":
                 if df_summary["density"][0] > 0:
                     ## if using plot instead of scatter plot
-                    # ax2.plot(
-                    #     dX, dY, color=np.arange(len(dY)), alpha=df_curated.iloc[id]["alpha"]
-                    # )
+                    ax2.plot(dX, dY)
                     ##blue is earlier colour and yellow is later colour
-                    ax2.scatter(
-                        dX,
-                        dY,
-                        c=np.arange(len(dY)),
-                        marker=".",
-                        alpha=df_summary["kappa"].map(alpha_dictionary)[0],
-                    )
+                    # ax2.scatter(
+                    #     dX,
+                    #     dY,
+                    #     c=np.arange(len(dY)),
+                    #     marker=".",
+                    # )
                 else:
                     ## if using plot instead of scatter plot
-                    # ax1.plot(
-                    #     dX, dY, alpha=df_curated.iloc[id]["alpha"]
+                    ax1.plot(dX, dY)
+                    # ax1.scatter(
+                    #     dX,
+                    #     dY,
+                    #     c=np.arange(len(dY)),
+                    #     marker=".",
                     # )
-                    ax1.scatter(
-                        dX,
-                        dY,
-                        c=np.arange(len(dY)),
-                        marker=".",
-                        alpha=df_summary["kappa"].map(alpha_dictionary)[0],
-                    )
             elif scene_name.lower() == "choice":
-                if df_summary["object_type"][0] == "empty_trial":
+                if df_summary["type"][0] == "empty_trial":
                     ax1.scatter(
                         dX,
                         dY,
@@ -567,6 +680,8 @@ def analyse_focal_animal(
                     data_frame_list = [df_curated, df_summary]
                 for this_name, this_pd in zip(file_list, data_frame_list):
                     store = pd.HDFStore(this_name)
+                    if different_key != None and different_key in this_pd.columns:
+                        this_pd[different_key] = np.nan
                     store.append(
                         "name_of_frame",
                         this_pd,
@@ -586,7 +701,6 @@ def analyse_focal_animal(
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
     if plotting_trajectory == True and save_output == True:
-        # plt.show()
         fig.savefig(trajectory_fig_path)
     return (
         heading_direction_across_trials,
@@ -630,25 +744,25 @@ def preprocess_matrex_data(thisDir, json_file):
                 inplace=True,
             )
     num_vr = 4
+    agents_shared_across_vrs = analysis_methods.get("agents_shared_across_vrs", False)
+    scene_name = analysis_methods.get("experiment_name")
     ## here to load simulated agent's data
     for i in range(num_vr):
-        scene_name = analysis_methods.get("experiment_name")
-        if scene_name.lower() == "swarm":
+
+        if scene_name.lower() == "swarm" or scene_name.lower() == "band":
             agent_pattern = f"*SimulatedLocustsVR{i+1}*"
         elif scene_name.lower() == "choice":
             agent_pattern = "*Leader*"
         found_result = find_file(thisDir, agent_pattern)
         if found_result is None:
             return print(f"file with {agent_pattern} not found")
-        # elif scene_name.lower() == "choice" and i > 0:
-        elif scene_name.lower() == "choice" and "ts_simulated_animal" in locals():
+        elif agents_shared_across_vrs and "ts_simulated_animal" in locals():
             print(
-                "Information about simulated locusts are shared across rigs in the choice scene, so start analysing focal animals"
+                "Information about simulated locusts are shared across rigs in the choice scene, so skip the rest of the loop and start analysing focal animals"
             )
         else:
-            ts_simulated_animal = []
-            x_simulated_animal = []
-            y_simulated_animal = []
+
+            df_simulated_animal = []
             conditions = []
             if isinstance(found_result, list):
                 print(
@@ -657,38 +771,63 @@ def preprocess_matrex_data(thisDir, json_file):
                 json_pattern = "*sequenceConfig.json"
                 json_file = find_file(thisDir, json_pattern)
                 with open(json_file, "r") as f:
-                    print(f"load conditions from file {json_file}")
-                    tmp = json.loads(f.read())
-                for idx in range(len(tmp["sequences"])):
-                    this_file = found_result[idx]
-                    # for idx, this_file in enumerate(found_result):
-                    ts, x, y, condition = read_simulated_data(
-                        this_file, analysis_methods
-                    )
-                    ts_simulated_animal.append(ts)
-                    x_simulated_animal.append(x)
-                    y_simulated_animal.append(y)
-                    if scene_name.lower() == "swarm":
-                        condition["duration"] = tmp["sequences"][idx]["duration"]
-                    conditions.append(condition)
+                    print(f"load trial sequence from file {json_file}")
+                    trial_sequence = json.loads(f.read())
+                for idx in range(len(trial_sequence["sequences"])):
+                    if "configFile" in trial_sequence["sequences"][idx]["parameters"]:
+                        config_file = trial_sequence["sequences"][idx]["parameters"][
+                            "configFile"
+                        ]  # need to figure out how to deal with swarm data
+                        this_config_file = find_file(thisDir, "*" + config_file)
+                        with open(this_config_file, "r") as f:
+                            print(f"load trial conditions from file {this_config_file}")
+                            trial_condition = json.loads(f.read())
+                        num_object = len(trial_condition["objects"])
+                    else:
+                        trial_condition = trial_sequence["sequences"][idx]["parameters"]
+                        num_object = 1
+                    this_file = found_result[idx * num_object]
+                    result_list = []
+                    condition_list = []
+                    for this_object in range(num_object):
+                        if "objects" in trial_condition:
+                            result, condition = read_agent_data(
+                                found_result[idx * num_object + this_object],
+                                analysis_methods,
+                                trial_condition["objects"][this_object],
+                            )
+                        else:
+                            result, condition = read_agent_data(
+                                found_result[idx * num_object + this_object],
+                                analysis_methods,
+                                trial_condition,
+                            )
+
+                        if isinstance(result, pd.DataFrame) == True:
+                            df_agent = reshape_multiagent_data2(result, this_object)
+                        else:
+                            df_agent = None
+                        result_list.append(df_agent)
+                        condition["duration"] = trial_sequence["sequences"][idx][
+                            "duration"
+                        ]  # may need to add condition to exclude some kind of data from choice assay.
+                        condition_list.append(condition)
+                    if num_object == 1:
+                        conditions.append(condition_list[0])
+                        df_simulated_animal.append(result_list[0])
+                    else:
+                        conditions.append(condition_list)
+                        df_simulated_animal.append(result_list)
 
             elif len(found_result.stem) > 0:
-                ts, x, y, condition = read_simulated_data(
-                    found_result, analysis_methods
+
+                (
+                    df_simulated_animal,
+                    conditions,
+                ) = read_agent_data(
+                    found_result,
+                    analysis_methods,
                 )
-                if scene_name.lower() == "choice":
-                    ts_simulated_animal = ts
-                    x_simulated_animal = x
-                    y_simulated_animal = y
-                    conditions = condition
-                else:
-                    ts, x, y, condition = read_simulated_data(
-                        found_result, analysis_methods
-                    )
-                    ts_simulated_animal.append(ts)
-                    x_simulated_animal.append(x)
-                    y_simulated_animal.append(y)
-                    conditions.append(condition)
 
         ## here to load focal_animal's data
         animal_name_pattern = f"*_VR{i+1}*"
@@ -702,31 +841,27 @@ def preprocess_matrex_data(thisDir, json_file):
                 )
                 for this_file in found_result:
                     (
-                        heading_direction_focal_animal,
-                        x_focal_animal,
-                        y_focal_animal,
-                        ts_focal_animal,
+                        _,
+                        _,
+                        _,
+                        _,
                     ) = analyse_focal_animal(
                         this_file,
                         analysis_methods,
-                        ts_simulated_animal,
-                        x_simulated_animal,
-                        y_simulated_animal,
+                        df_simulated_animal,
                         conditions,
                         tem_df,
                     )
             elif len(found_result.stem) > 0:
                 (
-                    heading_direction_focal_animal,
-                    x_focal_animal,
-                    y_focal_animal,
-                    ts_focal_animal,
+                    _,
+                    _,
+                    _,
+                    _,
                 ) = analyse_focal_animal(
                     found_result,
                     analysis_methods,
-                    ts_simulated_animal,
-                    x_simulated_animal,
-                    y_simulated_animal,
+                    df_simulated_animal,
                     conditions,
                     tem_df,
                 )
@@ -734,7 +869,8 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
-    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
+    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
+    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"

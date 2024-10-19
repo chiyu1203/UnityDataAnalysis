@@ -2,10 +2,11 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
-    "experiment_name": "swarm",
+    "experiment_name": "band",
     "overwrite_curated_dataset": True,
-    "save_output": False,
-    "time_series_analysis": True,
+    "save_output": True,
+    "agents_shared_across_vrs": False,
+    "time_series_analysis": False,
     "filtering_method": "sg_filter",
     "plotting_trajectory": True,
     "load_individual_data": True,
