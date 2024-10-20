@@ -453,7 +453,7 @@ def analyse_focal_animal(
 
         if scene_name.lower() == "choice":
             if condition["type"] == "LeaderLocust":
-                object_type = ["gn_moving_locust"] * len(dX)
+                object_type = ["mov_glocust"] * len(dX)
             elif condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
             du = [duration] * len(dX)
@@ -467,7 +467,7 @@ def analyse_focal_animal(
         df_curated = pd.DataFrame(
             {"X": dX, "Y": dY, "fname": f, "mu": mu, "agent_speed": spe, "duration": du}
         )
-        if elapsed_time != None:
+        if type(elapsed_time) == np.ndarray:
             df_curated["ts"] = list(elapsed_time)
         if "temperature" in locals():
             df_curated["temperature"] = list(temperature)
@@ -797,12 +797,12 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
-    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
+    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
-    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
