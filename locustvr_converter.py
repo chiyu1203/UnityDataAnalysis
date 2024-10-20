@@ -123,7 +123,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
             kappa = df.columns[9]
             agent_speed = df.columns[10]
             conditions = {
-                "density": density,
+                "density": float(density),
                 mu.split(":")[0].lower(): int(mu.split(":")[1]),
                 kappa.split(":")[0].lower(): float(kappa.split(":")[1]),
                 "speed": float(agent_speed.split(":")[1]),
@@ -133,10 +133,10 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
             kappa = these_parameters["kappa"]
             agent_speed = these_parameters["locustSpeed"]
             conditions = {
-                "density": density,
-                "mu": mu,
-                "kappa": kappa,
-                "speed": agent_speed,
+                "density": float(density),
+                "mu": int(mu),
+                "kappa": float(kappa),
+                "speed": float(agent_speed),
             }
         # change the unit to m2
 
@@ -317,7 +317,7 @@ def analyse_focal_animal(
             f"{frequency_milisecond}L"
         ).interpolate()  # FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
-        df = df.join(tem_df.reindex(df.index, method="nearest").astype(np.float32))
+        df = df.join(tem_df.reindex(df.index, method="nearest"))
         # aligned_THP = tem_df.reindex(df.index, method="nearest")
         # df = df.join(aligned_THP.astype(np.float32))
         # df = df.join(aligned_THP)
@@ -390,9 +390,6 @@ def analyse_focal_animal(
         )
         rXY = rot_matrix @ np.vstack((X, Y))
 
-        # Calculate mean angles, vector, etc.
-        angles = np.arctan2(np.diff(rXY[1]), np.diff(rXY[0]))
-
         if time_series_analysis:
             (dX, dY) = (rXY[0], rXY[1])
             temperature = df[this_range]["Temperature ˚C (ºC)"].values
@@ -403,6 +400,8 @@ def analyse_focal_animal(
             dY = rXY[1][newindex]
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
+        # Calculate mean angles, vector, etc.
+        angles = np.arctan2(np.diff(dY), np.diff(dX))
 
         c = np.cos(angles)
         s = np.sin(angles)
@@ -411,13 +410,14 @@ def analyse_focal_animal(
         else:
             xm = np.sum(c) / len(angles)
             ym = np.sum(s) / len(angles)
-
             meanAngle = np.arctan2(ym, xm)
+            # ang_deg = np.rad2deg(ang_rad) ## if converting the unit to degree
+            # ang_deg = np.mod(ang_deg,360.)# if the range is from 0 to 360
             meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
                 angles
             )
-            VecSin = meanVector * np.sin(meanAngle, dtype=np.float32)
-            VecCos = meanVector * np.cos(meanAngle, dtype=np.float32)
+            VecSin = meanVector * np.sin(meanAngle)
+            VecCos = meanVector * np.cos(meanAngle)
         std = np.sqrt(2 * (1 - meanVector))
 
         tdist = (
@@ -515,8 +515,8 @@ def analyse_focal_animal(
             if "agent_dX" in locals():
                 df_agent = pd.DataFrame(
                     {
-                        "X": np.float32(agent_dX),
-                        "Y": np.float32(agent_dY),
+                        "X": agent_dX,
+                        "Y": agent_dY,
                         "fname": [fchop] * len(agent_dX),
                         "mu": mu,
                         "agent_speed": spe,
@@ -541,13 +541,13 @@ def analyse_focal_animal(
                 "mu": [mu[0]],
                 "speed": [spe[0]],
                 "groups": [groups[0]],
-                "mean_angle": [np.float32(meanAngle)],
-                "vector": [np.float32(meanVector)],
-                "variance": [np.float32(std)],
+                "mean_angle": [meanAngle],
+                "vector": [meanVector],
+                "variance": [std],
                 "distX": [dX[-1]],
                 "distTotal": [tdist],
-                "sin": [np.float32(VecSin)],
-                "cos": [np.float32(VecCos)],
+                "sin": [VecSin],
+                "cos": [VecCos],
                 "duration": [du[0]],
             }
         )
@@ -795,7 +795,9 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
+    thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
