@@ -9,6 +9,7 @@
  "load_individual_data": true,
  "select_animals_by_condition": true,
  "active_trials_only": true,
+ "align_with_isi_onset": false,
  "graph_colour_code": [
   "r",
   "b",

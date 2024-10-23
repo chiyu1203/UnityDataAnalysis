@@ -12,6 +12,7 @@ analysis_methods = {
     "load_individual_data": True,
     "select_animals_by_condition": True,
     "active_trials_only": True,
+    "align_with_isi_onset": False,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],
     "camera_fps": 100,
     "trackball_radius_cm": 0.5,
