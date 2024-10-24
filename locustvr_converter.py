@@ -11,6 +11,7 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
+
 from deepdiff import DeepDiff
 from pprint import pprint
 
@@ -87,11 +88,11 @@ def prepare_data(df, this_range):
         return None
     x = df["GameObjectPosX"][this_range]
     y = df["GameObjectPosZ"][this_range]
-
+    rot_y = df["GameObjectRotY"][this_range]
     xy = np.vstack((x.to_numpy(), y.to_numpy()))
     xy = bfill(xy)  # Fill missing values for smoother analysis
     trial_no = df.loc[this_range, "CurrentTrial"]
-    return ts, xy, trial_no
+    return ts, xy, trial_no, rot_y
 
 
 def load_file(file):
@@ -346,7 +347,7 @@ def analyse_focal_animal(
 
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
-        ts, xy, trial_no = prepare_data(df, this_range)
+        ts, xy, trial_no, rot_y = prepare_data(df, this_range)
         if len(ts) == 0:
             break
         elif len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
@@ -373,6 +374,9 @@ def analyse_focal_animal(
             else:
                 X = xy[0]
                 Y = xy[1]
+            angles_rad = np.radians(
+                -rot_y.values
+            )  # turn negative to acount for Unity's axis and turn radian
             loss = np.nan
         else:
             ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
@@ -392,6 +396,10 @@ def analyse_focal_animal(
 
         if time_series_analysis:
             (dX, dY) = (rXY[0], rXY[1])
+            # [Optional] Step 2: Rotate counterclockwise by 90 degrees (add pi/2 radians)
+            # angles_rotated = angles_rad + np.pi / 2
+            # Step 3: Ensure the angles remain in the range [-π, π]
+            angles = (angles_rad + np.pi) % (2 * np.pi) - np.pi
             temperature = df[this_range]["Temperature ˚C (ºC)"].values
             humidity = df[this_range]["Relative Humidity (%)"].values
         else:
@@ -400,9 +408,7 @@ def analyse_focal_animal(
             dY = rXY[1][newindex]
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
-        # Calculate mean angles, vector, etc.
-        angles = np.arctan2(np.diff(dY), np.diff(dX))
-
+            angles = np.arctan2(np.diff(dY), np.diff(dX))
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
