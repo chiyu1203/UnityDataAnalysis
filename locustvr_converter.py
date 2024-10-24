@@ -471,7 +471,7 @@ def analyse_focal_animal(
 
         groups = [growth_condition] * len(dX)
         df_curated = pd.DataFrame(
-            {"X": dX, "Y": dY, "fname": f, "mu": mu, "agent_speed": spe, "duration": du}
+            {"X": dX, "Y": dY,"heading":angles,"fname": f, "mu": mu, "agent_speed": spe, "duration": du}
         )
         if type(elapsed_time) == np.ndarray:
             df_curated["ts"] = list(elapsed_time)
