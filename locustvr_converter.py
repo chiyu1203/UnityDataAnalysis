@@ -409,6 +409,9 @@ def analyse_focal_animal(
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
             angles = np.arctan2(np.diff(dY), np.diff(dX))
+            angles = np.insert(
+                angles, 0, 0
+            )  # add the initial heading direction, which we assume is toward 0 degree.
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
@@ -471,7 +474,15 @@ def analyse_focal_animal(
 
         groups = [growth_condition] * len(dX)
         df_curated = pd.DataFrame(
-            {"X": dX, "Y": dY,"heading":angles,"fname": f, "mu": mu, "agent_speed": spe, "duration": du}
+            {
+                "X": dX,
+                "Y": dY,
+                "heading": angles,
+                "fname": f,
+                "mu": mu,
+                "agent_speed": spe,
+                "duration": du,
+            }
         )
         if type(elapsed_time) == np.ndarray:
             df_curated["ts"] = list(elapsed_time)
@@ -801,14 +812,14 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
-    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
