@@ -410,8 +410,8 @@ def analyse_focal_animal(
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
             angles = np.arctan2(np.diff(dY), np.diff(dX))
             angles = np.insert(
-                angles, 0, 0
-            )  # add the initial heading direction, which we assume is toward 0 degree.
+                angles, 0, np.nan
+            )  # add the initial heading direction, which is an nan to avoid bias toward certain degree.
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
