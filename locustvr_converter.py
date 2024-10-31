@@ -41,6 +41,100 @@ sm = cm.ScalarMappable(cmap=colormap_name)
 COL = MplColorHelper(colormap_name, 0, 8)
 
 
+def fill_missing_data(df):
+
+    # # Iterate over the rows to identify missing data sequences in the 6th column
+    # missing_sections = []
+    # current_section = []
+    # for i in range(len(df) - 1):
+    #     if df.iloc[i, 5] == 0 and (df.iloc[i + 1, 4] == df.iloc[i, 4] + 1):
+    #         current_section.append(i)
+    #     elif current_section:
+    #         # If we reached the end of a missing section, save it
+    #         missing_sections.append(current_section)
+    #         current_section = []
+
+    # # Process each missing section
+    # for section in missing_sections:
+    #     # Find the first two normal values after the missing sequence in the 6th column
+    #     start_idx = section[-1] + 1
+    #     non_zero_values = df.iloc[start_idx:, 5].loc[lambda x: x != 0].iloc[:2]
+
+    #     # Ensure there are at least two values for interpolation
+    #     if len(non_zero_values) < 2:
+    #         continue  # Skip if fewer than two values are found
+
+    #     # Indices for interpolation reference points
+    #     ref_idx1, ref_idx2 = non_zero_values.index[0], non_zero_values.index[1]
+    #     ref_val1, ref_val2 = (
+    #         df.at[ref_idx1, df.columns[5]],
+    #         df.at[ref_idx2, df.columns[5]],
+    #     )
+
+    #     # Get values in the 12th column over the range for missing data rows
+    #     col12_values = df.loc[section[0] : ref_idx1, df.columns[11]].values
+
+    #     # Calculate the step for interpolation
+    #     step = (ref_val2 - ref_val1) / (ref_idx2 - ref_idx1)
+
+    #     # Fill in missing values using extrapolation logic
+    #     for j, idx in enumerate(section):
+    #         df.at[idx, df.columns[5]] = ref_val1 + step * (idx - ref_idx1)
+
+    for i in range(len(df)):
+        # Detect the start of a missing block where CurrentStep is 0 and CurrentTrial increments
+        if "tmp" in locals() and "missing_end" in locals():
+            if tmp.shape[0] < missing_end:
+                skip_number = missing_end + tmp.shape[0]
+            else:
+                skip_number = tmp.shape[0]
+            if i < skip_number:
+                continue
+            else:
+                pass
+        else:
+            i = i
+        # if df.loc[i, "GameObjectPosX"] == 0 and (
+        #     i == 0 or df.loc[i, "CurrentStep"] == df.loc[i - 1, "CurrentStep"] + 1
+        # ):# did not cover when changing trials
+        if df.loc[i, "GameObjectPosX"] == 0:
+            # Define the start and end of missing data block
+            missing_start = i
+            while i < len(df) and df.loc[i, "GameObjectPosX"] == 0:
+                i += 1
+            missing_end = i
+            next_valid_steps = df.loc[
+                missing_start : missing_end + 1, "GameObjectRotY"
+            ].values
+            next_valid_sens_pos = df.loc[
+                missing_start : missing_end + 1, "SensRotY"
+            ].values
+            # if np.where(next_valid_sens_pos == 0)[0].shape[0] == 0:
+            #     tmp = np.diff(np.unwrap(np.flip(next_valid_sens_pos), period=360))
+            #     df.loc[missing_start + 1 : missing_end + 1, "GameObjectRotY"] = np.flip(
+            #         np.unwrap(next_valid_steps[-1] + tmp, period=360)
+            #     )
+            # else:
+            num_zero_fictrac = np.where(next_valid_sens_pos == 0)[0].shape[
+                0
+            ]  ## this check how many 0 in fictrac data
+            tmp = np.diff(
+                np.unwrap(np.flip(next_valid_sens_pos[num_zero_fictrac:]), period=360)
+            )
+            df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_end + 1,
+                "GameObjectRotY",
+            ] = np.flip(np.unwrap(next_valid_steps[-1] + tmp, period=360))
+        else:
+            continue
+
+    return df
+
+
+# # Apply the function to the data
+# filled_data = fill_missing_data(data)
+
+
 def ffill(arr):
     mask = np.isnan(arr)
     if arr.ndim == 1:
@@ -287,6 +381,18 @@ def analyse_focal_animal(
         this_file = Path(this_file)
 
     df = load_file(this_file)
+    df_f = fill_missing_data(df)
+    # grouped = df.groupby(["CurrentTrial", "CurrentStep"])
+    # for name, entries in df_f.groupby(["CurrentTrial", "CurrentStep"]):
+    #     # entries["dif_orientation"] = entries["SensRotY"].diff()
+    #     # print(entries["dif_orientation"].cumsum().head(10))
+    #     print(f'First 2 entries for the "{name}" category:')
+    #     print(30 * "-")
+    #     print(entries["SensPosX"].head(10), "\n\n")
+    #     print(entries["GameObjectPosX"].head(10), "\n\n")
+    # print(entries["SensRotY"].head(5), "\n\n")
+    # test = df["GameObjectRotY"].values
+    # num_zero_fictrac = np.where(test == 0)[0].shape[0]
     # replace 0.0 with np.nan since they are generated during scene-switching
     ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df.replace(
@@ -812,14 +918,14 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
-    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
