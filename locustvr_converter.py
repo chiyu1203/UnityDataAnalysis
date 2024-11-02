@@ -1,3 +1,4 @@
+# %%
 # this is a file to convert data from matrexVR to locustVR.
 # Input: csv file, gz csv file from matrexVR
 # output: h5 file that stores single animal's response in multiple conditions
@@ -12,7 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
 
-from deepdiff import DeepDiff
+#from deepdiff import DeepDiff
 from pprint import pprint
 
 current_working_directory = Path.cwd()
@@ -40,91 +41,128 @@ colormap_name = "coolwarm"
 sm = cm.ScalarMappable(cmap=colormap_name)
 COL = MplColorHelper(colormap_name, 0, 8)
 
+def findLongestConseqSubseq(arr, n):
+    '''We insert all the array elements into unordered set. from https://www.geeksforgeeks.org/maximum-consecutive-numbers-present-array/'''
+    S = set()
+    for i in range(n):
+        S.add(arr[i])
 
-def fill_missing_data(df):
+    # check each possible sequence from the start
+    # then update optimal length
+    ans = 0
+    for i in range(n):
+        
+        # if current element is the starting
+        # element of a sequence
+        if S.__contains__(arr[i]):
+            
+            # Then check for next elements in the
+            # sequence
+            j = arr[i]
+            
+            # increment the value of array element
+            # and repeat search in the set
+            while(S.__contains__(j)):
+                j += 1
 
-    # # Iterate over the rows to identify missing data sequences in the 6th column
-    # missing_sections = []
-    # current_section = []
-    # for i in range(len(df) - 1):
-    #     if df.iloc[i, 5] == 0 and (df.iloc[i + 1, 4] == df.iloc[i, 4] + 1):
-    #         current_section.append(i)
-    #     elif current_section:
-    #         # If we reached the end of a missing section, save it
-    #         missing_sections.append(current_section)
-    #         current_section = []
+            # Update optimal length if this length
+            # is more. To get the length as it is
+            # incremented one by one
+            ans = max(ans, j - arr[i])
+    return ans
 
-    # # Process each missing section
-    # for section in missing_sections:
-    #     # Find the first two normal values after the missing sequence in the 6th column
-    #     start_idx = section[-1] + 1
-    #     non_zero_values = df.iloc[start_idx:, 5].loc[lambda x: x != 0].iloc[:2]
-
-    #     # Ensure there are at least two values for interpolation
-    #     if len(non_zero_values) < 2:
-    #         continue  # Skip if fewer than two values are found
-
-    #     # Indices for interpolation reference points
-    #     ref_idx1, ref_idx2 = non_zero_values.index[0], non_zero_values.index[1]
-    #     ref_val1, ref_val2 = (
-    #         df.at[ref_idx1, df.columns[5]],
-    #         df.at[ref_idx2, df.columns[5]],
-    #     )
-
-    #     # Get values in the 12th column over the range for missing data rows
-    #     col12_values = df.loc[section[0] : ref_idx1, df.columns[11]].values
-
-    #     # Calculate the step for interpolation
-    #     step = (ref_val2 - ref_val1) / (ref_idx2 - ref_idx1)
-
-    #     # Fill in missing values using extrapolation logic
-    #     for j, idx in enumerate(section):
-    #         df.at[idx, df.columns[5]] = ref_val1 + step * (idx - ref_idx1)
-
+def fill_missing_data(df,analysis_methods):
+    trackball_radius_cm = analysis_methods.get("trackball_radius_cm", 0.5)
     for i in range(len(df)):
         # Detect the start of a missing block where CurrentStep is 0 and CurrentTrial increments
-        if "tmp" in locals() and "missing_end" in locals():
-            if tmp.shape[0] < missing_end:
-                skip_number = missing_end + tmp.shape[0]
+        if "fill_rot" in locals() and "missing_end" in locals():
+            if fill_rot.shape[0] < missing_end:
+                skip_number = missing_end + fill_rot.shape[0]
             else:
-                skip_number = tmp.shape[0]
+                skip_number = fill_rot.shape[0]
             if i < skip_number:
                 continue
             else:
                 pass
         else:
             i = i
-        # if df.loc[i, "GameObjectPosX"] == 0 and (
-        #     i == 0 or df.loc[i, "CurrentStep"] == df.loc[i - 1, "CurrentStep"] + 1
-        # ):# did not cover when changing trials
         if df.loc[i, "GameObjectPosX"] == 0:
             # Define the start and end of missing data block
             missing_start = i
             while i < len(df) and df.loc[i, "GameObjectPosX"] == 0:
                 i += 1
             missing_end = i
-            next_valid_steps = df.loc[
+            missing_heading = df.loc[
                 missing_start : missing_end + 1, "GameObjectRotY"
             ].values
-            next_valid_sens_pos = df.loc[
+            reference_heading = df.loc[
                 missing_start : missing_end + 1, "SensRotY"
             ].values
-            # if np.where(next_valid_sens_pos == 0)[0].shape[0] == 0:
-            #     tmp = np.diff(np.unwrap(np.flip(next_valid_sens_pos), period=360))
-            #     df.loc[missing_start + 1 : missing_end + 1, "GameObjectRotY"] = np.flip(
-            #         np.unwrap(next_valid_steps[-1] + tmp, period=360)
-            #     )
-            # else:
-            num_zero_fictrac = np.where(next_valid_sens_pos == 0)[0].shape[
+            missing_x=df.loc[
+                missing_start : missing_end + 1, "GameObjectPosX"
+            ].values
+            missing_y=df.loc[
+                missing_start : missing_end + 1, "GameObjectPosZ"
+            ].values
+            reference_x=df.loc[
+                missing_start : missing_end + 1, "SensPosX"
+            ].values
+            reference_y=df.loc[
+                missing_start : missing_end + 1, "SensPosY"
+            ].values
+
+            # from scipy.spatial.transform import Rotation as R
+            # r = R.from_euler('y', initial_heading, degrees=True)
+            #t4=r.apply((x_s[4]*5,0,y_s[4]*5))
+            # theta = np.radians(
+            #     270+initial_heading
+            # )  # applying rotation matrix to rotate the coordinates
+            #rXY = rot_matrix @ np.vstack((x_s*-5, y_s*5))
+            if missing_start==0:
+                initial_heading=df.loc[0, "SensRotY"]
+            else:
+                initial_heading=df.loc[missing_start-1, "SensRotY"]
+            theta = np.radians(
+                initial_heading
+            ) 
+            rot_matrix = np.array(
+                [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+            )
+            
+            rXY = rot_matrix @ np.vstack((reference_y*trackball_radius_cm*10,reference_x*trackball_radius_cm*10))
+            num_zero_fictrac = np.where(reference_heading == 0)[0].shape[
                 0
             ]  ## this check how many 0 in fictrac data
-            tmp = np.diff(
-                np.unwrap(np.flip(next_valid_sens_pos[num_zero_fictrac:]), period=360)
+            fill_rot = np.diff(
+                np.unwrap(np.flip(reference_heading[num_zero_fictrac:]), period=360)
             )
+            fill_x = np.diff(np.flip(rXY[0][num_zero_fictrac:]))
+            fill_y=np.diff(np.flip(rXY[1][num_zero_fictrac:]))
             df.loc[
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectRotY",
-            ] = np.flip(np.unwrap(next_valid_steps[-1] + tmp, period=360))
+            ] = np.unwrap(missing_heading[-1] + np.cumsum(fill_rot), period=360)
+            df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_end + 1,
+                "GameObjectPosX",
+            ] = np.flip(missing_x[-1] + np.cumsum(fill_x))
+            df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_end + 1,
+                "GameObjectPosZ",
+            ] = np.flip(missing_y[-1] + np.cumsum(fill_y))
+            # fig, (ax, ax1) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
+            # ax.plot(df.loc[
+            #     missing_start + num_zero_fictrac + 1 : missing_end + 1,
+            #     "GameObjectPosX"],df.loc[
+            #     missing_start + num_zero_fictrac + 1 : missing_end + 1,
+            #     "GameObjectPosZ",
+            # ])
+            # ax1.plot(rXY[0], rXY[1])
+            # ax.set(
+            #     xlim=[-10, 10],
+            #     ylim=[-10, 10],
+            # )
+            # plt.show()
         else:
             continue
 
@@ -381,18 +419,10 @@ def analyse_focal_animal(
         this_file = Path(this_file)
 
     df = load_file(this_file)
-    df_f = fill_missing_data(df)
-    # grouped = df.groupby(["CurrentTrial", "CurrentStep"])
-    # for name, entries in df_f.groupby(["CurrentTrial", "CurrentStep"]):
-    #     # entries["dif_orientation"] = entries["SensRotY"].diff()
-    #     # print(entries["dif_orientation"].cumsum().head(10))
-    #     print(f'First 2 entries for the "{name}" category:')
-    #     print(30 * "-")
-    #     print(entries["SensPosX"].head(10), "\n\n")
-    #     print(entries["GameObjectPosX"].head(10), "\n\n")
-    # print(entries["SensRotY"].head(5), "\n\n")
-    # test = df["GameObjectRotY"].values
-    # num_zero_fictrac = np.where(test == 0)[0].shape[0]
+    df = fill_missing_data(df,analysis_methods)
+    test = np.where(df["GameObjectRotY"].values == 0)[0]
+    longest_unity_gap=findLongestConseqSubseq(test,test.shape[0])
+
     # replace 0.0 with np.nan since they are generated during scene-switching
     ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df.replace(
