@@ -1,7 +1,14 @@
 # %%
+# can not make plots during debug mode under the new virtual environment 
+# solution:  https://stackoverflow.com/questions/57160241/how-to-plot-during-debugger-mode-of-vscode
 # this is a file to convert data from matrexVR to locustVR.
 # Input: csv file, gz csv file from matrexVR
-# output: h5 file that stores single animal's response in multiple conditions
+# output:
+# h5 files storing single animal's response in the following forms
+# information about single animal's position in every frame: curated_file = f"{experiment_id}_XY{file_suffix}.h5"
+# summarise the response in every trials: summary_file = f"{experiment_id}_score{file_suffix}.h5"
+# [Optional] information about agents: agent_file = f"{experiment_id}_agent{file_suffix}.h5"
+
 import time
 import pandas as pd
 import numpy as np
@@ -13,7 +20,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
 
-#from deepdiff import DeepDiff
+from deepdiff import DeepDiff
 from pprint import pprint
 
 current_working_directory = Path.cwd()
@@ -110,14 +117,11 @@ def fill_missing_data(df,analysis_methods):
             reference_y=df.loc[
                 missing_start : missing_end + 1, "SensPosY"
             ].values
-
+            # Can use this method to transform into eular but this experiment, the 2D rotation matrix should be enough
+            # note both methods can not replicate the same number coming from Unity, probably because the Quaternion.Euler in Unity applies different algorithm
             # from scipy.spatial.transform import Rotation as R
             # r = R.from_euler('y', initial_heading, degrees=True)
             #t4=r.apply((x_s[4]*5,0,y_s[4]*5))
-            # theta = np.radians(
-            #     270+initial_heading
-            # )  # applying rotation matrix to rotate the coordinates
-            #rXY = rot_matrix @ np.vstack((x_s*-5, y_s*5))
             if missing_start==0:
                 initial_heading=df.loc[0, "SensRotY"]
             else:
@@ -150,28 +154,10 @@ def fill_missing_data(df,analysis_methods):
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectPosZ",
             ] = np.flip(missing_y[-1] + np.cumsum(fill_y))
-            # fig, (ax, ax1) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
-            # ax.plot(df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_end + 1,
-            #     "GameObjectPosX"],df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_end + 1,
-            #     "GameObjectPosZ",
-            # ])
-            # ax1.plot(rXY[0], rXY[1])
-            # ax.set(
-            #     xlim=[-10, 10],
-            #     ylim=[-10, 10],
-            # )
-            # plt.show()
         else:
             continue
 
     return df
-
-
-# # Apply the function to the data
-# filled_data = fill_missing_data(data)
-
 
 def ffill(arr):
     mask = np.isnan(arr)
@@ -455,15 +441,7 @@ def analyse_focal_animal(
         ).interpolate()  # FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
         df = df.join(tem_df.reindex(df.index, method="nearest"))
-        # aligned_THP = tem_df.reindex(df.index, method="nearest")
-        # df = df.join(aligned_THP.astype(np.float32))
-        # df = df.join(aligned_THP)
         del tem_df
-    # if tem_df is not None:
-    #     tem_df = tem_df.resample(f"{int(1000 / monitor_fps)}ms").interpolate()
-    #     df.set_index("Current Time", inplace=True)
-    #     df = df.join(tem_df.reindex(df.index, method="nearest").astype(np.float32))
-    #     del tem_df
 
     if overwrite_curated_dataset and summary_file_path.is_file():
         summary_file_path.unlink(missing_ok=True)
@@ -500,7 +478,7 @@ def analyse_focal_animal(
             these_simulated_agents = df_simulated_animal[id]
             these_simulated_agents = these_simulated_agents.reindex(
                 ts.index, method="nearest"
-            )  ## Has an error ValueError: cannot reindex on an axis with duplicate labels
+            )
 
         if time_series_analysis:
             elapsed_time = (ts - ts.min()).dt.total_seconds().values
@@ -532,9 +510,7 @@ def analyse_focal_animal(
 
         if time_series_analysis:
             (dX, dY) = (rXY[0], rXY[1])
-            # [Optional] Step 2: Rotate counterclockwise by 90 degrees (add pi/2 radians)
-            # angles_rotated = angles_rad + np.pi / 2
-            # Step 3: Ensure the angles remain in the range [-π, π]
+            #Ensure the angles remain in the range [-π, π]
             angles = (angles_rad + np.pi) % (2 * np.pi) - np.pi
             temperature = df[this_range]["Temperature ˚C (ºC)"].values
             humidity = df[this_range]["Relative Humidity (%)"].values
