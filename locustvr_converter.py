@@ -8,6 +8,9 @@
 # information about single animal's position in every frame: curated_file = f"{experiment_id}_XY{file_suffix}.h5"
 # summarise the response in every trials: summary_file = f"{experiment_id}_score{file_suffix}.h5"
 # [Optional] information about agents: agent_file = f"{experiment_id}_agent{file_suffix}.h5"
+#  Note: since the fictrac and Unity comes async, there is always one row delayed in Unity's GameObject dataset
+# in terms of pos, those are filled with sv filter so that nan can not be detected anymore but it is visible in rotY
+## Due to sometime RotY did not get fictrac data for some reasons for some rows, the rows with nan is 1 + (number of undetected rows) in the dataset. 
 
 import time
 import pandas as pd
@@ -20,13 +23,13 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
 
-from deepdiff import DeepDiff
+#from deepdiff import DeepDiff
 from pprint import pprint
 
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
-from useful_tools import find_file
+from useful_tools import find_file,findLongestConseqSubseq
 from data_cleaning import load_temperature_data
 from funcs import removeNoiseVR, diskretize
 
@@ -47,37 +50,11 @@ class MplColorHelper:
 colormap_name = "coolwarm"
 sm = cm.ScalarMappable(cmap=colormap_name)
 COL = MplColorHelper(colormap_name, 0, 8)
-
-def findLongestConseqSubseq(arr, n):
-    '''We insert all the array elements into unordered set. from https://www.geeksforgeeks.org/maximum-consecutive-numbers-present-array/'''
-    S = set()
-    for i in range(n):
-        S.add(arr[i])
-
-    # check each possible sequence from the start
-    # then update optimal length
-    ans = 0
-    for i in range(n):
-        
-        # if current element is the starting
-        # element of a sequence
-        if S.__contains__(arr[i]):
-            
-            # Then check for next elements in the
-            # sequence
-            j = arr[i]
-            
-            # increment the value of array element
-            # and repeat search in the set
-            while(S.__contains__(j)):
-                j += 1
-
-            # Update optimal length if this length
-            # is more. To get the length as it is
-            # incremented one by one
-            ans = max(ans, j - arr[i])
-    return ans
-
+def calculate_speed(dif_x,dif_y):
+    focal_distance_fbf=np.sqrt(np.sum([dif_x**2,dif_y**2],axis=0))
+    # focal_distance_fbf[0:number_frame_scene_changing+1]=np.nan##plus one to include the weird data from taking difference between 0 and some value
+    #instant_speed=focal_distance_fbf/np.diff(ts)
+    return focal_distance_fbf
 def fill_missing_data(df,analysis_methods):
     trackball_radius_cm = analysis_methods.get("trackball_radius_cm", 0.5)
     for i in range(len(df)):
@@ -119,21 +96,41 @@ def fill_missing_data(df,analysis_methods):
             ].values
             # Can use this method to transform into eular but this experiment, the 2D rotation matrix should be enough
             # note both methods can not replicate the same number coming from Unity, probably because the Quaternion.Euler in Unity applies different algorithm
-            # from scipy.spatial.transform import Rotation as R
-            # r = R.from_euler('y', initial_heading, degrees=True)
-            #t4=r.apply((x_s[4]*5,0,y_s[4]*5))
+            from scipy.spatial.transform import Rotation as R
+
             if missing_start==0:
                 initial_heading=df.loc[0, "SensRotY"]
             else:
                 initial_heading=df.loc[missing_start-1, "SensRotY"]
+
+            r = R.from_euler('y', initial_heading, degrees=True)
+            rXY_list=[]
+            for i in range(reference_x.shape[0]):
+                rXY_list.append(r.apply((reference_x[i]*trackball_radius_cm*10,0,reference_y[i]*trackball_radius_cm*10)))
+            # angles_rad = np.radians(initial_heading)
+            # angles_rotated=0 + np.pi / 2
+            # theta=(angles_rotated + np.pi) % (2 * np.pi) - np.pi
+
+            # # Step 2: Rotate counterclockwise by 90 degrees (add pi/2 radians)
+            # angles_rotated = angles_rad + np.pi / 2
+
+            # Step 3: Ensure the angles remain in the range [-π, π]
+            # angles_rotated = (angles_rotated + np.pi) % (2 * np.pi) - np.pi
+            #theta -4.62
             theta = np.radians(
-                initial_heading
-            ) 
+                -initial_heading
+            )
+            # theta = (theta % (2 * np.pi)) - 2 * np.pi
+            # theta = np.radians(
+            #     -initial_heading
+            # )
             rot_matrix = np.array(
                 [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
             )
             
             rXY = rot_matrix @ np.vstack((reference_y*trackball_radius_cm*10,reference_x*trackball_radius_cm*10))
+            #rXY = rot_matrix @ np.vstack((reference_y,reference_x))
+            # rXY=rXY*trackball_radius_cm*10
             num_zero_fictrac = np.where(reference_heading == 0)[0].shape[
                 0
             ]  ## this check how many 0 in fictrac data
@@ -145,7 +142,7 @@ def fill_missing_data(df,analysis_methods):
             df.loc[
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectRotY",
-            ] = np.unwrap(missing_heading[-1] + np.cumsum(fill_rot), period=360)
+            ] = np.flip(np.unwrap(missing_heading[-1] + np.cumsum(fill_rot), period=360))
             df.loc[
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectPosX",
@@ -154,6 +151,39 @@ def fill_missing_data(df,analysis_methods):
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectPosZ",
             ] = np.flip(missing_y[-1] + np.cumsum(fill_y))
+            fig, axes = plt.subplots(2, 2, figsize=(18, 7), tight_layout=True)
+            ax,ax1,ax2,ax3=axes.flatten()
+            reference_heading_x=df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_start+30 + 1,
+                "SensPosX"].values
+            reference_heading_y=df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_start+30 + 1,
+                "SensPosY"].values
+            curated_heading_x=df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_start+30 + 1,
+                "GameObjectPosX"].values
+            curated_heading_y=df.loc[
+                missing_start + num_zero_fictrac + 1 : missing_start+30 + 1,
+                "GameObjectPosZ"].values
+            #x=np.arange(0,curated_heading.shape[0])
+            ax.plot(reference_heading_x,reference_heading_y)
+            ax.set(title='reference')
+            ax1.plot(curated_heading_x,curated_heading_y)
+            ax1.set(title='curated')
+            dif_x=np.diff(reference_heading_x)
+            dif_y=np.diff(reference_heading_y)
+            diff_reference=calculate_speed(dif_x,dif_y)
+            dif_x=np.diff(curated_heading_x)
+            dif_y=np.diff(curated_heading_y)
+            diff_curated=calculate_speed(dif_x,dif_y)
+            x=np.arange(0,diff_curated.shape[0])
+            ax2.plot(x,diff_reference*5)
+            ax2.set(title='diff_reference')
+            ax3.plot(x,diff_curated)
+            ax3.set(title='diff_curated')
+            c = np.array([dif_x,dif_y])
+            dist = np.linalg.norm(c,axis=0)
+            plt.show()
         else:
             continue
 
@@ -408,7 +438,7 @@ def analyse_focal_animal(
     df = fill_missing_data(df,analysis_methods)
     test = np.where(df["GameObjectRotY"].values == 0)[0]
     longest_unity_gap=findLongestConseqSubseq(test,test.shape[0])
-
+    print(f"longest unfilled gap is {longest_unity_gap}")
     # replace 0.0 with np.nan since they are generated during scene-switching
     ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df.replace(
