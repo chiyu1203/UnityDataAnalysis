@@ -2,11 +2,11 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
-    "experiment_name": "band",
-    "overwrite_curated_dataset": True,
+    "experiment_name": "choice",
+    "overwrite_curated_dataset": False,
     "save_output": True,
-    "agents_shared_across_vrs": False,
-    "time_series_analysis": False,
+    "agents_shared_across_vrs": True,
+    "time_series_analysis": True,
     "filtering_method": "sg_filter",
     "plotting_trajectory": True,
     "load_individual_data": True,

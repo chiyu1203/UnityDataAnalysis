@@ -107,30 +107,8 @@ def fill_missing_data(df,analysis_methods):
             rXY_list=[]
             for i in range(reference_x.shape[0]):
                 rXY_list.append(r.apply((reference_x[i]*trackball_radius_cm*10,0,reference_y[i]*trackball_radius_cm*10)))
-            # angles_rad = np.radians(initial_heading)
-            # angles_rotated=0 + np.pi / 2
-            # theta=(angles_rotated + np.pi) % (2 * np.pi) - np.pi
-
-            # # Step 2: Rotate counterclockwise by 90 degrees (add pi/2 radians)
-            # angles_rotated = angles_rad + np.pi / 2
-
-            # Step 3: Ensure the angles remain in the range [-π, π]
-            # angles_rotated = (angles_rotated + np.pi) % (2 * np.pi) - np.pi
-            #theta -4.62
-            theta = np.radians(
-                -initial_heading
-            )
-            # theta = (theta % (2 * np.pi)) - 2 * np.pi
-            # theta = np.radians(
-            #     -initial_heading
-            # )
-            rot_matrix = np.array(
-                [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-            )
+            rXY=np.column_stack(rXY_list)
             
-            rXY = rot_matrix @ np.vstack((reference_y*trackball_radius_cm*10,reference_x*trackball_radius_cm*10))
-            #rXY = rot_matrix @ np.vstack((reference_y,reference_x))
-            # rXY=rXY*trackball_radius_cm*10
             num_zero_fictrac = np.where(reference_heading == 0)[0].shape[
                 0
             ]  ## this check how many 0 in fictrac data
@@ -138,7 +116,7 @@ def fill_missing_data(df,analysis_methods):
                 np.unwrap(np.flip(reference_heading[num_zero_fictrac:]), period=360)
             )
             fill_x = np.diff(np.flip(rXY[0][num_zero_fictrac:]))
-            fill_y=np.diff(np.flip(rXY[1][num_zero_fictrac:]))
+            fill_y=np.diff(np.flip(rXY[2][num_zero_fictrac:]))
             df.loc[
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectRotY",
