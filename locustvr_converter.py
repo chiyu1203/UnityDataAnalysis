@@ -544,6 +544,7 @@ def analyse_focal_animal(
             angles = (angles_rad + np.pi) % (2 * np.pi) - np.pi
             temperature = df[this_range]["Temperature ˚C (ºC)"].values
             humidity = df[this_range]["Relative Humidity (%)"].values
+            num_spatial_decision = len(angles)
         else:
             newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
             dX = rXY[0][newindex]
@@ -554,18 +555,20 @@ def analyse_focal_animal(
             angles = np.insert(
                 angles, 0, np.nan
             )  # add the initial heading direction, which is an nan to avoid bias toward certain degree.
+            num_spatial_decision = len(angles) - 1
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
             xm = ym = meanAngle = meanVector = VecSin = VecCos = np.nan
         else:
-            xm = np.sum(c) / len(angles)
-            ym = np.sum(s) / len(angles)
+            xm = np.nansum(c) / num_spatial_decision
+            ym = np.nansum(s) / num_spatial_decision
             meanAngle = np.arctan2(ym, xm)
             # ang_deg = np.rad2deg(ang_rad) ## if converting the unit to degree
             # ang_deg = np.mod(ang_deg,360.)# if the range is from 0 to 360
-            meanVector = np.sqrt(np.square(np.sum(c)) + np.square(np.sum(s))) / len(
-                angles
+            meanVector = (
+                np.sqrt(np.square(np.nansum(c)) + np.square(np.nansum(s)))
+                / num_spatial_decision
             )
             VecSin = meanVector * np.sin(meanAngle)
             VecCos = meanVector * np.cos(meanAngle)
@@ -954,14 +957,14 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
-    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
