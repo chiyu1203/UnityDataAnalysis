@@ -1,5 +1,7 @@
 # Unity VR data analysis
 
+This repo includes codes to analyse data collected matrex VR, a unity-based VR system for insects (https://github.com/pvnkmrksk/matrexVR)
+
 ## Data base structure
 The default structure comes the Unity program is good. However, there were slight differences between Scenes and how agent's location is logged.
 
@@ -107,19 +109,21 @@ Therefore, each project has its own json file. Below explains what those analysi
 
     "overwrite_curated_dataset": boolean, whether to overwrite the existing HDF file or not. If True, delete the old curated dataset.
 
-    "dont_save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then do not save any output
+    "save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then save any output
+
+    "agents_shared_across_vrs": boolean, a helper argument to check whether the agent's location is shared across VR setup or not.
 
     "time_series_analysis": boolean, analyse where animals move across trials. If True, select a fileter method to remove tracking noise, If false, spatial discretisation will be applied to analyse animal's trajectory.
     
     "filtering_method": 'sg_filter', default is to use savgol_filter. Any string other than that will lead to no filter. 
     
     "plotting_trajectory": boolean, whether to plot the trajectory of the animals in the experiment.
-    
-    "plotting_event_related_trajectory": boolean, whether to plot a heat map of animal's trajectory after the stimulus onset
-    
-    "plotting_deceleration_accerleration": boolean, whether to plot average deceleration and accerleration onset of the animals (this is still under construction)
 
     "load_individual_data" and "select_animals_by_condition": boolean, these are used in the jypter notebook to extract specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
+
+    "active_trials_only": boolean, a helper argument to extract animals whose walking distance pass certain threshold.
+
+    "align_with_isi_onset": boolean, use together with analysis_window, if True, then 0 in analysis_window means the onset of inter-stimulus interval; if False, then 0 means the onset of stimuli. 
     
     "graph_colour_code": array of string, just a helper array to know which colour is used.
 
@@ -132,6 +136,8 @@ Therefore, each project has its own json file. Below explains what those analysi
     "body_length": 4, #Unit: cm default body length use in spatial discretisation.
     
     "growth_condition": "G", Note: "G" for gregarious "S" for solitarious animals
+
+    "analysis_window": [-10,10], a two-element array to define where to slice trials (0 means the onset, unit: sec)
 
 Use **time_series_analysis.ipynb**, if you want do analyse stimulus-evoked responses in details.
 
