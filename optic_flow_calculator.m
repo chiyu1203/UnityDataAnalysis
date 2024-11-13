@@ -1,3 +1,4 @@
+% A test code to calculate optic flow of video on Matlab
 vidReader = VideoReader('Demo_008.mp4');
 
 opticFlow = opticalFlowHS;
