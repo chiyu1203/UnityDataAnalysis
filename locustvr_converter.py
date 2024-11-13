@@ -254,11 +254,14 @@ def load_file(file):
 def read_agent_data(this_file, analysis_methods, these_parameters=None):
     scene_name = analysis_methods.get("experiment_name")
     print("read simulated data")
-    thisDir = this_file.parent
-    if type(this_file) == str:
-        this_file = Path(this_file)
+    if type(this_file) == pd.DataFrame:
+        df = this_file
+    else:
+        thisDir = this_file.parent
+        if type(this_file) == str:
+            this_file = Path(this_file)
 
-    df = load_file(this_file)
+        df = load_file(this_file)
 
     print(df.columns)
     if scene_name.lower() == "swarm":
@@ -337,23 +340,66 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
             ]
 
     elif scene_name.lower() == "choice":
-        conditions = []
-        result = []
-        agent_pattern = "*_Choice_*.json"
-        found_result = find_file(thisDir, agent_pattern)
-        if found_result is None:
-            return print(f"file with {agent_pattern} not found")
-        else:
-            condition_dict = {}
-            if isinstance(found_result, list):
-                print(
-                    f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+        if type(this_file) == pd.DataFrame:
+            result = []
+            conditions = {}
+            for this_item in range(len(list(these_parameters))):
+                if list(these_parameters)[this_item] == "position":
+                    conditions["radial_distance"] = these_parameters["position"][
+                        "radius"
+                    ]
+                    conditions["polar_angle"] = these_parameters["position"]["angle"]
+                else:
+                    conditions[list(these_parameters)[this_item]] = list(
+                        these_parameters.values()
+                    )[this_item]
+            if len(df) > 0:
+                result = pd.concat(
+                    [
+                        pd.to_datetime(
+                            df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
+                        ),
+                        df["GameObjectPosX"],
+                        df["GameObjectPosZ"],
+                    ],
+                    axis=1,
                 )
+            else:
+                result = [None, None, None]
+        else:
+            conditions = []
+            result = []
+            agent_pattern = "*_Choice_*.json"
+            found_result = find_file(thisDir, agent_pattern)
+            if found_result is None:
+                return print(f"file with {agent_pattern} not found")
+            else:
+                condition_dict = {}
+                if isinstance(found_result, list):
+                    print(
+                        f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+                    )
 
-                for this_file in found_result:
-                    with open(this_file, "r") as f:
-                        print(f"load analysis methods from file {this_file}")
-                        condition_id = this_file.stem.split("_")[4]
+                    for this_file in found_result:
+                        with open(this_file, "r") as f:
+                            print(f"load analysis methods from file {this_file}")
+                            condition_id = this_file.stem.split("_")[4]
+                            tmp = json.loads(f.read())
+                            condition = {
+                                "type": tmp["objects"][0]["type"],
+                                "radial_distance": tmp["objects"][0]["position"][
+                                    "radius"
+                                ],
+                                "polar_angle": tmp["objects"][0]["position"]["angle"],
+                                "mu": tmp["objects"][0]["mu"],
+                                "speed": tmp["objects"][0]["speed"],
+                            }
+                            condition_dict[condition_id] = condition
+
+                elif len(found_result.stem) > 0:
+                    with open(found_result, "r") as f:
+                        print(f"load analysis methods from file {found_result}")
+                        condition_id = found_result.stem.split("_")[4]
                         tmp = json.loads(f.read())
                         condition = {
                             "type": tmp["objects"][0]["type"],
@@ -362,52 +408,38 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
                             "mu": tmp["objects"][0]["mu"],
                             "speed": tmp["objects"][0]["speed"],
                         }
-                        condition_dict[condition_id] = condition
-
-            elif len(found_result.stem) > 0:
-                with open(found_result, "r") as f:
-                    print(f"load analysis methods from file {found_result}")
-                    condition_id = found_result.stem.split("_")[4]
-                    tmp = json.loads(f.read())
-                    condition = {
-                        "type": tmp["objects"][0]["type"],
-                        "radial_distance": tmp["objects"][0]["position"]["radius"],
-                        "polar_angle": tmp["objects"][0]["position"]["angle"],
-                        "mu": tmp["objects"][0]["mu"],
-                        "speed": tmp["objects"][0]["speed"],
-                    }
-        json_pattern = "*sequenceConfig.json"
-        found_result = find_file(thisDir, json_pattern)
-        with open(found_result, "r") as f:
-            print(f"load conditions from file {found_result}")
-            tmp = json.loads(f.read())
-        for i in range(len(tmp["sequences"])):
-            tmp["sequences"][i]["duration"]
-            this_condition_file = (
-                tmp["sequences"][i]["parameters"]["configFile"]
-                .split("_")[1]
-                .split(".")[0]
-            )
-
-            this_condition = condition_dict[this_condition_file]
-            meta_condition = (this_condition, tmp["sequences"][i]["duration"])
-            conditions.append(meta_condition)
-
-        if len(df) > 0:
-            v_phase = None
-            for _, entries in df.groupby(["CurrentTrial", "CurrentStep"]):
-
-                ct = pd.to_datetime(
-                    entries["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
+            json_pattern = "*sequenceConfig.json"
+            found_result = find_file(thisDir, json_pattern)
+            with open(found_result, "r") as f:
+                print(f"load conditions from file {found_result}")
+                tmp = json.loads(f.read())
+            for i in range(len(tmp["sequences"])):
+                tmp["sequences"][i]["duration"]
+                this_condition_file = (
+                    tmp["sequences"][i]["parameters"]["configFile"]
+                    .split("_")[1]
+                    .split(".")[0]
                 )
-                result.append(
-                    pd.concat(
-                        [ct, entries["GameObjectPosX"], entries["GameObjectPosZ"]],
-                        axis=1,
+
+                this_condition = condition_dict[this_condition_file]
+                meta_condition = (this_condition, tmp["sequences"][i]["duration"])
+                conditions.append(meta_condition)
+
+            if len(df) > 0:
+                v_phase = None
+                for _, entries in df.groupby(["CurrentTrial", "CurrentStep"]):
+
+                    ct = pd.to_datetime(
+                        entries["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"
                     )
-                )  # need to add visibility phase here in the future
-        else:
-            result = [None, None, None, None]
+                    result.append(
+                        pd.concat(
+                            [ct, entries["GameObjectPosX"], entries["GameObjectPosZ"]],
+                            axis=1,
+                        )
+                    )  # need to add visibility phase here in the future
+            else:
+                result = [None, None, None, None]
     return result, conditions
 
 
@@ -612,7 +644,10 @@ def analyse_focal_animal(
                 object_type = ["mov_locustb"] * len(dX)
             elif condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
-            du = [duration] * len(dX)
+            if "duration" not in locals:
+                du = [condition["duration"]] * len(dX)
+            else:
+                du = [duration] * len(dX)
         if scene_name.lower() == "band":
             voff = [condition["visibleOffDuration"]] * len(dX)
             von = [condition["visibleOnDuration"]] * len(dX)
@@ -877,19 +912,24 @@ def preprocess_matrex_data(thisDir, json_file):
                         trial_condition = trial_sequence["sequences"][idx]["parameters"]
                         num_object_on_scene = 1
                     # this_file = found_result[idx * num_object_on_scene]
+                    result_list = []
+                    condition_list = []
                     if scene_name.lower() == "choice":
-                        if "objects" in trial_condition:
-                            for this_object in range(num_type_object):
-                                result, condition = read_agent_data(
-                                    found_result[
-                                        idx * num_object_on_scene + this_object
-                                    ],
-                                    analysis_methods,
-                                    trial_condition["objects"][0],
-                                )
+                        df_list = []
+                        if "df" not in locals():
+                            for i in range(len(found_result)):
+                                df_list.append(load_file(found_result[i]))
+                            df = pd.concat(df_list, ignore_index=True)
+                        this_range = (df["CurrentStep"] == idx) & (
+                            df["CurrentTrial"] == 0
+                        )
+                        result, condition = read_agent_data(
+                            df[this_range],
+                            analysis_methods,
+                            trial_condition["objects"][0],
+                        )
+                        result_list.append(result)
                     else:
-                        result_list = []
-                        condition_list = []
                         for this_object in range(num_object_on_scene):
                             if "objects" in trial_condition:
                                 result, condition = read_agent_data(
@@ -912,21 +952,16 @@ def preprocess_matrex_data(thisDir, json_file):
                             else:
                                 df_agent = None
                             result_list.append(df_agent)
-                            if scene_name.lower() == "choice":
-                                pass
-                            else:
-                                condition["duration"] = trial_sequence["sequences"][
-                                    idx
-                                ][
-                                    "duration"
-                                ]  # may need to add condition to exclude some kind of data from choice assay.
-                            condition_list.append(condition)
-                        if num_object_on_scene == 1:
-                            conditions.append(condition_list[0])
-                            df_simulated_animal.append(result_list[0])
-                        else:
-                            conditions.append(condition_list)
-                            df_simulated_animal.append(result_list)
+                    condition["duration"] = trial_sequence["sequences"][idx][
+                        "duration"
+                    ]  # may need to add condition to exclude some kind of data from choice assay.
+                    condition_list.append(condition)
+                    if num_object_on_scene == 1:
+                        conditions.append(condition_list[0])
+                        df_simulated_animal.append(result_list[0])
+                    else:
+                        conditions.append(condition_list)
+                        df_simulated_animal.append(result_list)
 
             elif len(found_result.stem) > 0:
 
