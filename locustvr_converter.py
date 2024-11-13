@@ -29,7 +29,7 @@ from pprint import pprint
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
-from useful_tools import find_file
+from useful_tools import find_file, findLongestConseqSubseq
 from data_cleaning import load_temperature_data
 from funcs import removeNoiseVR, diskretize
 
@@ -436,9 +436,9 @@ def analyse_focal_animal(
 
     df = load_file(this_file)
     df = fill_missing_data(df)
-    # test = np.where(df["GameObjectRotY"].values == 0)[0]
-    # longest_unity_gap = findLongestConseqSubseq(test, test.shape[0])
-    # print(f"longest unfilled gap is {longest_unity_gap}")
+    test = np.where(df["GameObjectRotY"].values == 0)[0]
+    longest_unity_gap = findLongestConseqSubseq(test, test.shape[0])
+    print(f"longest unfilled gap is {longest_unity_gap}")
     # replace 0.0 with np.nan since they are generated during scene-switching
     ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df.replace(
@@ -608,6 +608,8 @@ def analyse_focal_animal(
         if scene_name.lower() == "choice":
             if condition["type"] == "LeaderLocust":
                 object_type = ["mov_glocust"] * len(dX)
+            elif condition["type"] == "LeaderLocust_black":
+                object_type = ["mov_locustb"] * len(dX)
             elif condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
             du = [duration] * len(dX)
@@ -852,6 +854,7 @@ def preprocess_matrex_data(thisDir, json_file):
             df_simulated_animal = []
             conditions = []
             if isinstance(found_result, list):
+                num_type_object = len(found_result)
                 print(
                     f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
                 )
@@ -869,42 +872,61 @@ def preprocess_matrex_data(thisDir, json_file):
                         with open(this_config_file, "r") as f:
                             print(f"load trial conditions from file {this_config_file}")
                             trial_condition = json.loads(f.read())
-                        num_object = len(trial_condition["objects"])
+                        num_object_on_scene = len(trial_condition["objects"])
                     else:
                         trial_condition = trial_sequence["sequences"][idx]["parameters"]
-                        num_object = 1
-                    this_file = found_result[idx * num_object]
-                    result_list = []
-                    condition_list = []
-                    for this_object in range(num_object):
+                        num_object_on_scene = 1
+                    # this_file = found_result[idx * num_object_on_scene]
+                    if scene_name.lower() == "choice":
                         if "objects" in trial_condition:
-                            result, condition = read_agent_data(
-                                found_result[idx * num_object + this_object],
-                                analysis_methods,
-                                trial_condition["objects"][this_object],
-                            )
-                        else:
-                            result, condition = read_agent_data(
-                                found_result[idx * num_object + this_object],
-                                analysis_methods,
-                                trial_condition,
-                            )
-
-                        if isinstance(result, pd.DataFrame) == True:
-                            df_agent = reshape_multiagent_data(result, this_object)
-                        else:
-                            df_agent = None
-                        result_list.append(df_agent)
-                        condition["duration"] = trial_sequence["sequences"][idx][
-                            "duration"
-                        ]  # may need to add condition to exclude some kind of data from choice assay.
-                        condition_list.append(condition)
-                    if num_object == 1:
-                        conditions.append(condition_list[0])
-                        df_simulated_animal.append(result_list[0])
+                            for this_object in range(num_type_object):
+                                result, condition = read_agent_data(
+                                    found_result[
+                                        idx * num_object_on_scene + this_object
+                                    ],
+                                    analysis_methods,
+                                    trial_condition["objects"][0],
+                                )
                     else:
-                        conditions.append(condition_list)
-                        df_simulated_animal.append(result_list)
+                        result_list = []
+                        condition_list = []
+                        for this_object in range(num_object_on_scene):
+                            if "objects" in trial_condition:
+                                result, condition = read_agent_data(
+                                    found_result[
+                                        idx * num_object_on_scene + this_object
+                                    ],
+                                    analysis_methods,
+                                    trial_condition["objects"][this_object],
+                                )
+                            else:
+                                result, condition = read_agent_data(
+                                    found_result[
+                                        idx * num_object_on_scene + this_object
+                                    ],
+                                    analysis_methods,
+                                    trial_condition,
+                                )
+                            if isinstance(result, pd.DataFrame) == True:
+                                df_agent = reshape_multiagent_data(result, this_object)
+                            else:
+                                df_agent = None
+                            result_list.append(df_agent)
+                            if scene_name.lower() == "choice":
+                                pass
+                            else:
+                                condition["duration"] = trial_sequence["sequences"][
+                                    idx
+                                ][
+                                    "duration"
+                                ]  # may need to add condition to exclude some kind of data from choice assay.
+                            condition_list.append(condition)
+                        if num_object_on_scene == 1:
+                            conditions.append(condition_list[0])
+                            df_simulated_animal.append(result_list[0])
+                        else:
+                            conditions.append(condition_list)
+                            df_simulated_animal.append(result_list)
 
             elif len(found_result.stem) > 0:
 
@@ -957,7 +979,8 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
@@ -965,6 +988,7 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
