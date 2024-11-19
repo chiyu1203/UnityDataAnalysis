@@ -23,15 +23,14 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
 
-from deepdiff import DeepDiff
-from pprint import pprint
+# from deepdiff import DeepDiff
+# from pprint import pprint
 
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file, findLongestConseqSubseq
-from data_cleaning import load_temperature_data
-from funcs import removeNoiseVR, diskretize
+from data_cleaning import load_temperature_data, removeFictracNoise, bfill, diskretize
 
 lock = Lock()
 
@@ -189,20 +188,6 @@ def fill_missing_data(df):
     return df
 
 
-def ffill(arr):
-    mask = np.isnan(arr)
-    if arr.ndim == 1:
-        Warning("work in progress")
-        # idx = np.where(~mask, np.arange(mask.shape[0]), 0)
-        # np.maximum.accumulate(idx, out=idx)
-        # out = arr[np.arange(idx.shape[0])[None], idx]
-    elif arr.ndim == 2:
-        idx = np.where(~mask, np.arange(mask.shape[1]), 0)
-        np.maximum.accumulate(idx, axis=1, out=idx)
-        out = arr[np.arange(idx.shape[0])[:, None], idx]
-    return out
-
-
 def reshape_multiagent_data(df, this_object):
     number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
     number_of_instances = int(df.shape[0] / number_of_duplicates)
@@ -220,14 +205,6 @@ def reshape_multiagent_data(df, this_object):
     new_df = test.pivot(index="Timestamp", columns=0, values=df_values)
     # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
     return new_df
-
-
-# Simple solution for bfill provided by financial_physician in comment below
-def bfill(arr):
-    if arr.ndim == 1:
-        return ffill(arr[::-1])[::-1]
-    elif arr.ndim == 2:
-        return ffill(arr[:, ::-1])[:, ::-1]
 
 
 def prepare_data(df, this_range):
@@ -474,12 +451,14 @@ def analyse_focal_animal(
             angles_rad = np.radians(
                 -rot_y.values
             )  # turn negative to acount for Unity's axis and turn radian
-            loss = np.nan
+            #if id == 119 and experiment_id=='VR4_2024-11-16_155242':
+            remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
+            loss = 1 - remains
         else:
             ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
             elapsed_time = None
-            loss, X, Y = removeNoiseVR(xy[0], xy[1])
-            loss = 1 - loss
+            remains, X, Y = removeFictracNoise(xy[0], xy[1], analysis_methods)
+            loss = 1 - remains
             if len(X) == 0:
                 print("all is noise")
                 continue
@@ -567,6 +546,8 @@ def analyse_focal_animal(
                 object_type = ["mov_glocust"] * len(dX)
             elif condition["type"] == "LeaderLocust_black":
                 object_type = ["mov_locustb"] * len(dX)
+            elif condition["type"] == "InanimatedLeaderLocust_black":
+                object_type = ["sta_locustb"] * len(dX)
             elif condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
 
@@ -979,7 +960,8 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
+    # thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20241116_155210"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
