@@ -22,9 +22,9 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.signal import savgol_filter
-
-# from deepdiff import DeepDiff
-# from pprint import pprint
+import h5py
+from deepdiff import DeepDiff
+from pprint import pprint
 
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
@@ -49,6 +49,83 @@ class MplColorHelper:
 colormap_name = "coolwarm"
 sm = cm.ScalarMappable(cmap=colormap_name)
 COL = MplColorHelper(colormap_name, 0, 8)
+
+def save_curated_dataset(
+    thisH5,
+    timestamp,
+    dataset,
+    *args,
+):
+    
+    if type(dataset) == pd.DataFrame:
+        ##need to think about whether it makes sense to summarise 4 vrs into one hdf file with different keys, or save them into different files.
+        dataset.to_hdf(thisH5, key='summary', mode='w')#better used in dataset that has certain structure
+    else:
+        with h5py.File(thisH5, "w") as h5file:
+            try:
+                if isinstance(dataset, list):
+                    #num_trials=len(dataset)
+                    for id, this_trial_coordinates in enumerate(dataset):
+                        trials_id=f"trial{id+1}"
+                        if len(timestamp)==len(dataset):
+                            timestamp_id=id
+                        else:
+                            timestamp_id=id*2
+                        tracklets = h5file.create_group(trials_id)
+                        tracklets.create_dataset(name="TimeStamp", data=timestamp[timestamp_id])
+                        if len(args)>0:
+                            for this_argument in range(len(args)):
+                                tracklets.create_dataset(name="Heading", data=args[this_argument][id])
+                        else:
+                            print("no additional variable to saved")
+                        if type(this_trial_coordinates)==list:
+                            pass
+                        else:
+                            this_trial_coordinates=[this_trial_coordinates]
+                        for i in range(len(this_trial_coordinates)):
+                            tracklet_id = f"XY{i+1}"
+                            theses_coordinates = this_trial_coordinates[i]
+                            if theses_coordinates.ndim == 2:
+                                tracklets.create_dataset(name=tracklet_id, data=theses_coordinates)
+                            elif theses_coordinates.ndim == 3:
+                                # for val, body_part_title in enumerate(args[0]):
+                                #     tracklets.create_dataset(
+                                #         name=body_part_title, data=theses_coordinates[val, :, :]
+                                #     )
+                                print(
+                                    "presumably the 3rd dimension will be visibility. Not sure how to save it though"
+                                )
+                            else:
+                                print(
+                                    "unknown dimension is detected. Do not save this data into the H5 file"
+                                )                            
+                elif type(dataset) == pd.DataFrame:
+                    print("maybe dont need this. Save hdf file with pandas dataframe seems to be more easy to understand and efficient")
+                    tracklets = h5file.create_group("summary")
+                    tracklets.create_dataset(name="summary", data=dataset)
+                    # dataset.to_hdf(h5file, key='summary', mode='w')#better used in dataset that has certain structure
+                else:
+                    tracklets = h5file.create_group("trial1")
+                    tracklets.create_dataset(name="TimeStamp", data=timestamp)
+                    theses_coordinates = dataset
+                    if theses_coordinates.ndim == 2:
+                        tracklets.create_dataset(name='XY1', data=theses_coordinates)
+                    elif theses_coordinates.ndim == 3:
+                        # for val, body_part_title in enumerate(args[0]):
+                        #     tracklets.create_dataset(
+                        #         name=body_part_title, data=theses_coordinates[val, :, :]
+                        #     )
+                        print(
+                            "presumably the 3rd dimension will be visibility. Not sure how to save it though"
+                        )
+                    else:
+                        print(
+                            "unknown dimension is detected. Do not save this data into the H5 file"
+                        )
+                ###should be able to compress the data but let me just store the data first
+                # t1.create_dataset(name='Coordinates_XY',data=dataset,chunks=True,compression='gzip',scaleoffset=True,shuffle=True)
+            except EOFError:
+                h5file.close()
 
 
 def calcAffineMatrix(sourcePoints, targetPoints):
@@ -189,20 +266,39 @@ def fill_missing_data(df):
 
 
 def reshape_multiagent_data(df, this_object):
-    number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
-    number_of_instances = int(df.shape[0] / number_of_duplicates)
-    agent_id = np.tile(
-        np.arange(number_of_instances) + number_of_instances * this_object,
-        number_of_duplicates,
-    )
-    c_name_list = ["agent" + str(num) for num in agent_id]
-    test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
-    if "VisibilityPhase" in df.columns:
+    if 'Timestamp' in df.columns:
+        number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
+        number_of_instances = int(df.shape[0] / number_of_duplicates)
+        agent_id = np.tile(
+            np.arange(number_of_instances) + number_of_instances * this_object,
+            number_of_duplicates,
+        )
+        c_name_list = ["agent" + str(num) for num in agent_id]
+        test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
         df_values = ["X", "Z", "VisibilityPhase"]
-
+        new_df = test.pivot(index="Timestamp", columns=0, values=df_values)
+    elif 'Current Time' in df.columns:
+        number_of_instances = 2
+        number_of_duplicates = int(df["Current Time"].shape[0]/number_of_instances)
+        agent_id = np.tile(
+            np.arange(number_of_instances) + number_of_instances * this_object,
+            number_of_duplicates,
+        )
+        c_name_list = ["agent" + str(num) for num in agent_id]
+        df["id"]=df.index
+        df=df.sort_values(by=['Current Time','id'])
+        df.reset_index(inplace=True)
+        df=df.drop(['id','index'], axis=1)
+        test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
+        df_values = [df.columns[1], df.columns[2]]
+        new_df = test.pivot(index="Current Time", columns=0, values=df_values)
     else:
-        df_values = ["X", "Z"]
-    new_df = test.pivot(index="Timestamp", columns=0, values=df_values)
+        Warning("no columns found")
+
+    # if "VisibilityPhase" in df.columns:
+    #     df_values = ["X", "Z", "VisibilityPhase"]
+    # else:
+    #     df_values = [df.columns[1], df.columns[2]]    
     # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
     return new_df
 
@@ -329,16 +425,15 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
         if len(df) > 0:
             result = pd.concat(
                 [
-                    pd.to_datetime(df["Current Time"], format="%Y-%m-%d %H:%M:%S.%f"),
-                    df["GameObjectPosX"],
-                    df["GameObjectPosZ"],
+                    pd.to_datetime(df["Current Time"][df["VR"].str.startswith(conditions["type"])], format="%Y-%m-%d %H:%M:%S.%f"),
+                    df["GameObjectPosX"][df["VR"].str.startswith(conditions["type"])],
+                    df["GameObjectPosZ"][df["VR"].str.startswith(conditions["type"])],
                 ],
                 axis=1,
             )
         else:
             result = [None, None, None]
     return result, conditions
-
 
 def analyse_focal_animal(
     this_file,
@@ -388,6 +483,9 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY{file_suffix}.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score{file_suffix}.h5"
     agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
+    summary_file_test = this_file.parent / f"{experiment_id}_score{file_suffix}_test.h5"
+    curated_path_test = this_file.parent / f"{experiment_id}_XY{file_suffix}_test.h5"
+    agent_file_test = this_file.parent / f"{experiment_id}_agent{file_suffix}_test.h5"
     # need to think about whether to name them the same regardless analysis methods
 
     if tem_df is None:
@@ -411,13 +509,12 @@ def analyse_focal_animal(
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
         ax1.set_title("ISI")
         ax2.set_title("Trial")
-    (
+    (   summary_across_trials,
         heading_direction_across_trials,
-        x_across_trials,
-        y_across_trials,
+        xy_across_trials,
+        agent_across_trials,
         ts_across_trials,
-    ) = ([], [], [], [])
-
+    ) = ([], [], [], [],[])
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
         ts, xy, trial_no, rot_y = prepare_data(df, this_range)
@@ -427,9 +524,12 @@ def analyse_focal_animal(
             break
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
         if scene_name == "choice" and id % 2 > 0:
-            df_simulated = df_simulated_animal[id]
-            if "Current Time" in df_simulated.columns:
-                df_simulated.set_index("Current Time", inplace=True)
+            if type(df_simulated_animal[id])==list:
+                df_simulated=df_simulated_animal[id][0]
+            else:
+                df_simulated = df_simulated_animal[id]
+                if "Current Time" in df_simulated.columns:
+                    df_simulated.set_index("Current Time", inplace=True)
             df_simulated = df_simulated.reindex(ts.index, method="nearest")
         elif (
             scene_name != "choice"
@@ -451,7 +551,7 @@ def analyse_focal_animal(
             angles_rad = np.radians(
                 -rot_y.values
             )  # turn negative to acount for Unity's axis and turn radian
-            #if id == 119 and experiment_id=='VR4_2024-11-16_155242':
+            # if id == 119 and experiment_id=='VR4_2024-11-16_155242':
             remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
             loss = 1 - remains
         else:
@@ -513,12 +613,18 @@ def analyse_focal_animal(
         )  ##The distance calculated based on spatial discretisation should be the shortest
 
         f = [fchop] * len(dX)
-        different_key = None
+        different_key_list = []
         if isinstance(condition, list):
             diff_con = DeepDiff(condition[0], condition[1])
             pprint(diff_con)
-            different_key = diff_con.affected_root_keys[0]
+            for different_key in diff_con.affected_root_keys:
+                different_key_list.append(different_key)
             condition = condition[0]
+            if 'type' in different_key_list:
+                value1=diff_con['values_changed']["root['type']"]['old_value']
+                value2=diff_con['values_changed']["root['type']"]['new_value']
+                condition['type']=f"{value1}_x_{value2}"
+            
 
         #   condition_is_tuple = False
         # elif isinstance(
@@ -550,6 +656,8 @@ def analyse_focal_animal(
                 object_type = ["sta_locustb"] * len(dX)
             elif condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
+            else:
+                object_type = [condition["type"]] * len(dX)
 
         if scene_name.lower() == "band":
             voff = [condition["visibleOffDuration"]] * len(dX)
@@ -595,18 +703,22 @@ def analyse_focal_animal(
                     pass
                     # print("no information about ISI stored in choice assay")
                 else:
-                    agent_xy = np.vstack(
-                        (
-                            df_simulated["GameObjectPosX"].values,
-                            df_simulated["GameObjectPosZ"].values,
+                    num_agent=int(df_simulated.shape[1]/2)
+                    agent_dXY_list=[]
+                    for i in range(0,num_agent):
+                        agent_xy = np.vstack(
+                            (
+                            df_simulated.iloc[:,i].values,
+                            df_simulated.iloc[:,i+num_agent].values,
+                            )
                         )
-                    )
-                    agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
-                    if time_series_analysis:
-                        (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
-                    else:
-                        agent_dX = agent_rXY[0][newindex]
-                        agent_dY = agent_rXY[1][newindex]
+                        agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
+                        if time_series_analysis:
+                            (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
+                        else:
+                            agent_dX = agent_rXY[0][newindex]
+                            agent_dY = agent_rXY[1][newindex]
+                        agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
 
             elif (
                 isinstance(df_simulated_animal[id], pd.DataFrame) == True
@@ -707,8 +819,10 @@ def analyse_focal_animal(
                     data_frame_list = [df_curated, df_summary]
                 for this_name, this_pd in zip(file_list, data_frame_list):
                     store = pd.HDFStore(this_name)
-                    if different_key != None and different_key in this_pd.columns:
-                        this_pd[different_key] = np.nan
+                    if len(different_key_list)>0:
+                        for this_different_key in range(different_key_list):
+                            if this_different_key in this_pd.columns:
+                                this_pd[this_different_key] = np.nan
                     store.append(
                         "name_of_frame",
                         this_pd,
@@ -716,23 +830,26 @@ def analyse_focal_animal(
                         data_columns=this_pd.columns,
                     )
                     store.close()
-
+        summary_across_trials.append(df_summary)
         heading_direction_across_trials.append(angles)
-        x_across_trials.append(dX)
-        y_across_trials.append(dY)
+        xy_across_trials.append(np.vstack((dX, dY)))
         if time_series_analysis:
             ts_across_trials.append(elapsed_time)
         else:
-            ts_across_trials.append(ts)
+            ts_across_trials.append((ts - ts.min()).dt.total_seconds().values)
         if "agent_dX" in locals():
+            agent_across_trials.append(agent_dXY_list)
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
+    save_curated_dataset(summary_file_test,ts_across_trials,pd.concat(summary_across_trials))
+    save_curated_dataset(agent_file_test,ts_across_trials,agent_across_trials)
+    save_curated_dataset(curated_path_test,ts_across_trials,xy_across_trials,heading_direction_across_trials)
     if plotting_trajectory == True and save_output == True:
         fig.savefig(trajectory_fig_path)
     return (
         heading_direction_across_trials,
-        x_across_trials,
-        y_across_trials,
+        xy_across_trials,
+        agent_across_trials,
         ts_across_trials,
     )
 
@@ -826,12 +943,37 @@ def preprocess_matrex_data(thisDir, json_file):
                         this_range = (df["CurrentStep"] == idx) & (
                             df["CurrentTrial"] == 0
                         )
-                        result, condition = read_agent_data(
-                            df[this_range],
-                            analysis_methods,
-                            trial_condition["objects"][0],
-                        )
-                        result_list.append(result)
+                        for this_object in range(num_object_on_scene):
+                            result, condition = read_agent_data(
+                                    df[this_range],
+                                    analysis_methods,
+                                    trial_condition["objects"][this_object],
+                                )
+
+                            if num_object_on_scene>1:
+                                if this_object==0:
+                                    condition["duration"] = trial_sequence["sequences"][idx][
+                                    "duration"]  # may need to add condition to exclude some kind of data from choice assay.
+                                    condition_list.append(condition)
+                                if (trial_condition["objects"][0]["type"] == trial_condition["objects"][1]["type"]) and (this_object==1) and (trial_condition["objects"][0]["type"]!=''):
+                                    theta = np.radians(trial_condition["objects"][1]['position']['angle']-trial_condition["objects"][0]['position']['angle'])
+                                    # applying rotation matrix to rotate the coordinates
+                                    # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+                                    rot_matrix = np.array(
+                                        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+                                    )
+                                    rXY = rot_matrix @ np.vstack((result["GameObjectPosX"].values, result["GameObjectPosZ"].values))
+                                    result["GameObjectPosX"]=rXY[1]
+                                    result["GameObjectPosZ"]=rXY[0]
+                                result_list.append(result)
+                                if isinstance(result, pd.DataFrame) == True and (this_object==1):
+                                    df_agent = reshape_multiagent_data(pd.concat(result_list), this_object)
+                                    result_list = []
+                                    result_list.append(df_agent)
+                                else:
+                                    df_agent = None
+                            else:
+                                result_list.append(result)
                     else:
                         for this_object in range(num_object_on_scene):
                             if "objects" in trial_condition:
@@ -951,7 +1093,8 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    #thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
@@ -961,7 +1104,9 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     # thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20241116_155210"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
