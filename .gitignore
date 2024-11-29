@@ -7,3 +7,4 @@ __pycache__/*
 *.fig
 *.mp3
 *.mp4
+*.csv
