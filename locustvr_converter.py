@@ -282,24 +282,17 @@ def reshape_multiagent_data(df, this_object):
         trial_length = int(df["Current Time"].shape[0]/number_of_instances)
         # number_of_duplicates = df["Current Time"].drop_duplicates().shape[0]
         # number_of_instances = int(df.shape[0] / number_of_duplicates)
-        agent_id = np.tile(np.arange(number_of_instances),trial_length)
+        #agent_id = np.tile(np.arange(number_of_instances),trial_length)
+        agent_id=np.repeat(np.arange(number_of_instances),trial_length)
         c_name_list = ["agent" + str(num) for num in agent_id]
-        df["id"]=df.index
-        df=df.sort_values(by=['Current Time','id'])
+        # df["id"]=df.index
+        # df=df.sort_values(by=['Current Time','id'])
         df.reset_index(inplace=True)
-        df=df.drop(['id','index'], axis=1)
+        # df=df.drop(['id','index'], axis=1)
+        df=df.drop(['index'], axis=1)
         test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
-        #test.columns = ["Current Time","GameObjectPosX","GameObjectPosZ",'0']
         df_values = [df.columns[1], df.columns[2]]
-        # try:
-        #new_df = test.pivot(index="Current Time", columns=0, values=df_values)
         new_df = pd.pivot_table(test, values=[df.columns[1], df.columns[2]], index="Current Time",columns=0)
-        # except:
-        #     print("Something else went wrong")
-        
-        if new_df.shape[1]==6:
-            print("We got some problem")
-
     else:
         Warning("no columns found")
 
@@ -656,13 +649,13 @@ def analyse_focal_animal(
             radial_distance = [condition["radial_distance"]] * len(dX)
 
         if scene_name.lower() == "choice":
-            if condition["type"] == "LeaderLocust":
-                object_type = ["mov_glocust"] * len(dX)
-            elif condition["type"] == "LeaderLocust_black":
-                object_type = ["mov_locustb"] * len(dX)
-            elif condition["type"] == "InanimatedLeaderLocust_black":
-                object_type = ["sta_locustb"] * len(dX)
-            elif condition["type"] == "":
+            # if condition["type"] == "LeaderLocust":
+            #     object_type = ["mov_glocust"] * len(dX)
+            # elif condition["type"] == "LeaderLocust_black":
+            #     object_type = ["mov_locustb"] * len(dX)
+            # elif condition["type"] == "InanimatedLeaderLocust_black":
+            #     object_type = ["sta_locustb"] * len(dX)
+            if condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
             else:
                 object_type = [condition["type"]] * len(dX)
@@ -824,12 +817,16 @@ def analyse_focal_animal(
                         marker=".",
                     )
                     if "agent_dX" in locals():
-                        ax2.plot(
-                            agent_dX,
-                            agent_dY,
-                            c="k",
-                            linewidth=1,
-                        )
+                        for j in range(len(df_agent_list)):
+                            this_pd=df_agent_list[j]
+                            ax2.plot(
+                                this_pd["X"].values,
+                                this_pd["Y"].values,
+                                c="k",
+                                linewidth=1,
+                            )
+                            trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
+                            fig.savefig(trajectory_fig_path)
 
         #######################Sections to save data
         if save_output == True:
