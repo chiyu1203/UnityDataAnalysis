@@ -726,7 +726,30 @@ def analyse_focal_animal(
             ):
                 Warning("work in progress")
                 pass
-            if "agent_dX" in locals():
+            if "agent_dX" in locals() and scene_name.lower() == "choice":
+                df_agent_list=[]
+                if 'value1' in locals():
+                    value_list=[value1,value2]
+                    del value1,value2
+                else:
+                    value_list=[object_type]
+                for k in range(len(agent_dXY_list)):
+                    this_agent_dx=agent_dXY_list[k][0]
+                    this_agent_dy=agent_dXY_list[k][1]
+                    df_agent = pd.DataFrame(
+                    {
+                        "X": this_agent_dx,
+                        "Y": this_agent_dy,
+                        "fname": [fchop] * len(this_agent_dx),
+                        "mu": mu,
+                        "agent_speed": spe,
+                    }
+                )
+                    df_agent["agent_type"] = [value_list[k]] * len(
+                        this_agent_dx
+                    )
+                    df_agent_list.append(df_agent)  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
+            elif "agent_dX" in locals() and scene_name.lower() == "swarm":
                 df_agent = pd.DataFrame(
                     {
                         "X": agent_dX,
@@ -736,18 +759,10 @@ def analyse_focal_animal(
                         "agent_speed": spe,
                     }
                 )
-                if scene_name.lower() == "swarm":
-                    print(
-                        "there is a unfixed bug about how to name the number of agent"
-                    )
-                    df_agent["agent_num"] = density
-                elif scene_name.lower() == "choice":
-                    df_agent["agent_no"] = [0] * len(
-                        agent_dX
-                    )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
-                else:
-                    pass
-
+                print(
+                    "there is a unfixed bug about how to name the number of agent"
+                )
+                df_agent["agent_num"] = density
         df_summary = pd.DataFrame(
             {
                 "fname": [f[0]],
@@ -813,23 +828,34 @@ def analyse_focal_animal(
             with lock:
                 if "df_agent" in locals():
                     file_list = [curated_file_path, summary_file_path, agent_file_path]
-                    data_frame_list = [df_curated, df_summary, df_agent]
+                    data_frame_list = [df_curated, df_summary, df_agent_list]
+                    hdf_keys= ['focal_animal', 'summary','test']
                 else:
                     file_list = [curated_file_path, summary_file_path]
                     data_frame_list = [df_curated, df_summary]
-                for this_name, this_pd in zip(file_list, data_frame_list):
+                    hdf_keys= ['focal_animal', 'summary']
+                for this_name, this_pd,this_hdf in zip(file_list, data_frame_list,hdf_keys):
                     store = pd.HDFStore(this_name)
                     if len(different_key_list)>0:
-                        for this_different_key in range(different_key_list):
-                            if this_different_key in this_pd.columns:
+                        for i in range(len(different_key_list)):
+                            this_different_key=different_key_list[i]
+                            if this_different_key in this_pd.columns and this_different_key!='type':
                                 this_pd[this_different_key] = np.nan
-                    store.append(
-                        "name_of_frame",
-                        this_pd,
-                        format="t",
-                        data_columns=this_pd.columns,
-                    )
-                    store.close()
+                    if len(hdf_keys)>2 and this_name==agent_file_path:
+                        for j in range(len(df_agent_list)): 
+                            agent_key=f'agent{j}'
+                            this_pd=df_agent_list[j]
+                            store.append(agent_key,this_pd,format="t",data_columns=this_pd.columns)
+                        store.close()
+                    else:
+                        store.append(
+                            this_hdf,
+                            this_pd,
+                            format="t",
+                            data_columns=this_pd.columns,
+                        )
+                        store.close()
+
         summary_across_trials.append(df_summary)
         heading_direction_across_trials.append(angles)
         xy_across_trials.append(np.vstack((dX, dY)))
@@ -1104,9 +1130,9 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     # thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
