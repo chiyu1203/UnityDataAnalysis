@@ -279,19 +279,27 @@ def reshape_multiagent_data(df, this_object):
         new_df = test.pivot(index="Timestamp", columns=0, values=df_values)
     elif 'Current Time' in df.columns:
         number_of_instances = 2
-        number_of_duplicates = int(df["Current Time"].shape[0]/number_of_instances)
-        agent_id = np.tile(
-            np.arange(number_of_instances) + number_of_instances * this_object,
-            number_of_duplicates,
-        )
+        trial_length = int(df["Current Time"].shape[0]/number_of_instances)
+        # number_of_duplicates = df["Current Time"].drop_duplicates().shape[0]
+        # number_of_instances = int(df.shape[0] / number_of_duplicates)
+        agent_id = np.tile(np.arange(number_of_instances),trial_length)
         c_name_list = ["agent" + str(num) for num in agent_id]
         df["id"]=df.index
         df=df.sort_values(by=['Current Time','id'])
         df.reset_index(inplace=True)
         df=df.drop(['id','index'], axis=1)
         test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
+        #test.columns = ["Current Time","GameObjectPosX","GameObjectPosZ",'0']
         df_values = [df.columns[1], df.columns[2]]
-        new_df = test.pivot(index="Current Time", columns=0, values=df_values)
+        # try:
+        #new_df = test.pivot(index="Current Time", columns=0, values=df_values)
+        new_df = pd.pivot_table(test, values=[df.columns[1], df.columns[2]], index="Current Time",columns=0)
+        # except:
+        #     print("Something else went wrong")
+        
+        if new_df.shape[1]==6:
+            print("We got some problem")
+
     else:
         Warning("no columns found")
 
@@ -686,7 +694,7 @@ def analyse_focal_animal(
             df_curated["density"] = density
             df_curated["kappa"] = order
         if scene_name.lower() == "choice" or scene_name.lower() == "band":
-            df_curated["type"] = object_type
+            #df_curated["type"] = object_type
             df_curated["radial_distance"] = radial_distance
             df_curated["polar_angle"] = polar_angle
             # Probably no need to save the following into curated database but just in case
@@ -728,11 +736,11 @@ def analyse_focal_animal(
                 pass
             if "agent_dX" in locals() and scene_name.lower() == "choice":
                 df_agent_list=[]
-                if 'value1' in locals():
-                    value_list=[value1,value2]
-                    del value1,value2
-                else:
-                    value_list=[object_type]
+                # if 'value1' in locals():
+                #     value_list=[value1,value2]
+                #     del value1,value2
+                # else:
+                #     value_list=[object_type]
                 for k in range(len(agent_dXY_list)):
                     this_agent_dx=agent_dXY_list[k][0]
                     this_agent_dy=agent_dXY_list[k][1]
@@ -745,9 +753,9 @@ def analyse_focal_animal(
                         "agent_speed": spe,
                     }
                 )
-                    df_agent["agent_type"] = [value_list[k]] * len(
-                        this_agent_dx
-                    )
+                    # df_agent["agent_type"] = [value_list[k]] * len(
+                    #     this_agent_dx
+                    # )
                     df_agent_list.append(df_agent)  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
             elif "agent_dX" in locals() and scene_name.lower() == "swarm":
                 df_agent = pd.DataFrame(
@@ -827,27 +835,36 @@ def analyse_focal_animal(
         if save_output == True:
             with lock:
                 if "df_agent" in locals():
-                    file_list = [curated_file_path, summary_file_path, agent_file_path]
-                    data_frame_list = [df_curated, df_summary, df_agent_list]
-                    hdf_keys= ['focal_animal', 'summary','test']
+                    file_list = [curated_file_path, agent_file_path]
+                    data_frame_list = [df_curated,df_agent_list]
+                    hdf_keys= ['focal_animal', '']
                 else:
-                    file_list = [curated_file_path, summary_file_path]
-                    data_frame_list = [df_curated, df_summary]
-                    hdf_keys= ['focal_animal', 'summary']
+                    file_list = [curated_file_path]
+                    data_frame_list = [df_curated]
+                    hdf_keys= ['focal_animal']
                 for this_name, this_pd,this_hdf in zip(file_list, data_frame_list,hdf_keys):
                     store = pd.HDFStore(this_name)
-                    if len(different_key_list)>0:
-                        for i in range(len(different_key_list)):
-                            this_different_key=different_key_list[i]
-                            if this_different_key in this_pd.columns and this_different_key!='type':
-                                this_pd[this_different_key] = np.nan
-                    if len(hdf_keys)>2 and this_name==agent_file_path:
+                    if len(hdf_keys)>1 and this_name==agent_file_path:
+                        if 'value1' in locals():
+                            value_list=[value1,value2]
+                            del value1,value2
+                        else:
+                            value_list=[object_type[0]]*len(df_agent_list)
                         for j in range(len(df_agent_list)): 
-                            agent_key=f'agent{j}'
+                            #agent_key=f'agent{j}'
+                            agent_key=value_list[j]
                             this_pd=df_agent_list[j]
                             store.append(agent_key,this_pd,format="t",data_columns=this_pd.columns)
                         store.close()
                     else:
+                        if len(different_key_list)>0:
+                            for i in range(len(different_key_list)):
+                                this_different_key=different_key_list[i]
+                                if this_different_key in this_pd.columns and this_different_key!='type':
+                                    this_pd[this_different_key] = np.nan
+                                else:
+                                    pass
+
                         store.append(
                             this_hdf,
                             this_pd,
@@ -977,6 +994,8 @@ def preprocess_matrex_data(thisDir, json_file):
                                 )
 
                             if num_object_on_scene>1:
+                                # if isinstance(result, pd.DataFrame) == True:
+                                #     result.drop_duplicates(subset=["GameObjectPosZ"], keep='last',inplace=True)
                                 if this_object==0:
                                     condition["duration"] = trial_sequence["sequences"][idx][
                                     "duration"]  # may need to add condition to exclude some kind of data from choice assay.
@@ -993,6 +1012,12 @@ def preprocess_matrex_data(thisDir, json_file):
                                     result["GameObjectPosZ"]=rXY[0]
                                 result_list.append(result)
                                 if isinstance(result, pd.DataFrame) == True and (this_object==1):
+                                    if len(result_list[0])>=len(result_list[1]):
+                                        matched_id = np.searchsorted(result_list[0]["Current Time"].values, result_list[1]["Current Time"].values)
+                                        result_list[0]=result_list[0].iloc[matched_id,:]
+                                    elif len(result_list[0])<len(result_list[1]):
+                                        matched_id = np.searchsorted(result_list[1]["Current Time"].values,result_list[0]["Current Time"].values)
+                                        result_list[1]=result_list[1].iloc[matched_id,:]
                                     df_agent = reshape_multiagent_data(pd.concat(result_list), this_object)
                                     result_list = []
                                     result_list.append(df_agent)
