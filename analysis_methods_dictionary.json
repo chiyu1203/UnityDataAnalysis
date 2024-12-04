@@ -10,6 +10,7 @@
  "select_animals_by_condition": true,
  "active_trials_only": true,
  "align_with_isi_onset": false,
+ "extract_follow_epoches": true,
  "graph_colour_code": [
   "r",
   "b",
@@ -20,6 +21,7 @@
   "m",
   "r"
  ],
+ "follow_within_distance": 50,
  "camera_fps": 100,
  "trackball_radius_cm": 0.5,
  "monitor_fps": 60,
