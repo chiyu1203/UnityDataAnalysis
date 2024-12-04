@@ -825,9 +825,6 @@ def analyse_focal_animal(
                                 c="k",
                                 linewidth=1,
                             )
-                            trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
-                            fig.savefig(trajectory_fig_path)
-
         #######################Sections to save data
         if save_output == True:
             with lock:
@@ -842,11 +839,11 @@ def analyse_focal_animal(
                 for this_name, this_pd,this_hdf in zip(file_list, data_frame_list,hdf_keys):
                     store = pd.HDFStore(this_name)
                     if len(hdf_keys)>1 and this_name==agent_file_path:
-                        if 'value1' in locals():
-                            value_list=[value1,value2]
-                            del value1,value2
-                        else:
-                            value_list=[object_type[0]]*len(df_agent_list)
+                        # if 'value1' in locals():
+                        #     value_list=[value1,value2]
+                        #     del value1,value2
+                        # else:
+                        value_list=[object_type[0]]*len(df_agent_list)
                         for j in range(len(df_agent_list)): 
                             #agent_key=f'agent{j}'
                             agent_key=value_list[j]
@@ -881,7 +878,7 @@ def analyse_focal_animal(
             agent_across_trials.append(agent_dXY_list)
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
-    save_curated_dataset(summary_file_test,ts_across_trials,pd.concat(summary_across_trials))
+    save_curated_dataset(summary_file_path,ts_across_trials,pd.concat(summary_across_trials))
     save_curated_dataset(agent_file_test,ts_across_trials,agent_across_trials)
     save_curated_dataset(curated_path_test,ts_across_trials,xy_across_trials,heading_direction_across_trials)
     if plotting_trajectory == True and save_output == True:
@@ -940,12 +937,11 @@ def preprocess_matrex_data(thisDir, json_file):
         found_result = find_file(thisDir, agent_pattern)
         if found_result is None:
             return print(f"file with {agent_pattern} not found")
-        elif agents_shared_across_vrs and "df_simulated_animal" in locals():
-            print(
-                "Information about simulated locusts are shared across rigs in the choice scene, so skip the rest of the loop and start analysing focal animals"
-            )
+        # elif agents_shared_across_vrs and "df_simulated_animal" in locals():
+        #     print(
+        #         "Information about simulated locusts are shared across rigs in the choice scene, so skip the rest of the loop and start analysing focal animals"
+        #     )
         else:
-
             df_simulated_animal = []
             conditions = []
             if isinstance(found_result, list):
@@ -1011,7 +1007,10 @@ def preprocess_matrex_data(thisDir, json_file):
                                 if isinstance(result, pd.DataFrame) == True and (this_object==1):
                                     if len(result_list[0])>=len(result_list[1]):
                                         matched_id = np.searchsorted(result_list[0]["Current Time"].values, result_list[1]["Current Time"].values)
-                                        result_list[0]=result_list[0].iloc[matched_id,:]
+                                        if matched_id.shape[0]==result_list[0].shape[0]:
+                                            pass
+                                        else:
+                                            result_list[0]=result_list[0].iloc[matched_id,:]
                                     elif len(result_list[0])<len(result_list[1]):
                                         matched_id = np.searchsorted(result_list[1]["Current Time"].values,result_list[0]["Current Time"].values)
                                         result_list[1]=result_list[1].iloc[matched_id,:]
@@ -1153,8 +1152,9 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
     # thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_151917"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
