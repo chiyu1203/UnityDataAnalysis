@@ -134,7 +134,7 @@ def align_agent_moving_direction(vector_dif,grp):
     #vector_dif_rotated=vector_dif_rotated[:,1:]
 def conclude_as_pd(df_focal_animal,vector_dif_rotated,epochs_of_interest,fname,agent_no=0):
     num_frames=df_focal_animal[df_focal_animal["fname"]==fname].shape[0]
-    degree_in_the_trial=np.repeat(df_focal_animal['mu'].values[0],num_frames)
+    degree_in_the_trial=np.repeat(df_focal_animal[df_focal_animal["fname"]==fname]["mu"].to_numpy()[0],num_frames)
     degree_time=np.vstack((degree_in_the_trial,df_focal_animal[df_focal_animal["fname"]==fname]["ts"].to_numpy()))
     degree_time=degree_time[:,1:]
     vector_dif_rotated=vector_dif_rotated[:,1:]
@@ -142,6 +142,133 @@ def conclude_as_pd(df_focal_animal,vector_dif_rotated,epochs_of_interest,fname,a
     follow_pd=pd.DataFrame(np.transpose(follow_wrap))
     follow_pd.insert(0, 'agent_id',np.repeat(agent_no,follow_pd.shape[0]))
     return follow_pd
+def preprocess_data_for_visual_evoked_behaviour(summary_file,focal_animal_file,agent_file,analysis_methods):
+    trajec_lim=150
+    good_follower_only=False
+    duration_for_baseline=3
+    analysis_window=analysis_methods.get("analysis_window")
+    monitor_fps=analysis_methods.get("monitor_fps")
+    align_with_isi_onset=analysis_methods.get("align_with_isi_onset",False)
+    # df_agent_list=[]
+    # with h5py.File(agent_file, "r") as f:
+    #     for hdf_key in f.keys():
+    #         tmp_agent = pd.read_hdf(agent_file,key=hdf_key)
+    #         tmp_agent.insert(0, 'type',np.repeat(hdf_key,tmp_agent.shape[0]))
+    #         df_agent_list.append(tmp_agent)
+    # df_agent=pd.concat(df_agent_list)
+    df_focal_animal = pd.read_hdf(focal_animal_file)
+    df_summary=pd.read_hdf(summary_file)
+    # df_focal_animal['this_vr']=this_vr
+    # df_focal_animal['fname']=df_focal_animal['fname'].astype(str) + '_' + df_focal_animal['this_vr'].astype(str)
+    test = np.where(df_focal_animal["heading"].values == 0)[0]
+    num_unfilled_gap=findLongestConseqSubseq(test,test.shape[0])
+    dif_across_trials=[]
+    if 'basedline_v' in locals():
+        del basedline_v
+    trial_id=0
+    for key, grp in df_summary.groupby('fname'):
+        focal_xy=np.vstack((df_focal_animal[df_focal_animal["fname"]==key]["X"].to_numpy(),df_focal_animal[df_focal_animal["fname"]==key]["Y"].to_numpy()))
+        distance_from_centre=np.sqrt(np.sum([focal_xy[0]**2,focal_xy[1]**2],axis=0))
+        ts=df_focal_animal[df_focal_animal["fname"]==key]["ts"].to_numpy()
+        dif_x=np.diff(focal_xy[0])
+        dif_y=np.diff(focal_xy[1])
+        instant_speed=calculate_speed(dif_x,dif_y,ts)
+        angle_rad = df_focal_animal[df_focal_animal["fname"]==key]["heading"].to_numpy()
+        _,angular_speed=unwrap_degree(angle_rad,num_unfilled_gap)
+        if 'type' in df_summary.columns:
+            if align_with_isi_onset:
+                if grp['type'][0]=='empty_trial':
+                    frame_range=analysis_window[1]*monitor_fps
+                    d_of_interest=distance_from_centre[:frame_range]
+                    v_of_interest=instant_speed[:frame_range]
+                    w_of_interest=angular_speed[:frame_range]
+                else:
+                    frame_range=analysis_window[0]*monitor_fps
+                    d_of_interest=distance_from_centre[frame_range:]
+                    v_of_interest=instant_speed[frame_range:]
+                    w_of_interest=angular_speed[frame_range:]
+            else:
+                if grp['type'][0]=='empty_trial':
+                    print('ISI now')
+                    frame_range=analysis_window[0]*monitor_fps
+                    d_of_interest=distance_from_centre[frame_range:]
+                    v_of_interest=instant_speed[frame_range:]
+                    w_of_interest=angular_speed[frame_range:]
+                    basedline_v=np.mean(v_of_interest[-duration_for_baseline*monitor_fps:])
+                    normalised_v=np.repeat(np.nan,v_of_interest.shape[0])
+                    basedline_w=np.mean(w_of_interest[-duration_for_baseline*monitor_fps:])
+                    normalised_w=np.repeat(np.nan,w_of_interest.shape[0])
+                else:
+                    print('stim now')
+                    frame_range=analysis_window[1]*monitor_fps
+                    d_of_interest=distance_from_centre[:frame_range]
+                    v_of_interest=instant_speed[:frame_range]
+                    w_of_interest=angular_speed[:frame_range]
+                    if 'basedline_v' in locals():
+                        normalised_v=v_of_interest/basedline_v
+                    else:
+                        normalised_v=np.repeat(np.nan,v_of_interest.shape[0])
+                    if 'basedline_w' in locals():
+                        normalised_w=w_of_interest/basedline_w
+                    else:
+                        normalised_w=np.repeat(np.nan,w_of_interest.shape[0])
+
+        else:
+            if align_with_isi_onset:
+                if df_focal_animal[df_focal_animal["fname"]==key]['density'][0]==0.0:
+                    frame_range=analysis_window[1]*monitor_fps
+                    d_of_interest=distance_from_centre[:frame_range]
+                    v_of_interest=instant_speed[:frame_range]
+                    w_of_interest=angular_speed[:frame_range]
+                    if 'basedline_v' in locals():
+                        normalised_v=v_of_interest/basedline_v
+                    else:
+                        normalised_v=np.repeat(np.nan,v_of_interest.shape[0])
+                    if 'basedline_w' in locals():
+                        normalised_w=w_of_interest/basedline_w
+                    else:
+                        normalised_w=np.repeat(np.nan,w_of_interest.shape[0])
+                else:
+                    frame_range=analysis_window[0]*monitor_fps
+                    d_of_interest=distance_from_centre[frame_range:]
+                    v_of_interest=instant_speed[frame_range:]
+                    w_of_interest=angular_speed[frame_range:]
+                    basedline_v=np.mean(v_of_interest[-duration_for_baseline*monitor_fps:])
+                    normalised_v=np.repeat(np.nan,v_of_interest.shape[0])
+                    basedline_w=np.mean(w_of_interest[-duration_for_baseline*monitor_fps:])
+                    normalised_w=np.repeat(np.nan,w_of_interest.shape[0])
+
+            else:
+                if df_focal_animal[df_focal_animal["fname"]==key]['density'][0]==0.0:
+                    print('ISI now')
+                    frame_range=analysis_window[0]*monitor_fps
+                    d_of_interest=distance_from_centre[frame_range:]
+                    v_of_interest=instant_speed[frame_range:]
+                    w_of_interest=angular_speed[frame_range:]
+
+                else:
+                    print('Stim now')
+                    frame_range=analysis_window[1]*monitor_fps
+                    d_of_interest=distance_from_centre[:frame_range]
+                    v_of_interest=instant_speed[:frame_range]
+                    w_of_interest=angular_speed[:frame_range]
+
+
+        if 'type' in df_summary.columns:
+            con_matrex=(d_of_interest,v_of_interest,w_of_interest,normalised_v,normalised_w,np.repeat(trial_id,v_of_interest.shape[0]),np.repeat(grp['mu'][0],v_of_interest.shape[0]),np.repeat(grp['type'][0],v_of_interest.shape[0]))
+        else:
+            con_matrex=(d_of_interest,v_of_interest,w_of_interest,normalised_v,normalised_w,np.repeat(trial_id,v_of_interest.shape[0]),np.repeat(df_focal_animal[df_focal_animal["fname"]==key]['mu'][0],v_of_interest.shape[0]),np.repeat(df_focal_animal[df_focal_animal["fname"]==key]['density'][0],v_of_interest.shape[0]))
+        raw_data=np.vstack(con_matrex)
+        dif_across_trials.append(pd.DataFrame(np.transpose(raw_data)))
+        trial_id += 1
+    tmp=pd.concat(dif_across_trials)
+    if 'type' in df_summary.columns:
+        tmp.columns = ['distance_from_centre', 'velocity','omega','normalised_v','normalised_omega','id','mu','object']
+    else:
+        tmp.columns = ['distance_from_centre', 'velocity','omega','normalised_v','normalised_omega','id','mu','density']
+    # tmp.insert(0, 'animal_id', np.repeat(animal_id,tmp.shape[0]))
+    # dif_across_animals.append(tmp)
+    return tmp,num_unfilled_gap
 
     
 def calculate_relative_position(summary_file,focal_animal_file,agent_file,analysis_methods):
@@ -205,7 +332,9 @@ def calculate_relative_position(summary_file,focal_animal_file,agent_file,analys
                     follow_pd.insert(0, 'type',np.repeat(df_agent[df_agent['fname']==key]["type"].values[0],follow_pd.shape[0]))
                     follow_pd_list.append(follow_pd)
             else:
-                epochs_of_interest,vector_dif=classify_follow_epochs(focal_xy,instant_speed,ts,portion,analysis_methods)
+                epochs_of_interest,vector_dif=classify_follow_epochs(focal_xy,instant_speed,ts,agent_xy,analysis_methods)
+                if grp['mu'].values[0]==45:
+                    print("test")
                 vector_dif_rotated=align_agent_moving_direction(vector_dif,grp)
                 follow_pd=conclude_as_pd(df_focal_animal,vector_dif_rotated,epochs_of_interest,key)
                 follow_pd.insert(0, 'type',np.repeat(df_agent[df_agent['fname']==key]["type"].values[0],follow_pd.shape[0]))
@@ -253,34 +382,39 @@ def load_data(this_dir, json_file):
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR1*agent_full.h5"
+    agent_pattern = f"VR2*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR1*XY_full.h5"
+    xy_pattern = f"VR2*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR1*score_full.h5"
+    summary_pattern = f"VR2*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
    
-    dif_across_trials_list,trial_evaluation_list,num_unfilled_gap=calculate_relative_position(summary_file,focal_animal_file,agent_file,analysis_methods)
-    # dif_across_animals=pd.concat(dif_across_trials_list)
-    # if dif_across_animals.shape[1]==2:
-    #     dif_across_animals.columns = ['x', 'y']
-    # elif dif_across_animals.shape[1]==4:
-    #     dif_across_animals.columns = ['x', 'y','degree','ts']
-    # elif dif_across_animals.shape[1]==5:
-    #     dif_across_animals.columns = ['type','x', 'y','degree','ts']
-    # elif dif_across_animals.shape[1]==6:
-    #     dif_across_animals.columns = ['type','agent_id','x', 'y','degree','ts']  
-    # relative_pos_all_animals.append(dif_across_animals)
-    # trial_evaluation=pd.concat(trial_evaluation_list)
-    # trial_evaluation.insert(0, 'animal_id',np.repeat(animal_id,trial_evaluation.shape[0]))
-    # trial_evaluation_across_animals.append(trial_evaluation)
-    # animal_id=animal_id+1 
+    #dif_across_trials_list,trial_evaluation_list,num_unfilled_gap=calculate_relative_position(summary_file,focal_animal_file,agent_file,analysis_methods)
+    _,_=preprocess_data_for_visual_evoked_behaviour(summary_file,focal_animal_file,agent_file,analysis_methods)
+# #methods to load hdf file save from other format
+# filename="D:/MatrexVR_2024_Data/RunData/20241116_155210/VR1_2024-11-16_155242_XY_full_test.h5"
+# Timestamp = {}
+# XY={}
+# Heading={}
+# with h5py.File(filename, "r") as f:
+#     for key in f.keys():
+#         #print(key)
+
+#         ds_arr = f[key]["TimeStamp"][:] # returns as a numpy array
+#         Timestamp[key] = ds_arr # appends the array in the dict under the key
+#         ds_arr = f[key]["XY1"][:] # returns as a numpy array
+#         XY[key]=ds_arr
+#         ds_arr = f[key]["Heading"][:] # returns as a numpy array
+#         Heading[key] =ds_arr
+
+# #df = pd.DataFrame.from_dict(dictionary)
     
-    return dif_across_trials_list,trial_evaluation_list,num_unfilled_gap
+#    return dif_across_trials_list,trial_evaluation_list,num_unfilled_gap
 if __name__ == "__main__":
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
-    _,_,_=load_data(thisDir, json_file)
+    load_data(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
