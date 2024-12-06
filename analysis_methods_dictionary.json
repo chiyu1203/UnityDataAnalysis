@@ -2,7 +2,6 @@
  "experiment_name": "choice",
  "overwrite_curated_dataset": true,
  "save_output": true,
- "agents_shared_across_vrs": true,
  "time_series_analysis": true,
  "filtering_method": "sg_filter",
  "plotting_trajectory": true,
@@ -11,6 +10,7 @@
  "active_trials_only": true,
  "align_with_isi_onset": false,
  "extract_follow_epoches": true,
+ "follow_locustVR_criteria": false,
  "graph_colour_code": [
   "r",
   "b",
