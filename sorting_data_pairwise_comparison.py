@@ -149,9 +149,7 @@ def classify_follow_epochs(focal_xy, instant_speed, ts, portion, analysis_method
         angles_in_degree < 10,
     )
     walk_criteria = np.logical_and(
-        target_distance[1:] < follow_within_distance,
-        instant_speed > 1,
-        angles_in_degree < 10,
+        target_distance[1:] < follow_within_distance, instant_speed > 1
     )
     if extract_follow_epoches and follow_locustVR_criteria:
         epochs_of_interest = locustVR_criteria
@@ -259,7 +257,7 @@ def calculate_relative_position(
                     w_of_interest = angular_speed[frame_range:]
             else:
                 if grp["type"][0] == "empty_trial":
-                    print("ISI now")
+                    # print("ISI now")
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
@@ -273,7 +271,7 @@ def calculate_relative_position(
                     )
                     normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
                 else:
-                    print("stim now")
+                    # print("stim now")
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
@@ -322,14 +320,14 @@ def calculate_relative_position(
                     df_focal_animal[df_focal_animal["fname"] == key]["density"][0]
                     == 0.0
                 ):
-                    print("ISI now")
+                    # print("ISI now")
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
                     w_of_interest = angular_speed[frame_range:]
 
                 else:
-                    print("Stim now")
+                    # print("Stim now")
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
@@ -420,8 +418,6 @@ def calculate_relative_position(
                 epochs_of_interest, vector_dif = classify_follow_epochs(
                     focal_xy, instant_speed, ts, agent_xy, analysis_methods
                 )
-                if grp["mu"].values[0] == 45:
-                    print("test")
                 vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                 follow_pd = conclude_as_pd(
                     df_focal_animal, vector_dif_rotated, epochs_of_interest, key
@@ -528,25 +524,6 @@ def load_data(this_dir, json_file):
             summary_file, focal_animal_file, agent_file, analysis_methods
         )
     )
-
-    # #methods to load hdf file save from other format
-    # filename="D:/MatrexVR_2024_Data/RunData/20241116_155210/VR1_2024-11-16_155242_XY_full_test.h5"
-    # Timestamp = {}
-    # XY={}
-    # Heading={}
-    # with h5py.File(filename, "r") as f:
-    #     for key in f.keys():
-    #         #print(key)
-
-    #         ds_arr = f[key]["TimeStamp"][:] # returns as a numpy array
-    #         Timestamp[key] = ds_arr # appends the array in the dict under the key
-    #         ds_arr = f[key]["XY1"][:] # returns as a numpy array
-    #         XY[key]=ds_arr
-    #         ds_arr = f[key]["Heading"][:] # returns as a numpy array
-    #         Heading[key] =ds_arr
-
-    # #df = pd.DataFrame.from_dict(dictionary)
-
     return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap
 
 
