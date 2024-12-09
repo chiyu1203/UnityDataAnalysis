@@ -59,10 +59,42 @@ def time_series_plot(target_distance, instant_speed, angles, analysis_window):
     plt.show()
 
 
-def trajectory_analysis(
-    df_focal_animal, df_summary, df_agent, file_name, num_unfilled_gap
+def behavioural_analysis(
+    focal_xy, instant_speed, angular_velocity, epochs_of_interest, file_name, trial_id
 ):
-    mark_behaviours = False
+    speed_threshold = 0.25
+    walk_epochs = instant_speed > speed_threshold
+    omega_threshold = 0.08
+    turn_epochs = abs(angular_velocity) > omega_threshold
+    fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(20, 4), tight_layout=True)
+    ax1, ax2, ax3, ax4 = axes.flatten()
+    ax1.scatter(
+        focal_xy[0, 1:],
+        focal_xy[1, 1:],
+        c="k",
+        # c=np.zeros((1, focal_xy.shape[1] - 1), dtype=np.int8),
+    )
+    ax2.scatter(
+        focal_xy[0, 1:],
+        focal_xy[1, 1:],
+        c=walk_epochs.astype(int),
+        cmap="inferno",
+    )
+    ax3.scatter(
+        focal_xy[0, 1:], focal_xy[1, 1:], c=turn_epochs.astype(int), cmap="inferno"
+    )
+    ax4.scatter(
+        focal_xy[0, 1:],
+        focal_xy[1, 1:],
+        c=epochs_of_interest.astype(int),
+        cmap="inferno",
+    )
+    fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis.jpg"
+    fig.savefig(file_name.parent / fig_name)
+    fig.show()
+
+
+def plot_trajectory(df_focal_animal, df_summary, df_agent, file_name):
     trajec_lim = 150
     variables = np.sort(
         df_summary[df_summary["type"] != "empty_trial"]["mu"].unique(), axis=0
@@ -85,18 +117,7 @@ def trajectory_analysis(
                 df_focal_animal[df_focal_animal["fname"] == key]["Y"].to_numpy(),
             )
         )
-        # dif_x = np.diff(focal_xy[0])
-        # dif_y = np.diff(focal_xy[1])
-        # ts = df_focal_animal[df_focal_animal["fname"] == key]["ts"].to_numpy()
-        # instant_speed = calculate_speed(dif_x, dif_y, ts)
-        # heading_direction = df_focal_animal[df_focal_animal["fname"] == key][
-        #     "heading"
-        # ].to_numpy()
-        # _, angular_speed = unwrap_degree(heading_direction, num_unfilled_gap)
-        if mark_behaviours == True:
-            color = "r"
-        else:
-            color = np.arange(focal_xy[0].shape[0])
+        color = np.arange(focal_xy[0].shape[0])
         if grp["type"][0] == "empty_trial":
             subplot_title = "ISI"
             subplots[0].scatter(
@@ -137,12 +158,11 @@ def trajectory_analysis(
             title=subplot_title,
         )
 
-    fig_name = f"{file_name.stem}.jpg"
+    fig_name = f"{file_name.stem}_trajectory.jpg"
     fig.savefig(file_name.parent / fig_name)
-    plt.show()
 
 
-def unwrap_degree(angle_rad, number_frame_scene_changing):
+def diff_angular_degree(angle_rad, number_frame_scene_changing):
     angle_rad[np.isnan(angle_rad)] = 0
     # angle_rad=np.unwrap(angle_rad)
     # angular_velocity=np.diff(np.unwrap(angle_rad))
@@ -159,17 +179,21 @@ def unwrap_degree(angle_rad, number_frame_scene_changing):
     return angle_rad, angular_velocity
 
 
-def classify_follow_epochs(focal_xy, instant_speed, ts, portion, analysis_methods):
+def classify_follow_epochs(
+    focal_xy, instant_speed, ts, this_agent_xy, analysis_methods
+):
     extract_follow_epoches = analysis_methods.get("extract_follow_epoches", True)
     follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", False)
     follow_within_distance = analysis_methods.get("follow_within_distance", 50)
     focal_distance_fbf = instant_speed * np.diff(ts)
     agent_distance_fbf = np.sqrt(
-        np.sum([np.diff(portion)[0] ** 2, np.diff(portion)[1] ** 2], axis=0)
+        np.sum([np.diff(this_agent_xy)[0] ** 2, np.diff(this_agent_xy)[1] ** 2], axis=0)
     )
-    vector_dif = portion - focal_xy
+    vector_dif = this_agent_xy - focal_xy
     target_distance = LA.norm(vector_dif, axis=0)
-    dot_product = np.diag(np.matmul(np.transpose(np.diff(focal_xy)), np.diff(portion)))
+    dot_product = np.diag(
+        np.matmul(np.transpose(np.diff(focal_xy)), np.diff(this_agent_xy))
+    )
     angles = np.arccos(dot_product / focal_distance_fbf / agent_distance_fbf)
     angles_in_degree = angles * 180 / np.pi
     # if analysis_methods.get("plotting_trajectory"):
@@ -249,9 +273,7 @@ def calculate_relative_position(
     num_unfilled_gap = findLongestConseqSubseq(test, test.shape[0])
     print(f"the length :{num_unfilled_gap} of unfilled gap in {focal_animal_file}")
     if analysis_methods.get("plotting_trajectory"):
-        trajectory_analysis(
-            df_focal_animal, df_summary, df_agent, focal_animal_file, num_unfilled_gap
-        )
+        plot_trajectory(df_focal_animal, df_summary, df_agent, focal_animal_file)
     dif_across_trials = []
     trial_evaluation_list = []
     raster_list = []
@@ -275,26 +297,29 @@ def calculate_relative_position(
             np.sum([focal_xy[0] ** 2, focal_xy[1] ** 2], axis=0)
         )
         # angle_rad = df_focal_animal[df_focal_animal["fname"]==key]["heading"].to_numpy()
-        _, angular_speed = unwrap_degree(heading_direction, num_unfilled_gap)
+        _, change_agular_degree_fbf = diff_angular_degree(
+            heading_direction, num_unfilled_gap
+        )
+        angular_velocity = change_agular_degree_fbf / np.diff(ts)
         if "type" in df_summary.columns:
             if align_with_isi_onset:
                 if grp["type"][0] == "empty_trial":
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
-                    w_of_interest = angular_speed[:frame_range]
+                    w_of_interest = angular_velocity[:frame_range]
                 else:
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
-                    w_of_interest = angular_speed[frame_range:]
+                    w_of_interest = angular_velocity[frame_range:]
             else:
                 if grp["type"][0] == "empty_trial":
                     # print("ISI now")
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
-                    w_of_interest = angular_speed[frame_range:]
+                    w_of_interest = angular_velocity[frame_range:]
                     basedline_v = np.mean(
                         v_of_interest[-duration_for_baseline * monitor_fps :]
                     )
@@ -308,7 +333,7 @@ def calculate_relative_position(
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
-                    w_of_interest = angular_speed[:frame_range]
+                    w_of_interest = angular_velocity[:frame_range]
                     if "basedline_v" in locals():
                         normalised_v = v_of_interest / basedline_v
                     else:
@@ -326,7 +351,7 @@ def calculate_relative_position(
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
-                    w_of_interest = angular_speed[:frame_range]
+                    w_of_interest = angular_velocity[:frame_range]
                     if "basedline_v" in locals():
                         normalised_v = v_of_interest / basedline_v
                     else:
@@ -339,7 +364,7 @@ def calculate_relative_position(
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
-                    w_of_interest = angular_speed[frame_range:]
+                    w_of_interest = angular_velocity[frame_range:]
                     basedline_v = np.mean(
                         v_of_interest[-duration_for_baseline * monitor_fps :]
                     )
@@ -357,14 +382,14 @@ def calculate_relative_position(
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
-                    w_of_interest = angular_speed[frame_range:]
+                    w_of_interest = angular_velocity[frame_range:]
 
                 else:
                     # print("Stim now")
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
-                    w_of_interest = angular_speed[:frame_range]
+                    w_of_interest = angular_velocity[:frame_range]
 
         if "type" in df_summary.columns:
             con_matrex = (
@@ -400,7 +425,9 @@ def calculate_relative_position(
 
         if grp["type"][0] == "empty_trial":
             focal_distance_ISI = instant_speed * np.diff(ts)
-            _, turn_degree_ISI = unwrap_degree(heading_direction, num_unfilled_gap)
+            _, turn_degree_ISI = diff_angular_degree(
+                heading_direction, num_unfilled_gap
+            )
             pre_stim_ISI = grp["duration"][0]
             continue
         else:
@@ -426,13 +453,13 @@ def calculate_relative_position(
                 follow_pd_list = []
                 for i in range(num_portion):
                     if i == 0:
-                        portion = agent_xy[:, :midpoint]  # First half
-                        print(f"Processing first half: {portion}")
+                        this_agent_xy = agent_xy[:, :midpoint]  # First half
+                        print(f"Processing first half: {this_agent_xy}")
                     else:
-                        portion = agent_xy[:, midpoint:]  # Second half
-                        print(f"Processing second half: {portion}")
+                        this_agent_xy = agent_xy[:, midpoint:]  # Second half
+                        print(f"Processing second half: {this_agent_xy}")
                     epochs_of_interest, vector_dif = classify_follow_epochs(
-                        focal_xy, instant_speed, ts, portion, analysis_methods
+                        focal_xy, instant_speed, ts, this_agent_xy, analysis_methods
                     )
                     vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                     follow_pd = conclude_as_pd(
@@ -450,6 +477,14 @@ def calculate_relative_position(
             else:
                 epochs_of_interest, vector_dif = classify_follow_epochs(
                     focal_xy, instant_speed, ts, agent_xy, analysis_methods
+                )
+                behavioural_analysis(
+                    focal_xy,
+                    instant_speed,
+                    angular_velocity,
+                    epochs_of_interest,
+                    focal_animal_file,
+                    key,
                 )
                 vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                 follow_pd = conclude_as_pd(
@@ -471,7 +506,9 @@ def calculate_relative_position(
             else:
                 dif_across_trials.append(follow_pd)
                 sum_follow_epochs = follow_pd.shape[0]
-            _, turn_degree_fbf = unwrap_degree(heading_direction, num_unfilled_gap)
+            _, turn_degree_fbf = diff_angular_degree(
+                heading_direction, num_unfilled_gap
+            )
             angular_velocity = turn_degree_fbf / np.diff(ts)
             trial_summary = pd.DataFrame(
                 {
