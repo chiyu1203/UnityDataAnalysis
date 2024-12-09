@@ -59,10 +59,13 @@ def time_series_plot(target_distance, instant_speed, angles, analysis_window):
     plt.show()
 
 
-def trajectory_analysis(df_focal_animal):
+def trajectory_analysis(
+    df_focal_animal, df_summary, df_agent, file_name, num_unfilled_gap
+):
+    mark_behaviours = False
     trajec_lim = 150
     variables = np.sort(
-        df_focal_animal[df_focal_animal["type"] != "empty_trial"]["mu"].unique(), axis=0
+        df_summary[df_summary["type"] != "empty_trial"]["mu"].unique(), axis=0
     )
     fig, subplots = plt.subplots(
         nrows=1, ncols=variables.shape[0] + 1, figsize=(20, 4), tight_layout=True
@@ -75,13 +78,31 @@ def trajectory_analysis(df_focal_animal):
     plt.rcParams["axes.linewidth"] = 2
     # plt.rcParams['font.family'] = 'Helvetica'
     cmap = plt.get_cmap("viridis")
-    for key, grp in df_focal_animal.groupby("fname"):
+    for key, grp in df_summary.groupby("fname"):
+        focal_xy = np.vstack(
+            (
+                df_focal_animal[df_focal_animal["fname"] == key]["X"].to_numpy(),
+                df_focal_animal[df_focal_animal["fname"] == key]["Y"].to_numpy(),
+            )
+        )
+        # dif_x = np.diff(focal_xy[0])
+        # dif_y = np.diff(focal_xy[1])
+        # ts = df_focal_animal[df_focal_animal["fname"] == key]["ts"].to_numpy()
+        # instant_speed = calculate_speed(dif_x, dif_y, ts)
+        # heading_direction = df_focal_animal[df_focal_animal["fname"] == key][
+        #     "heading"
+        # ].to_numpy()
+        # _, angular_speed = unwrap_degree(heading_direction, num_unfilled_gap)
+        if mark_behaviours == True:
+            color = "r"
+        else:
+            color = np.arange(focal_xy[0].shape[0])
         if grp["type"][0] == "empty_trial":
             subplot_title = "ISI"
             subplots[0].scatter(
-                grp["X"].values,
-                grp["Y"].values,
-                c=np.arange(grp.shape[0]),
+                focal_xy[0],
+                focal_xy[1],
+                c=color,
                 marker=".",
                 alpha=0.5,
             )
@@ -92,11 +113,18 @@ def trajectory_analysis(df_focal_animal):
                     this_subplot = count + 1
                     subplot_title = f"direction:{this_variable}"
                     subplots[this_subplot].scatter(
-                        grp["X"].values,
-                        grp["Y"].values,
-                        c=np.arange(grp.shape[0]),
+                        focal_xy[0],
+                        focal_xy[1],
+                        c=color,
                         marker=".",
                         alpha=0.5,
+                    )
+                    subplots[this_subplot].plot(
+                        df_agent[df_agent["fname"] == key]["X"].to_numpy(),
+                        df_agent[df_agent["fname"] == key]["Y"].to_numpy(),
+                        c="k",
+                        # marker=".",
+                        alpha=0.1,
                     )
                 else:
                     continue
@@ -108,6 +136,9 @@ def trajectory_analysis(df_focal_animal):
             aspect=("equal"),
             title=subplot_title,
         )
+
+    fig_name = f"{file_name.stem}.jpg"
+    fig.savefig(file_name.parent / fig_name)
     plt.show()
 
 
@@ -217,8 +248,10 @@ def calculate_relative_position(
     test = np.where(df_focal_animal["heading"].values == 0)[0]
     num_unfilled_gap = findLongestConseqSubseq(test, test.shape[0])
     print(f"the length :{num_unfilled_gap} of unfilled gap in {focal_animal_file}")
-    # if analysis_methods.get("plotting_trajectory"):
-    #     trajectory_analysis(df_focal_animal)
+    if analysis_methods.get("plotting_trajectory"):
+        trajectory_analysis(
+            df_focal_animal, df_summary, df_agent, focal_animal_file, num_unfilled_gap
+        )
     dif_across_trials = []
     trial_evaluation_list = []
     raster_list = []
