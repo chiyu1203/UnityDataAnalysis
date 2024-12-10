@@ -60,7 +60,7 @@ def time_series_plot(target_distance, instant_speed, angles, analysis_window):
 
 
 def behavioural_analysis(
-    focal_xy, instant_speed, angular_velocity, epochs_of_interest, file_name, trial_id
+    focal_xy, instant_speed, angular_velocity, follow_epochs, file_name, trial_id
 ):
     speed_threshold = 0.25
     walk_epochs = instant_speed > speed_threshold
@@ -74,20 +74,23 @@ def behavioural_analysis(
         c="k",
         # c=np.zeros((1, focal_xy.shape[1] - 1), dtype=np.int8),
     )
+    ax2.scatter(focal_xy[0, 1:][walk_epochs], focal_xy[1, 1:][walk_epochs], c="r")
     ax2.scatter(
-        focal_xy[0, 1:],
-        focal_xy[1, 1:],
-        c=walk_epochs.astype(int),
-        cmap="inferno",
+        focal_xy[0, 1:][walk_epochs == False],
+        focal_xy[1, 1:][walk_epochs == False],
+        c="b",
     )
+    ax3.scatter(focal_xy[0, 1:][turn_epochs], focal_xy[1, 1:][turn_epochs], c="g")
     ax3.scatter(
-        focal_xy[0, 1:], focal_xy[1, 1:], c=turn_epochs.astype(int), cmap="inferno"
+        focal_xy[0, 1:][turn_epochs == False],
+        focal_xy[1, 1:][turn_epochs == False],
+        c="b",
     )
+    ax4.scatter(focal_xy[0, 1:][walk_epochs], focal_xy[1, 1:][walk_epochs], c="c")
     ax4.scatter(
-        focal_xy[0, 1:],
-        focal_xy[1, 1:],
-        c=epochs_of_interest.astype(int),
-        cmap="inferno",
+        focal_xy[0, 1:][follow_epochs == False],
+        focal_xy[1, 1:][follow_epochs == False],
+        c="b",
     )
     fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis.jpg"
     fig.savefig(file_name.parent / fig_name)
