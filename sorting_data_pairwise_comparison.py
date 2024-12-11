@@ -40,7 +40,7 @@ def calculate_speed(dif_x, dif_y, ts, number_frame_scene_changing=5):
     return instant_speed
 
 
-def time_series_plot(target_distance, instant_speed, angles, analysis_window):
+def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id):
     fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(9, 7), tight_layout=True)
     plt.rcParams.update(plt.rcParamsDefault)
     plt.rcParams.update({"font.size": 8})
@@ -56,7 +56,9 @@ def time_series_plot(target_distance, instant_speed, angles, analysis_window):
     ax1.plot(np.arange(target_distance.shape[0]), target_distance)
     ax2.plot(np.arange(instant_speed.shape[0]), instant_speed)
     ax3.plot(np.arange(angles.shape[0]), angles)
-    plt.show()
+    fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_ts_plot.jpg"
+    fig.savefig(file_name.parent / fig_name)
+    fig.show()
 
 
 def behavioural_analysis(
@@ -64,7 +66,7 @@ def behavioural_analysis(
 ):
     speed_threshold = 0.25
     walk_epochs = instant_speed > speed_threshold
-    omega_threshold = 0.08
+    omega_threshold = 1
     turn_epochs = abs(angular_velocity) > omega_threshold
     fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(20, 4), tight_layout=True)
     ax1, ax2, ax3, ax4 = axes.flatten()
@@ -79,18 +81,25 @@ def behavioural_analysis(
         focal_xy[0, 1:][walk_epochs == False],
         focal_xy[1, 1:][walk_epochs == False],
         c="b",
+        alpha=0.4,
     )
-    ax3.scatter(focal_xy[0, 1:][turn_epochs], focal_xy[1, 1:][turn_epochs], c="g")
+    ax3.scatter(focal_xy[0, 1:][turn_epochs], focal_xy[1, 1:][turn_epochs], c="m")
     ax3.scatter(
         focal_xy[0, 1:][turn_epochs == False],
         focal_xy[1, 1:][turn_epochs == False],
         c="b",
+        alpha=0.4,
     )
-    ax4.scatter(focal_xy[0, 1:][walk_epochs], focal_xy[1, 1:][walk_epochs], c="c")
+    ax4.scatter(
+        focal_xy[0, 1:][follow_epochs == True],
+        focal_xy[1, 1:][follow_epochs == True],
+        c="c",
+    )
     ax4.scatter(
         focal_xy[0, 1:][follow_epochs == False],
         focal_xy[1, 1:][follow_epochs == False],
         c="b",
+        alpha=0.4,
     )
     fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis.jpg"
     fig.savefig(file_name.parent / fig_name)
@@ -168,18 +177,18 @@ def plot_trajectory(df_focal_animal, df_summary, df_agent, file_name):
 def diff_angular_degree(angle_rad, number_frame_scene_changing):
     angle_rad[np.isnan(angle_rad)] = 0
     # angle_rad=np.unwrap(angle_rad)
-    # angular_velocity=np.diff(np.unwrap(angle_rad))
+    # ang_deg_diff=np.diff(np.unwrap(angle_rad))
     ang_deg = np.mod(np.rad2deg(angle_rad), 360.0)  ## if converting the unit to degree
-    angular_velocity = np.diff(
+    ang_deg_diff = np.diff(
         np.unwrap(ang_deg, period=360)
     )  ##if converting the unit to degree
     angle_rad[0 : number_frame_scene_changing + 1] = (
         np.nan
     )  ##plus one to include the weird data from taking difference between 0 and some value
-    angular_velocity[0 : number_frame_scene_changing + 1] = (
+    ang_deg_diff[0 : number_frame_scene_changing + 1] = (
         np.nan
     )  ##plus one to include the weird data from taking difference between 0 and some value
-    return angle_rad, angular_velocity
+    return angle_rad, ang_deg_diff
 
 
 def classify_follow_epochs(
@@ -199,16 +208,12 @@ def classify_follow_epochs(
     )
     angles = np.arccos(dot_product / focal_distance_fbf / agent_distance_fbf)
     angles_in_degree = angles * 180 / np.pi
-    # if analysis_methods.get("plotting_trajectory"):
-    #     time_series_plot(target_distance,instant_speed,angles_in_degree,analysis_window)
-    locustVR_criteria = np.logical_and(
-        target_distance[1:] < follow_within_distance,
-        instant_speed > 1,
-        angles_in_degree < 10,
+    locustVR_criteria = (
+        (target_distance[1:] < follow_within_distance)
+        & (instant_speed > 1)
+        & (angles_in_degree < 10)
     )
-    walk_criteria = np.logical_and(
-        target_distance[1:] < follow_within_distance, instant_speed > 1
-    )
+    walk_criteria = (target_distance[1:] < follow_within_distance) & (instant_speed > 1)
     if extract_follow_epoches and follow_locustVR_criteria:
         epochs_of_interest = locustVR_criteria
     elif extract_follow_epoches:
@@ -217,7 +222,7 @@ def classify_follow_epochs(
         epochs_of_interest = (
             np.ones((instant_speed.shape[0])) == 1.0
         )  # created a all-true array for overall heatmap
-    return epochs_of_interest, vector_dif
+    return epochs_of_interest, vector_dif, angles_in_degree
 
 
 def align_agent_moving_direction(vector_dif, grp):
@@ -300,10 +305,8 @@ def calculate_relative_position(
             np.sum([focal_xy[0] ** 2, focal_xy[1] ** 2], axis=0)
         )
         # angle_rad = df_focal_animal[df_focal_animal["fname"]==key]["heading"].to_numpy()
-        _, change_agular_degree_fbf = diff_angular_degree(
-            heading_direction, num_unfilled_gap
-        )
-        angular_velocity = change_agular_degree_fbf / np.diff(ts)
+        _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
+        angular_velocity = turn_degree_fbf / np.diff(ts)
         if "type" in df_summary.columns:
             if align_with_isi_onset:
                 if grp["type"][0] == "empty_trial":
@@ -457,13 +460,25 @@ def calculate_relative_position(
                 for i in range(num_portion):
                     if i == 0:
                         this_agent_xy = agent_xy[:, :midpoint]  # First half
-                        print(f"Processing first half: {this_agent_xy}")
+                        # print(f"Processing first half: {this_agent_xy}")
                     else:
                         this_agent_xy = agent_xy[:, midpoint:]  # Second half
-                        print(f"Processing second half: {this_agent_xy}")
-                    epochs_of_interest, vector_dif = classify_follow_epochs(
-                        focal_xy, instant_speed, ts, this_agent_xy, analysis_methods
+                        # print(f"Processing second half: {this_agent_xy}")
+                    epochs_of_interest, vector_dif, angles_in_degree = (
+                        classify_follow_epochs(
+                            focal_xy, instant_speed, ts, this_agent_xy, analysis_methods
+                        )
                     )
+
+                    if analysis_methods.get("plotting_trajectory"):
+                        target_distance = LA.norm(vector_dif, axis=0)
+                        time_series_plot(
+                            target_distance,
+                            instant_speed,
+                            angles_in_degree,
+                            focal_animal_file,
+                            key,
+                        )
                     vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                     follow_pd = conclude_as_pd(
                         df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i
@@ -478,17 +493,28 @@ def calculate_relative_position(
                     )
                     follow_pd_list.append(follow_pd)
             else:
-                epochs_of_interest, vector_dif = classify_follow_epochs(
-                    focal_xy, instant_speed, ts, agent_xy, analysis_methods
+                epochs_of_interest, vector_dif, angles_in_degree = (
+                    classify_follow_epochs(
+                        focal_xy, instant_speed, ts, agent_xy, analysis_methods
+                    )
                 )
-                behavioural_analysis(
-                    focal_xy,
-                    instant_speed,
-                    angular_velocity,
-                    epochs_of_interest,
-                    focal_animal_file,
-                    key,
-                )
+                if analysis_methods.get("plotting_trajectory"):
+                    target_distance = LA.norm(vector_dif, axis=0)
+                    time_series_plot(
+                        target_distance,
+                        instant_speed,
+                        angles_in_degree,
+                        focal_animal_file,
+                        key,
+                    )
+                # behavioural_analysis(
+                #     focal_xy,
+                #     instant_speed,
+                #     angular_velocity,
+                #     epochs_of_interest,
+                #     focal_animal_file,
+                #     key,
+                # )
                 vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                 follow_pd = conclude_as_pd(
                     df_focal_animal, vector_dif_rotated, epochs_of_interest, key
@@ -509,10 +535,10 @@ def calculate_relative_position(
             else:
                 dif_across_trials.append(follow_pd)
                 sum_follow_epochs = follow_pd.shape[0]
-            _, turn_degree_fbf = diff_angular_degree(
-                heading_direction, num_unfilled_gap
-            )
-            angular_velocity = turn_degree_fbf / np.diff(ts)
+            # _, turn_degree_fbf = diff_angular_degree(
+            #     heading_direction, num_unfilled_gap
+            # )
+            # angular_velocity = turn_degree_fbf / np.diff(ts)
             trial_summary = pd.DataFrame(
                 {
                     "trial_id": [trial_id],
@@ -585,11 +611,11 @@ def load_data(this_dir, json_file):
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR2*agent_full.h5"
+    agent_pattern = f"VR3*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR2*XY_full.h5"
+    xy_pattern = f"VR3*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR2*score_full.h5"
+    summary_pattern = f"VR3*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap = (
@@ -602,7 +628,8 @@ def load_data(this_dir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
+    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_data(thisDir, json_file)
