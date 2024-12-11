@@ -29,8 +29,14 @@ from pprint import pprint
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
-from useful_tools import find_file, findLongestConseqSubseq
-from data_cleaning import load_temperature_data, removeFictracNoise, bfill, diskretize
+from useful_tools import find_file
+from data_cleaning import (
+    load_temperature_data,
+    removeFictracNoise,
+    bfill,
+    diskretize,
+    findLongestConseqSubseq,
+)
 
 lock = Lock()
 
@@ -50,43 +56,52 @@ colormap_name = "coolwarm"
 sm = cm.ScalarMappable(cmap=colormap_name)
 COL = MplColorHelper(colormap_name, 0, 8)
 
+
 def save_curated_dataset(
     thisH5,
     timestamp,
     dataset,
     *args,
 ):
-    
+
     if type(dataset) == pd.DataFrame:
         ##need to think about whether it makes sense to summarise 4 vrs into one hdf file with different keys, or save them into different files.
-        dataset.to_hdf(thisH5, key='summary', mode='w')#better used in dataset that has certain structure
+        dataset.to_hdf(
+            thisH5, key="summary", mode="w"
+        )  # better used in dataset that has certain structure
     else:
         with h5py.File(thisH5, "w") as h5file:
             try:
                 if isinstance(dataset, list):
-                    #num_trials=len(dataset)
+                    # num_trials=len(dataset)
                     for id, this_trial_coordinates in enumerate(dataset):
-                        trials_id=f"trial{id+1}"
-                        if len(timestamp)==len(dataset):
-                            timestamp_id=id
+                        trials_id = f"trial{id+1}"
+                        if len(timestamp) == len(dataset):
+                            timestamp_id = id
                         else:
-                            timestamp_id=id*2
+                            timestamp_id = id * 2
                         tracklets = h5file.create_group(trials_id)
-                        tracklets.create_dataset(name="TimeStamp", data=timestamp[timestamp_id])
-                        if len(args)>0:
+                        tracklets.create_dataset(
+                            name="TimeStamp", data=timestamp[timestamp_id]
+                        )
+                        if len(args) > 0:
                             for this_argument in range(len(args)):
-                                tracklets.create_dataset(name="Heading", data=args[this_argument][id])
+                                tracklets.create_dataset(
+                                    name="Heading", data=args[this_argument][id]
+                                )
                         else:
                             print("no additional variable to saved")
-                        if type(this_trial_coordinates)==list:
+                        if type(this_trial_coordinates) == list:
                             pass
                         else:
-                            this_trial_coordinates=[this_trial_coordinates]
+                            this_trial_coordinates = [this_trial_coordinates]
                         for i in range(len(this_trial_coordinates)):
                             tracklet_id = f"XY{i+1}"
                             theses_coordinates = this_trial_coordinates[i]
                             if theses_coordinates.ndim == 2:
-                                tracklets.create_dataset(name=tracklet_id, data=theses_coordinates)
+                                tracklets.create_dataset(
+                                    name=tracklet_id, data=theses_coordinates
+                                )
                             elif theses_coordinates.ndim == 3:
                                 # for val, body_part_title in enumerate(args[0]):
                                 #     tracklets.create_dataset(
@@ -98,9 +113,11 @@ def save_curated_dataset(
                             else:
                                 print(
                                     "unknown dimension is detected. Do not save this data into the H5 file"
-                                )                            
+                                )
                 elif type(dataset) == pd.DataFrame:
-                    print("maybe dont need this. Save hdf file with pandas dataframe seems to be more easy to understand and efficient")
+                    print(
+                        "maybe dont need this. Save hdf file with pandas dataframe seems to be more easy to understand and efficient"
+                    )
                     tracklets = h5file.create_group("summary")
                     tracklets.create_dataset(name="summary", data=dataset)
                     # dataset.to_hdf(h5file, key='summary', mode='w')#better used in dataset that has certain structure
@@ -109,7 +126,7 @@ def save_curated_dataset(
                     tracklets.create_dataset(name="TimeStamp", data=timestamp)
                     theses_coordinates = dataset
                     if theses_coordinates.ndim == 2:
-                        tracklets.create_dataset(name='XY1', data=theses_coordinates)
+                        tracklets.create_dataset(name="XY1", data=theses_coordinates)
                     elif theses_coordinates.ndim == 3:
                         # for val, body_part_title in enumerate(args[0]):
                         #     tracklets.create_dataset(
@@ -266,7 +283,7 @@ def fill_missing_data(df):
 
 
 def reshape_multiagent_data(df, this_object):
-    if 'Timestamp' in df.columns:
+    if "Timestamp" in df.columns:
         number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
         number_of_instances = int(df.shape[0] / number_of_duplicates)
         agent_id = np.tile(
@@ -277,29 +294,31 @@ def reshape_multiagent_data(df, this_object):
         test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
         df_values = ["X", "Z", "VisibilityPhase"]
         new_df = test.pivot(index="Timestamp", columns=0, values=df_values)
-    elif 'Current Time' in df.columns:
+    elif "Current Time" in df.columns:
         number_of_instances = 2
-        trial_length = int(df["Current Time"].shape[0]/number_of_instances)
+        trial_length = int(df["Current Time"].shape[0] / number_of_instances)
         # number_of_duplicates = df["Current Time"].drop_duplicates().shape[0]
         # number_of_instances = int(df.shape[0] / number_of_duplicates)
-        #agent_id = np.tile(np.arange(number_of_instances),trial_length)
-        agent_id=np.repeat(np.arange(number_of_instances),trial_length)
+        # agent_id = np.tile(np.arange(number_of_instances),trial_length)
+        agent_id = np.repeat(np.arange(number_of_instances), trial_length)
         c_name_list = ["agent" + str(num) for num in agent_id]
         # df["id"]=df.index
         # df=df.sort_values(by=['Current Time','id'])
         df.reset_index(inplace=True)
         # df=df.drop(['id','index'], axis=1)
-        df=df.drop(['index'], axis=1)
+        df = df.drop(["index"], axis=1)
         test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
         df_values = [df.columns[1], df.columns[2]]
-        new_df = pd.pivot_table(test, values=[df.columns[1], df.columns[2]], index="Current Time",columns=0)
+        new_df = pd.pivot_table(
+            test, values=[df.columns[1], df.columns[2]], index="Current Time", columns=0
+        )
     else:
         Warning("no columns found")
 
     # if "VisibilityPhase" in df.columns:
     #     df_values = ["X", "Z", "VisibilityPhase"]
     # else:
-    #     df_values = [df.columns[1], df.columns[2]]    
+    #     df_values = [df.columns[1], df.columns[2]]
     # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
     return new_df
 
@@ -337,7 +356,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
 
         df = load_file(this_file)
 
-    print(df.columns)
+    # print(df.columns)
     if scene_name.lower() == "swarm":
         n_locusts = df.columns[6]
         boundary_size = df.columns[7]
@@ -426,7 +445,10 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
         if len(df) > 0:
             result = pd.concat(
                 [
-                    pd.to_datetime(df["Current Time"][df["VR"].str.startswith(conditions["type"])], format="%Y-%m-%d %H:%M:%S.%f"),
+                    pd.to_datetime(
+                        df["Current Time"][df["VR"].str.startswith(conditions["type"])],
+                        format="%Y-%m-%d %H:%M:%S.%f",
+                    ),
                     df["GameObjectPosX"][df["VR"].str.startswith(conditions["type"])],
                     df["GameObjectPosZ"][df["VR"].str.startswith(conditions["type"])],
                 ],
@@ -435,6 +457,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
         else:
             result = [None, None, None]
     return result, conditions
+
 
 def analyse_focal_animal(
     this_file,
@@ -510,12 +533,13 @@ def analyse_focal_animal(
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
         ax1.set_title("ISI")
         ax2.set_title("Trial")
-    (   summary_across_trials,
+    (
+        summary_across_trials,
         heading_direction_across_trials,
         xy_across_trials,
         agent_across_trials,
         ts_across_trials,
-    ) = ([], [], [], [],[])
+    ) = ([], [], [], [], [])
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
         ts, xy, trial_no, rot_y = prepare_data(df, this_range)
@@ -525,8 +549,8 @@ def analyse_focal_animal(
             break
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
         if scene_name == "choice" and id % 2 > 0:
-            if type(df_simulated_animal[id])==list:
-                df_simulated=df_simulated_animal[id][0]
+            if type(df_simulated_animal[id]) == list:
+                df_simulated = df_simulated_animal[id][0]
             else:
                 df_simulated = df_simulated_animal[id]
                 if "Current Time" in df_simulated.columns:
@@ -621,11 +645,10 @@ def analyse_focal_animal(
             for different_key in diff_con.affected_root_keys:
                 different_key_list.append(different_key)
             condition = condition[0]
-            if 'type' in different_key_list:
-                value1=diff_con['values_changed']["root['type']"]['old_value']
-                value2=diff_con['values_changed']["root['type']"]['new_value']
-                condition['type']=f"{value1}_x_{value2}"
-            
+            if "type" in different_key_list:
+                value1 = diff_con["values_changed"]["root['type']"]["old_value"]
+                value2 = diff_con["values_changed"]["root['type']"]["new_value"]
+                condition["type"] = f"{value1}_x_{value2}"
 
         #   condition_is_tuple = False
         # elif isinstance(
@@ -687,7 +710,7 @@ def analyse_focal_animal(
             df_curated["density"] = density
             df_curated["kappa"] = order
         if scene_name.lower() == "choice" or scene_name.lower() == "band":
-            #df_curated["type"] = object_type
+            # df_curated["type"] = object_type
             df_curated["radial_distance"] = radial_distance
             df_curated["polar_angle"] = polar_angle
             # Probably no need to save the following into curated database but just in case
@@ -704,13 +727,13 @@ def analyse_focal_animal(
                     pass
                     # print("no information about ISI stored in choice assay")
                 else:
-                    num_agent=int(df_simulated.shape[1]/2)
-                    agent_dXY_list=[]
-                    for i in range(0,num_agent):
+                    num_agent = int(df_simulated.shape[1] / 2)
+                    agent_dXY_list = []
+                    for i in range(0, num_agent):
                         agent_xy = np.vstack(
                             (
-                            df_simulated.iloc[:,i].values,
-                            df_simulated.iloc[:,i+num_agent].values,
+                                df_simulated.iloc[:, i].values,
+                                df_simulated.iloc[:, i + num_agent].values,
                             )
                         )
                         agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
@@ -728,28 +751,30 @@ def analyse_focal_animal(
                 Warning("work in progress")
                 pass
             if "agent_dX" in locals() and scene_name.lower() == "choice":
-                df_agent_list=[]
+                df_agent_list = []
                 # if 'value1' in locals():
                 #     value_list=[value1,value2]
                 #     del value1,value2
                 # else:
                 #     value_list=[object_type]
                 for k in range(len(agent_dXY_list)):
-                    this_agent_dx=agent_dXY_list[k][0]
-                    this_agent_dy=agent_dXY_list[k][1]
+                    this_agent_dx = agent_dXY_list[k][0]
+                    this_agent_dy = agent_dXY_list[k][1]
                     df_agent = pd.DataFrame(
-                    {
-                        "X": this_agent_dx,
-                        "Y": this_agent_dy,
-                        "fname": [fchop] * len(this_agent_dx),
-                        "mu": mu,
-                        "agent_speed": spe,
-                    }
-                )
+                        {
+                            "X": this_agent_dx,
+                            "Y": this_agent_dy,
+                            "fname": [fchop] * len(this_agent_dx),
+                            "mu": mu,
+                            "agent_speed": spe,
+                        }
+                    )
                     # df_agent["agent_type"] = [value_list[k]] * len(
                     #     this_agent_dx
                     # )
-                    df_agent_list.append(df_agent)  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
+                    df_agent_list.append(
+                        df_agent
+                    )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
             elif "agent_dX" in locals() and scene_name.lower() == "swarm":
                 df_agent = pd.DataFrame(
                     {
@@ -760,9 +785,7 @@ def analyse_focal_animal(
                         "agent_speed": spe,
                     }
                 )
-                print(
-                    "there is a unfixed bug about how to name the number of agent"
-                )
+                print("there is a unfixed bug about how to name the number of agent")
                 df_agent["agent_num"] = density
         df_summary = pd.DataFrame(
             {
@@ -818,7 +841,7 @@ def analyse_focal_animal(
                     )
                     if "agent_dX" in locals():
                         for j in range(len(df_agent_list)):
-                            this_pd=df_agent_list[j]
+                            this_pd = df_agent_list[j]
                             ax2.plot(
                                 this_pd["X"].values,
                                 this_pd["Y"].values,
@@ -830,31 +853,41 @@ def analyse_focal_animal(
             with lock:
                 if "df_agent" in locals():
                     file_list = [curated_file_path, agent_file_path]
-                    data_frame_list = [df_curated,df_agent_list]
-                    hdf_keys= ['focal_animal', '']
+                    data_frame_list = [df_curated, df_agent_list]
+                    hdf_keys = ["focal_animal", ""]
                 else:
                     file_list = [curated_file_path]
                     data_frame_list = [df_curated]
-                    hdf_keys= ['focal_animal']
-                for this_name, this_pd,this_hdf in zip(file_list, data_frame_list,hdf_keys):
+                    hdf_keys = ["focal_animal"]
+                for this_name, this_pd, this_hdf in zip(
+                    file_list, data_frame_list, hdf_keys
+                ):
                     store = pd.HDFStore(this_name)
-                    if len(hdf_keys)>1 and this_name==agent_file_path:
+                    if len(hdf_keys) > 1 and this_name == agent_file_path:
                         # if 'value1' in locals():
                         #     value_list=[value1,value2]
                         #     del value1,value2
                         # else:
-                        value_list=[object_type[0]]*len(df_agent_list)
-                        for j in range(len(df_agent_list)): 
-                            #agent_key=f'agent{j}'
-                            agent_key=value_list[j]
-                            this_pd=df_agent_list[j]
-                            store.append(agent_key,this_pd,format="t",data_columns=this_pd.columns)
+                        value_list = [object_type[0]] * len(df_agent_list)
+                        for j in range(len(df_agent_list)):
+                            # agent_key=f'agent{j}'
+                            agent_key = value_list[j]
+                            this_pd = df_agent_list[j]
+                            store.append(
+                                agent_key,
+                                this_pd,
+                                format="t",
+                                data_columns=this_pd.columns,
+                            )
                         store.close()
                     else:
-                        if len(different_key_list)>0:
+                        if len(different_key_list) > 0:
                             for i in range(len(different_key_list)):
-                                this_different_key=different_key_list[i]
-                                if this_different_key in this_pd.columns and this_different_key!='type':
+                                this_different_key = different_key_list[i]
+                                if (
+                                    this_different_key in this_pd.columns
+                                    and this_different_key != "type"
+                                ):
                                     this_pd[this_different_key] = np.nan
                                 else:
                                     pass
@@ -878,9 +911,16 @@ def analyse_focal_animal(
             agent_across_trials.append(agent_dXY_list)
             del agent_dX, agent_dY, df_agent
     trajectory_fig_path = this_file.parent / f"{experiment_id}_trajectory.png"
-    save_curated_dataset(summary_file_path,ts_across_trials,pd.concat(summary_across_trials))
-    save_curated_dataset(agent_file_test,ts_across_trials,agent_across_trials)
-    save_curated_dataset(curated_path_test,ts_across_trials,xy_across_trials,heading_direction_across_trials)
+    save_curated_dataset(
+        summary_file_path, ts_across_trials, pd.concat(summary_across_trials)
+    )
+    save_curated_dataset(agent_file_test, ts_across_trials, agent_across_trials)
+    save_curated_dataset(
+        curated_path_test,
+        ts_across_trials,
+        xy_across_trials,
+        heading_direction_across_trials,
+    )
     if plotting_trajectory == True and save_output == True:
         fig.savefig(trajectory_fig_path)
     return (
@@ -981,40 +1021,82 @@ def preprocess_matrex_data(thisDir, json_file):
                         )
                         for this_object in range(num_object_on_scene):
                             result, condition = read_agent_data(
-                                    df[this_range],
-                                    analysis_methods,
-                                    trial_condition["objects"][this_object],
-                                )
+                                df[this_range],
+                                analysis_methods,
+                                trial_condition["objects"][this_object],
+                            )
 
-                            if num_object_on_scene>1:
+                            if num_object_on_scene > 1:
                                 # if isinstance(result, pd.DataFrame) == True:
                                 #     result.drop_duplicates(subset=["GameObjectPosZ"], keep='last',inplace=True)
-                                if this_object==0:
-                                    condition["duration"] = trial_sequence["sequences"][idx][
-                                    "duration"]  # may need to add condition to exclude some kind of data from choice assay.
+                                if this_object == 0:
+                                    condition["duration"] = trial_sequence["sequences"][
+                                        idx
+                                    ][
+                                        "duration"
+                                    ]  # may need to add condition to exclude some kind of data from choice assay.
                                     condition_list.append(condition)
-                                if (trial_condition["objects"][0]["type"] == trial_condition["objects"][1]["type"]) and (this_object==1) and (trial_condition["objects"][0]["type"]!=''):
-                                    theta = np.radians(trial_condition["objects"][1]['position']['angle']-trial_condition["objects"][0]['position']['angle'])
+                                if (
+                                    (
+                                        trial_condition["objects"][0]["type"]
+                                        == trial_condition["objects"][1]["type"]
+                                    )
+                                    and (this_object == 1)
+                                    and (trial_condition["objects"][0]["type"] != "")
+                                ):
+                                    theta = np.radians(
+                                        trial_condition["objects"][1]["position"][
+                                            "angle"
+                                        ]
+                                        - trial_condition["objects"][0]["position"][
+                                            "angle"
+                                        ]
+                                    )
                                     # applying rotation matrix to rotate the coordinates
                                     # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
                                     rot_matrix = np.array(
-                                        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+                                        [
+                                            [np.cos(theta), -np.sin(theta)],
+                                            [np.sin(theta), np.cos(theta)],
+                                        ]
                                     )
-                                    rXY = rot_matrix @ np.vstack((result["GameObjectPosX"].values, result["GameObjectPosZ"].values))
-                                    result["GameObjectPosX"]=rXY[1]
-                                    result["GameObjectPosZ"]=rXY[0]
+                                    rXY = rot_matrix @ np.vstack(
+                                        (
+                                            result["GameObjectPosX"].values,
+                                            result["GameObjectPosZ"].values,
+                                        )
+                                    )
+                                    result["GameObjectPosX"] = rXY[1]
+                                    result["GameObjectPosZ"] = rXY[0]
                                 result_list.append(result)
-                                if isinstance(result, pd.DataFrame) == True and (this_object==1):
-                                    if len(result_list[0])>=len(result_list[1]):
-                                        matched_id = np.searchsorted(result_list[0]["Current Time"].values, result_list[1]["Current Time"].values)
-                                        if matched_id.shape[0]==result_list[0].shape[0]:
+                                if isinstance(result, pd.DataFrame) == True and (
+                                    this_object == 1
+                                ):
+                                    if len(result_list[0]) >= len(result_list[1]):
+                                        matched_id = np.searchsorted(
+                                            result_list[0]["Current Time"].values,
+                                            result_list[1]["Current Time"].values,
+                                        )
+                                        if (
+                                            matched_id.shape[0]
+                                            == result_list[0].shape[0]
+                                        ):
                                             pass
                                         else:
-                                            result_list[0]=result_list[0].iloc[matched_id,:]
-                                    elif len(result_list[0])<len(result_list[1]):
-                                        matched_id = np.searchsorted(result_list[1]["Current Time"].values,result_list[0]["Current Time"].values)
-                                        result_list[1]=result_list[1].iloc[matched_id,:]
-                                    df_agent = reshape_multiagent_data(pd.concat(result_list), this_object)
+                                            result_list[0] = result_list[0].iloc[
+                                                matched_id, :
+                                            ]
+                                    elif len(result_list[0]) < len(result_list[1]):
+                                        matched_id = np.searchsorted(
+                                            result_list[1]["Current Time"].values,
+                                            result_list[0]["Current Time"].values,
+                                        )
+                                        result_list[1] = result_list[1].iloc[
+                                            matched_id, :
+                                        ]
+                                    df_agent = reshape_multiagent_data(
+                                        pd.concat(result_list), this_object
+                                    )
                                     result_list = []
                                     result_list.append(df_agent)
                                 else:
@@ -1140,7 +1222,7 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    #thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
 
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
@@ -1149,12 +1231,12 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
     # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
-    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240907_142802"
+    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20241207_175920"
     # thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_151917"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
+    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_151917"
+    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
+    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
