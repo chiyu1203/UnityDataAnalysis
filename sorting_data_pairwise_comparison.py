@@ -64,7 +64,7 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
 def behavioural_analysis(
     focal_xy, instant_speed, angular_velocity, follow_epochs, file_name, trial_id
 ):
-    speed_threshold = 0.25
+    speed_threshold = 1
     walk_epochs = instant_speed > speed_threshold
     omega_threshold = 1
     turn_epochs = abs(angular_velocity) > omega_threshold
@@ -101,7 +101,9 @@ def behavioural_analysis(
         c="b",
         alpha=0.4,
     )
-    fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis.jpg"
+    fig_name = (
+        f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis_speed1.jpg"
+    )
     fig.savefig(file_name.parent / fig_name)
     fig.show()
 
@@ -266,6 +268,7 @@ def calculate_relative_position(
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
+    plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     pre_stim_ISI = 60
     trajec_lim = 150
     df_agent_list = []
@@ -280,7 +283,7 @@ def calculate_relative_position(
     test = np.where(df_focal_animal["heading"].values == 0)[0]
     num_unfilled_gap = findLongestConseqSubseq(test, test.shape[0])
     print(f"the length :{num_unfilled_gap} of unfilled gap in {focal_animal_file}")
-    if analysis_methods.get("plotting_trajectory"):
+    if plotting_trajectory:
         plot_trajectory(df_focal_animal, df_summary, df_agent, focal_animal_file)
     dif_across_trials = []
     trial_evaluation_list = []
@@ -470,7 +473,7 @@ def calculate_relative_position(
                         )
                     )
 
-                    if analysis_methods.get("plotting_trajectory"):
+                    if plotting_trajectory:
                         target_distance = LA.norm(vector_dif, axis=0)
                         time_series_plot(
                             target_distance,
@@ -498,7 +501,7 @@ def calculate_relative_position(
                         focal_xy, instant_speed, ts, agent_xy, analysis_methods
                     )
                 )
-                if analysis_methods.get("plotting_trajectory"):
+                if plotting_trajectory:
                     target_distance = LA.norm(vector_dif, axis=0)
                     time_series_plot(
                         target_distance,
