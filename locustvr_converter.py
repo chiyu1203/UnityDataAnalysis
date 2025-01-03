@@ -286,6 +286,10 @@ def reshape_multiagent_data(df, this_object):
     if "Timestamp" in df.columns:
         number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
         number_of_instances = int(df.shape[0] / number_of_duplicates)
+        if number_of_instances==1 and df.shape[0]>number_of_duplicates:
+            df=df.drop_duplicates(ignore_index=True)#need to add this line to avoid duplicate entries simply comes from logging the same entry twice. This however, shall also happen when rendering multiple agents. Not sure why I did not see this error in the past
+        else:
+            pass
         agent_id = np.tile(
             np.arange(number_of_instances) + number_of_instances * this_object,
             number_of_duplicates,
@@ -425,6 +429,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
                 axis=1,
             )
         else:
+            #not sure why the datatime is not saved in the result during ISI
             result = [
                 pd.to_datetime(this_file.stem[0:19], format="%Y-%m-%d_%H-%M-%S"),
                 None,
@@ -965,11 +970,9 @@ def preprocess_matrex_data(thisDir, json_file):
                 inplace=True,
             )
     num_vr = 4
-    agents_shared_across_vrs = analysis_methods.get("agents_shared_across_vrs", False)
     scene_name = analysis_methods.get("experiment_name")
     ## here to load simulated agent's data
     for i in range(num_vr):
-
         if scene_name.lower() == "swarm" or scene_name.lower() == "band":
             agent_pattern = f"*SimulatedLocustsVR{i+1}*"
         elif scene_name.lower() == "choice":
@@ -977,10 +980,6 @@ def preprocess_matrex_data(thisDir, json_file):
         found_result = find_file(thisDir, agent_pattern)
         if found_result is None:
             return print(f"file with {agent_pattern} not found")
-        # elif agents_shared_across_vrs and "df_simulated_animal" in locals():
-        #     print(
-        #         "Information about simulated locusts are shared across rigs in the choice scene, so skip the rest of the loop and start analysing focal animals"
-        #     )
         else:
             df_simulated_animal = []
             conditions = []
@@ -1223,7 +1222,8 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
-
+    thisDir = r"C:/Users/neuroLaptop/Documents/20241224_180531"
+    #thisDir = r"C:/Users/neuroLaptop/Documents/20241014_175759"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
