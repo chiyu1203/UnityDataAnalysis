@@ -5,7 +5,7 @@ analysis_methods = {
     "experiment_name": "band",
     "overwrite_curated_dataset": True,
     "save_output": True,
-    "time_series_analysis": False,
+    "time_series_analysis": True,
     "filtering_method": "sg_filter",
     "plotting_trajectory": True,
     "load_individual_data": True,

@@ -286,8 +286,10 @@ def reshape_multiagent_data(df, this_object):
     if "Timestamp" in df.columns:
         number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
         number_of_instances = int(df.shape[0] / number_of_duplicates)
-        if number_of_instances==1 and df.shape[0]>number_of_duplicates:
-            df=df.drop_duplicates(ignore_index=True)#need to add this line to avoid duplicate entries simply comes from logging the same entry twice. This however, shall also happen when rendering multiple agents. Not sure why I did not see this error in the past
+        if number_of_instances == 1 and df.shape[0] > number_of_duplicates:
+            df = df.drop_duplicates(
+                ignore_index=True
+            )  # need to add this line to avoid duplicate entries simply comes from logging the same entry twice. This however, shall also happen when rendering multiple agents. Not sure why I did not see this error in the past
         else:
             pass
         agent_id = np.tile(
@@ -429,7 +431,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
                 axis=1,
             )
         else:
-            #not sure why the datatime is not saved in the result during ISI
+            # not sure why the datatime is not saved in the result during ISI
             result = [
                 pd.to_datetime(this_file.stem[0:19], format="%Y-%m-%d_%H-%M-%S"),
                 None,
@@ -512,9 +514,9 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY{file_suffix}.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score{file_suffix}.h5"
     agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
-    summary_file_test = this_file.parent / f"{experiment_id}_score{file_suffix}_test.h5"
-    curated_path_test = this_file.parent / f"{experiment_id}_XY{file_suffix}_test.h5"
-    agent_file_test = this_file.parent / f"{experiment_id}_agent{file_suffix}_test.h5"
+    #summary_file_test = this_file.parent / f"{experiment_id}_score{file_suffix}_test.h5"
+    #curated_path_test = this_file.parent / f"{experiment_id}_XY{file_suffix}_test.h5"
+    #agent_file_test = this_file.parent / f"{experiment_id}_agent{file_suffix}_test.h5"
     # need to think about whether to name them the same regardless analysis methods
 
     if tem_df is None:
@@ -753,8 +755,22 @@ def analyse_focal_animal(
                 isinstance(df_simulated_animal[id], pd.DataFrame) == True
                 and "these_simulated_agents" in locals()
             ):
-                Warning("work in progress")
-                pass
+                num_agent = int(these_simulated_agents.shape[1] / 3)
+                agent_dXY_list = []
+                for i in range(0, num_agent):
+                    agent_xy = np.vstack(
+                        (
+                            these_simulated_agents.iloc[:,0].values,
+                            these_simulated_agents.iloc[:,1].values,
+                        )
+                    )
+                    agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
+                    if time_series_analysis:
+                        (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
+                    else:
+                        agent_dX = agent_rXY[0][newindex]
+                        agent_dY = agent_rXY[1][newindex]
+                    agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
             if "agent_dX" in locals() and scene_name.lower() == "choice":
                 df_agent_list = []
                 # if 'value1' in locals():
@@ -792,6 +808,26 @@ def analyse_focal_animal(
                 )
                 print("there is a unfixed bug about how to name the number of agent")
                 df_agent["agent_num"] = density
+            elif "agent_dX" in locals() and scene_name.lower() == "band":
+                df_agent_list = []
+                for k in range(len(agent_dXY_list)):
+                    this_agent_dx = agent_dXY_list[k][0]
+                    this_agent_dy = agent_dXY_list[k][1]
+                    df_agent = pd.DataFrame(
+                        {
+                            "X": this_agent_dx,
+                            "Y": this_agent_dy,
+                            "fname": [fchop] * len(this_agent_dx),
+                            "mu": mu,
+                            "agent_speed": spe,
+                        }
+                    )
+                    # df_agent["agent_type"] = [value_list[k]] * len(
+                    #     this_agent_dx
+                    # )
+                    df_agent_list.append(
+                        df_agent
+                    )  # need to figure out a way to solve multiple agents situation. The same method should be applied in the Swarm scene
         df_summary = pd.DataFrame(
             {
                 "fname": [f[0]],
@@ -919,13 +955,13 @@ def analyse_focal_animal(
     save_curated_dataset(
         summary_file_path, ts_across_trials, pd.concat(summary_across_trials)
     )
-    save_curated_dataset(agent_file_test, ts_across_trials, agent_across_trials)
-    save_curated_dataset(
-        curated_path_test,
-        ts_across_trials,
-        xy_across_trials,
-        heading_direction_across_trials,
-    )
+    # save_curated_dataset(agent_file_test, ts_across_trials, agent_across_trials)
+    # save_curated_dataset(
+    #     curated_path_test,
+    #     ts_across_trials,
+    #     xy_across_trials,
+    #     heading_direction_across_trials,
+    # )
     if plotting_trajectory == True and save_output == True:
         fig.savefig(trajectory_fig_path)
     return (
@@ -1081,6 +1117,10 @@ def preprocess_matrex_data(thisDir, json_file):
                                             == result_list[0].shape[0]
                                         ):
                                             pass
+                                        elif matched_id[-1] >= result_list[0].shape[0]:
+                                            result_list[0] = result_list[0].iloc[
+                                                matched_id[:-1], :
+                                            ]
                                         else:
                                             result_list[0] = result_list[0].iloc[
                                                 matched_id, :
@@ -1090,9 +1130,19 @@ def preprocess_matrex_data(thisDir, json_file):
                                             result_list[1]["Current Time"].values,
                                             result_list[0]["Current Time"].values,
                                         )
-                                        result_list[1] = result_list[1].iloc[
-                                            matched_id, :
-                                        ]
+                                        if (
+                                            matched_id.shape[0]
+                                            == result_list[1].shape[0]
+                                        ):
+                                            pass
+                                        elif matched_id[-1] >= result_list[1].shape[0]:
+                                            result_list[1] = result_list[1].iloc[
+                                                matched_id[:-1], :
+                                            ]
+                                        else:
+                                            result_list[1] = result_list[1].iloc[
+                                                matched_id, :
+                                            ]
                                     df_agent = reshape_multiagent_data(
                                         pd.concat(result_list), this_object
                                     )
@@ -1222,8 +1272,9 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
-    thisDir = r"C:/Users/neuroLaptop/Documents/20241224_180531"
-    #thisDir = r"C:/Users/neuroLaptop/Documents/20241014_175759"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241228_160619"
+    # thisDir = r"C:/Users/neuroLaptop/Documents/20241014_175759"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
     # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
