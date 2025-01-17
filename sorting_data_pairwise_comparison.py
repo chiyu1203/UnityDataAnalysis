@@ -431,8 +431,14 @@ def calculate_relative_position(
         # raw_data=np.vstack(con_matrex)
         raster_list.append(pd.DataFrame(np.transpose(np.vstack(con_matrex))))
         iteration_count += 1
-
-        if grp["type"][0] == "empty_trial" or grp["density"][0] == 0:
+        if "density" in grp.columns and grp["density"][0] == 0:
+            focal_distance_ISI = instant_speed * np.diff(ts)
+            _, turn_degree_ISI = diff_angular_degree(
+                heading_direction, num_unfilled_gap
+            )
+            pre_stim_ISI = grp["duration"][0]
+            continue
+        elif grp["type"][0] == "empty_trial":
             focal_distance_ISI = instant_speed * np.diff(ts)
             _, turn_degree_ISI = diff_angular_degree(
                 heading_direction, num_unfilled_gap
@@ -633,8 +639,8 @@ def load_data(this_dir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
-    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
