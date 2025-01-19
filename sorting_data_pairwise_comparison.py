@@ -79,7 +79,9 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
     ax3.set(title="angular deviation")
     ax1.plot(np.arange(target_distance.shape[0]), target_distance)
     ax2.plot(np.arange(instant_speed.shape[0]), instant_speed)
+    ax2.axhline(y=1,color="red",linestyle="--")
     ax3.plot(np.arange(angles.shape[0]), angles)
+    ax3.axhline(y=10,color="red",linestyle="--")
     fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_ts_plot.jpg"
     fig.savefig(file_name.parent / fig_name)
     fig.show()
@@ -671,6 +673,9 @@ def calculate_relative_position(
         if extract_follow_epoches and follow_locustVR_criteria:
             xlimit=(0,15)
             ylimit=(-5,5)
+        elif extract_follow_epoches:
+            xlimit=(0,40)
+            ylimit=(-15,15)
         else:
             xlimit=(-20,100)
             ylimit=(-45,45)
@@ -687,8 +692,8 @@ def calculate_relative_position(
             else:
                 ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
             ax2.set(
-            yticks=[-5,5],
-            xticks=[0,15],
+            yticks=[ylimit[0],ylimit[1]],
+            xticks=[xlimit[0],xlimit[1]],
             xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
             '''
             ax.axvline(
