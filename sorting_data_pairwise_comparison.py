@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from numpy import linalg as LA
 
 current_working_directory = Path.cwd()
@@ -11,7 +12,8 @@ parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file
 from data_cleaning import findLongestConseqSubseq
-
+colormap_name = "viridis"
+sm = cm.ScalarMappable(cmap=colormap_name)
 
 def nan_helper(y):
     """Helper to handle indices and logical indices of NaNs.
@@ -30,6 +32,28 @@ def nan_helper(y):
 
     return np.isnan(y), lambda z: z.nonzero()[0]
 
+
+def generate_points_within_rectangles(x_values, y_values, width,height1, height2, num_points):
+    """
+    Generate extra points within rectangles centered at given points.
+
+    Parameters:
+    x_values (array-like): x-coordinates of the centroids.
+    y_values (array-like): y-coordinates of the centroids.
+    width (float): Width of the rectangles.
+    height (float): Height of the rectangles.
+    num_points (int): Number of points to generate within each rectangle.
+
+    Returns:
+    np.ndarray: Array of generated points with shape (num_points * len(x_values), 2).
+    """
+    points = []
+    for x, y in zip(x_values, y_values):
+        for _ in range(num_points):
+            new_x = x + np.random.uniform(-height1, height2)
+            new_y = y + np.random.uniform(-width, width)
+            points.append([new_x, new_y])
+    return np.array(points)
 
 def calculate_speed(dif_x, dif_y, ts, number_frame_scene_changing=5):
     focal_distance_fbf = np.sqrt(np.sum([dif_x**2, dif_y**2], axis=0))
@@ -269,6 +293,10 @@ def calculate_relative_position(
     monitor_fps = analysis_methods.get("monitor_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
+    plotting_event_distribution = analysis_methods.get("plotting_event_distribution", False)
+    extract_follow_epoches = analysis_methods.get("extract_follow_epoches", True)
+    follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", True)
+    distribution_with_entire_body = analysis_methods.get("distribution_with_entire_body", True)
     pre_stim_ISI = 60
     trajec_lim = 150
     df_agent_list = []
@@ -611,6 +639,85 @@ def calculate_relative_position(
         dif_across_trials_pd.columns = ["type", "x", "y", "degree", "ts"]
     elif dif_across_trials_pd.shape[1] == 6:
         dif_across_trials_pd.columns = ["type", "agent_id", "x", "y", "degree", "ts"]
+
+    if plotting_event_distribution:
+        plt.close()
+        trial_evaluation=pd.concat(trial_evaluation_list)
+        trial_evaluation['time_group'] = pd.cut(trial_evaluation['trial_id'], bins=3, labels=[1, 2, 3])
+        fig, axes = plt.subplots(
+                nrows=1, ncols=2, figsize=(9,5), tight_layout=True)
+        ax, ax2 = axes.flatten()
+        test1=ax.scatter(x=trial_evaluation['trial_id'],y=trial_evaluation['num_follow_epochs'],c=trial_evaluation['travel_distance'],cmap='viridis',s=10)
+        ax.set_xticks([])
+        ax.set_xlabel("Trial#")
+        ax.set(
+            ylabel="Number of follow epochs",
+            xticks=[0, trial_evaluation['trial_id'].max()],
+            xlabel="Trial#",
+        )
+        plt.colorbar(test1,label="Travel distance (cm)")
+        test2=ax2.scatter(x=trial_evaluation['time_group'],y=trial_evaluation['travel_distance'],c=trial_evaluation['mu'],cmap='Set1',s=10)
+        ax2.set(
+            ylabel="Travel distance (cm)",
+            xticks=[1,2,3],
+            xlabel="n-th part of the trials",
+        )
+        legend2 = ax2.legend(*test2.legend_elements(), title="Degree")
+        ax2.add_artist(legend2)
+        fig_name = (
+                f"{summary_file.stem.split('_')[0]}_follow_across_time.jpg"
+            )
+        fig.savefig(summary_file.parent / fig_name)
+        if extract_follow_epoches and follow_locustVR_criteria:
+            xlimit=(0,15)
+            ylimit=(-5,5)
+        else:
+            xlimit=(-20,100)
+            ylimit=(-45,45)
+        for keys, grp in dif_across_trials_pd.groupby(['type','degree']):
+            print(keys)
+            fig, axes = plt.subplots(
+                nrows=2, ncols=1, figsize=(9,5))
+            ax, ax2 = axes.flatten()
+            ax.hist(grp['ts'].values,bins=100,density=True)
+            ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
+            if distribution_with_entire_body:
+                body_points=generate_points_within_rectangles(grp['x'].values,grp['y'].values, 1,4,2,21)
+                ax2.hist2d(body_points[:,0],body_points[:,1],bins=400)
+            else:
+                ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
+            ax2.set(
+            yticks=[-5,5],
+            xticks=[0,15],
+            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
+            '''
+            ax.axvline(
+                    x=6,
+                    color="red",
+                    linestyle="--",
+                    label="length")
+            ax.axvline(
+                    x=0,
+                    color="red",
+                    linestyle="--",
+                    label="length")
+            ax.axhline(
+                    y=-1,
+                    color="red",
+                    linestyle="--",
+                    label="width")
+            ax.axhline(
+                    y=1,
+                    color="red",
+                    linestyle="--",
+                    label="width")
+            '''
+            #ax2.hist(grp['ts'].values,bins=100,density=True,histtype="step",cumulative=True,label="Cumulative histogram")
+
+            fig_name = (
+                f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_follow_distribution.jpg"
+            )
+            fig.savefig(summary_file.parent / fig_name)
     return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap
 
 
