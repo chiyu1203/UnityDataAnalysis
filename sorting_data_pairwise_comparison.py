@@ -6,7 +6,7 @@ import h5py
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from numpy import linalg as LA
-
+from scipy.stats import circmean
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
@@ -290,7 +290,7 @@ def conclude_as_pd(
 def calculate_relative_position(
     summary_file, focal_animal_file, agent_file, analysis_methods
 ):
-    duration_for_baseline = 3
+    duration_for_baseline = 2
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
@@ -299,6 +299,7 @@ def calculate_relative_position(
     extract_follow_epoches = analysis_methods.get("extract_follow_epoches", True)
     follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", True)
     distribution_with_entire_body = analysis_methods.get("distribution_with_entire_body", True)
+    calculate_follow_chance_level = analysis_methods.get("calculate_follow_chance_level", True)
     pre_stim_ISI = 60
     trajec_lim = 150
     df_agent_list = []
@@ -316,6 +317,7 @@ def calculate_relative_position(
     if plotting_trajectory:
         plot_trajectory(df_focal_animal, df_summary, df_agent, focal_animal_file)
     dif_across_trials = []
+    simulated_across_trials = []
     trial_evaluation_list = []
     raster_list = []
     trial_id = 0
@@ -367,6 +369,7 @@ def calculate_relative_position(
                         w_of_interest[-duration_for_baseline * monitor_fps :]
                     )
                     normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
+                    last_heading = circmean(heading_direction[-duration_for_baseline * monitor_fps :])
                 else:
                     # print("stim now")
                     frame_range = analysis_window[1] * monitor_fps
@@ -537,6 +540,13 @@ def calculate_relative_position(
                         focal_xy, instant_speed, ts, agent_xy, analysis_methods
                     )
                 )
+                if calculate_follow_chance_level:
+                    simulated_x=np.cumsum(basedline_v*np.cos(last_heading)*np.ones(ts.shape[0]))/monitor_fps
+                    simulated_y=np.cumsum(basedline_v*np.sin(last_heading)*np.ones(ts.shape[0]))/monitor_fps
+                    simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
+                    epochs_by_chance,simulated_vector,_=classify_follow_epochs(
+                        np.vstack((simulated_x,simulated_y)), simulated_speed, ts, agent_xy, analysis_methods
+                    )
                 if plotting_trajectory:
                     target_distance = LA.norm(vector_dif, axis=0)
                     time_series_plot(
@@ -555,8 +565,12 @@ def calculate_relative_position(
                 #     key,
                 # )
                 vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
+                vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
                 follow_pd = conclude_as_pd(
                     df_focal_animal, vector_dif_rotated, epochs_of_interest, key
+                )
+                simulated_pd= conclude_as_pd(
+                    df_focal_animal, vector_dif_simulated, epochs_by_chance, key
                 )
                 follow_pd.insert(
                     0,
@@ -566,6 +580,14 @@ def calculate_relative_position(
                         follow_pd.shape[0],
                     ),
                 )
+                simulated_pd.insert(
+                    0,
+                    "type",
+                    np.repeat(
+                        df_agent[df_agent["fname"] == key]["type"].values[0],
+                        simulated_pd.shape[0],
+                    ),
+                )
 
             if "follow_pd_list" in locals():
                 follow_pd_combined = pd.concat(follow_pd_list)
@@ -573,7 +595,9 @@ def calculate_relative_position(
                 sum_follow_epochs = follow_pd_combined.shape[0]
             else:
                 dif_across_trials.append(follow_pd)
+                simulated_across_trials.append(simulated_pd)
                 sum_follow_epochs = follow_pd.shape[0]
+                sum_chance_epochs = simulated_pd.shape[0]
             # _, turn_degree_fbf = diff_angular_degree(
             #     heading_direction, num_unfilled_gap
             # )
@@ -587,6 +611,7 @@ def calculate_relative_position(
                     "speed": [grp["speed"][0]],
                     # "this_vr": [grp['this_vr'][0]],
                     "num_follow_epochs": [sum_follow_epochs],
+                    "num_chance_epochs": [sum_chance_epochs],
                     "number_frames": [focal_xy.shape[1] - 1],
                     "travel_distance": [np.nansum(focal_distance_fbf)],
                     "turning_distance": [np.nansum(abs(turn_degree_fbf))],
@@ -633,14 +658,17 @@ def calculate_relative_position(
             "density",
         ]
     dif_across_trials_pd = pd.concat(dif_across_trials)
+    simulated_across_trials_pd = pd.concat(simulated_across_trials)
     if dif_across_trials_pd.shape[1] == 2:
-        dif_across_trials_pd.columns = ["x", "y"]
+        column_list = ["x", "y"]
     elif dif_across_trials_pd.shape[1] == 4:
-        dif_across_trials_pd.columns = ["x", "y", "degree", "ts"]
+        column_list = ["x", "y", "degree", "ts"]
     elif dif_across_trials_pd.shape[1] == 5:
-        dif_across_trials_pd.columns = ["type", "x", "y", "degree", "ts"]
+        column_list = ["type", "x", "y", "degree", "ts"]
     elif dif_across_trials_pd.shape[1] == 6:
-        dif_across_trials_pd.columns = ["type", "agent_id", "x", "y", "degree", "ts"]
+        column_list = ["type", "agent_id", "x", "y", "degree", "ts"]
+    dif_across_trials_pd.columns=column_list
+    simulated_across_trials_pd.columns=column_list
 
     if plotting_event_distribution:
         plt.close()
@@ -680,18 +708,28 @@ def calculate_relative_position(
             xlimit=(-20,100)
             ylimit=(-45,45)
         for keys, grp in dif_across_trials_pd.groupby(['type','degree']):
-            print(keys)
-            fig, axes = plt.subplots(
-                nrows=2, ncols=1, figsize=(9,5))
-            ax, ax2 = axes.flatten()
-            ax.hist(grp['ts'].values,bins=100,density=True)
-            ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
+            sim_grp=simulated_across_trials_pd[(simulated_across_trials_pd['type']==keys[0])&(simulated_across_trials_pd['degree']==keys[1])]
+            fig = plt.figure(figsize=(9,5))
+            ax = fig.add_subplot(212)
+            ax2 = fig.add_subplot(221)
+            ax3 = fig.add_subplot(222)
+            ax.hist(grp['ts'].values,bins=100,density=False,color='r')
+            ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.3)
+            #ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
+            ax.set(xlim=(0,60),title=f'agent:{keys[0]},deg:{int(keys[1])}')
             if distribution_with_entire_body:
                 body_points=generate_points_within_rectangles(grp['x'].values,grp['y'].values, 1,4,2,21)
                 ax2.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                body_points=generate_points_within_rectangles(sim_grp['x'].values,sim_grp['y'].values, 1,4,2,21)
+                ax3.hist2d(body_points[:,0],body_points[:,1],bins=400)
             else:
                 ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
+                ax3.hist2d(sim_grp['x'].values,sim_grp['y'].values,bins=100)
             ax2.set(
+            yticks=[ylimit[0],ylimit[1]],
+            xticks=[xlimit[0],xlimit[1]],
+            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
+            ax3.set(
             yticks=[ylimit[0],ylimit[1]],
             xticks=[xlimit[0],xlimit[1]],
             xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
