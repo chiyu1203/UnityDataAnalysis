@@ -78,6 +78,7 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
     ax2.set(title="Instant Speed")
     ax3.set(title="angular deviation")
     ax1.plot(np.arange(target_distance.shape[0]), target_distance)
+    ax2.axhline(y=50,color="red",linestyle="--")
     ax2.plot(np.arange(instant_speed.shape[0]), instant_speed)
     ax2.axhline(y=1,color="red",linestyle="--")
     ax3.plot(np.arange(angles.shape[0]), angles)
@@ -486,6 +487,10 @@ def calculate_relative_position(
                     df_agent[df_agent["fname"] == key]["Y"].to_numpy(),
                 )
             )
+            if calculate_follow_chance_level:
+                simulated_x=np.cumsum(basedline_v*np.cos(last_heading)*np.ones(ts.shape[0]))/monitor_fps
+                simulated_y=np.cumsum(basedline_v*np.sin(last_heading)*np.ones(ts.shape[0]))/monitor_fps
+                simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
             if np.isnan(np.min(agent_xy)) == True:
                 ##remove nan from agent's xy with interpolation
                 tmp_arr = agent_xy[0]
@@ -499,6 +504,7 @@ def calculate_relative_position(
                 midpoint = agent_xy.shape[1] // num_portion
                 # Loop through the array in two portions
                 follow_pd_list = []
+                simulated_pd_list=[]
                 for i in range(num_portion):
                     if i == 0:
                         this_agent_xy = agent_xy[:, :midpoint]  # First half
@@ -511,16 +517,6 @@ def calculate_relative_position(
                             focal_xy, instant_speed, ts, this_agent_xy, analysis_methods
                         )
                     )
-
-                    if plotting_trajectory:
-                        target_distance = LA.norm(vector_dif, axis=0)
-                        time_series_plot(
-                            target_distance,
-                            instant_speed,
-                            angles_in_degree,
-                            focal_animal_file,
-                            key,
-                        )
                     vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                     follow_pd = conclude_as_pd(
                         df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i
@@ -533,6 +529,32 @@ def calculate_relative_position(
                             follow_pd.shape[0],
                         ),
                     )
+                    if calculate_follow_chance_level:
+                        epochs_by_chance,simulated_vector,_=classify_follow_epochs(
+                            np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
+                        )
+                        vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                        simulated_pd= conclude_as_pd(
+                            df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
+                        )
+                        simulated_pd.insert(
+                            0,
+                            "type",
+                            np.repeat(
+                                df_agent[df_agent["fname"] == key]["type"].values[0],
+                                simulated_pd.shape[0],
+                            ),
+                        )
+                        simulated_pd_list.append(simulated_pd)
+                    if plotting_trajectory:
+                        target_distance = LA.norm(vector_dif, axis=0)
+                        time_series_plot(
+                            target_distance,
+                            instant_speed,
+                            angles_in_degree,
+                            focal_animal_file,
+                            key,
+                        )
                     follow_pd_list.append(follow_pd)
             else:
                 epochs_of_interest, vector_dif, angles_in_degree = (
@@ -540,12 +562,33 @@ def calculate_relative_position(
                         focal_xy, instant_speed, ts, agent_xy, analysis_methods
                     )
                 )
+                vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
+                follow_pd = conclude_as_pd(
+                    df_focal_animal, vector_dif_rotated, epochs_of_interest, key
+                )
+                follow_pd.insert(
+                    0,
+                    "type",
+                    np.repeat(
+                        df_agent[df_agent["fname"] == key]["type"].values[0],
+                        follow_pd.shape[0],
+                    ),
+                )
                 if calculate_follow_chance_level:
-                    simulated_x=np.cumsum(basedline_v*np.cos(last_heading)*np.ones(ts.shape[0]))/monitor_fps
-                    simulated_y=np.cumsum(basedline_v*np.sin(last_heading)*np.ones(ts.shape[0]))/monitor_fps
-                    simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
                     epochs_by_chance,simulated_vector,_=classify_follow_epochs(
                         np.vstack((simulated_x,simulated_y)), simulated_speed, ts, agent_xy, analysis_methods
+                    )
+                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    simulated_pd= conclude_as_pd(
+                        df_focal_animal, vector_dif_simulated, epochs_by_chance, key
+                    )
+                    simulated_pd.insert(
+                        0,
+                        "type",
+                        np.repeat(
+                            df_agent[df_agent["fname"] == key]["type"].values[0],
+                            simulated_pd.shape[0],
+                        ),
                     )
                 if plotting_trajectory:
                     target_distance = LA.norm(vector_dif, axis=0)
@@ -556,48 +599,24 @@ def calculate_relative_position(
                         focal_animal_file,
                         key,
                     )
-                # behavioural_analysis(
-                #     focal_xy,
-                #     instant_speed,
-                #     angular_velocity,
-                #     epochs_of_interest,
-                #     focal_animal_file,
-                #     key,
-                # )
-                vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
-                vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
-                follow_pd = conclude_as_pd(
-                    df_focal_animal, vector_dif_rotated, epochs_of_interest, key
-                )
-                simulated_pd= conclude_as_pd(
-                    df_focal_animal, vector_dif_simulated, epochs_by_chance, key
-                )
-                follow_pd.insert(
-                    0,
-                    "type",
-                    np.repeat(
-                        df_agent[df_agent["fname"] == key]["type"].values[0],
-                        follow_pd.shape[0],
-                    ),
-                )
-                simulated_pd.insert(
-                    0,
-                    "type",
-                    np.repeat(
-                        df_agent[df_agent["fname"] == key]["type"].values[0],
-                        simulated_pd.shape[0],
-                    ),
-                )
-
             if "follow_pd_list" in locals():
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
                 sum_follow_epochs = follow_pd_combined.shape[0]
+                if 'simulated_pd_list' in locals():
+                    simulated_pd_combined = pd.concat(simulated_pd_list)
+                    simulated_across_trials.append(simulated_pd_combined)
+                    sum_chance_epochs = simulated_pd_combined.shape[0]
+                else:
+                    sum_chance_epochs=np.nan
             else:
                 dif_across_trials.append(follow_pd)
-                simulated_across_trials.append(simulated_pd)
                 sum_follow_epochs = follow_pd.shape[0]
-                sum_chance_epochs = simulated_pd.shape[0]
+                if 'simulated_pd' in locals():
+                    simulated_across_trials.append(simulated_pd)
+                    sum_chance_epochs = simulated_pd.shape[0]
+                else:
+                    sum_chance_epochs=np.nan
             # _, turn_degree_fbf = diff_angular_degree(
             #     heading_direction, num_unfilled_gap
             # )
@@ -761,7 +780,7 @@ def calculate_relative_position(
                 f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_follow_distribution.jpg"
             )
             fig.savefig(summary_file.parent / fig_name)
-    return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap
+    return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap, simulated_across_trials_pd
 
 
 def load_data(this_dir, json_file):
@@ -779,17 +798,19 @@ def load_data(this_dir, json_file):
     summary_pattern = f"VR3*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
-    dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap = (
+    dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
         calculate_relative_position(
             summary_file, focal_animal_file, agent_file, analysis_methods
         )
     )
-    return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap
+    return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd
 
 
 if __name__ == "__main__":
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
-    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_123054"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
