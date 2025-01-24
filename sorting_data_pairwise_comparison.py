@@ -496,8 +496,8 @@ def calculate_relative_position(
                     simulated_heading=last_heading
                 else:
                     simulated_heading=0
-                simulated_x=np.cumsum(basedline_v*np.cos(last_heading)*np.ones(ts.shape[0]))/monitor_fps
-                simulated_y=np.cumsum(basedline_v*np.sin(last_heading)*np.ones(ts.shape[0]))/monitor_fps
+                simulated_x=np.cumsum(basedline_v*np.cos(simulated_heading)*np.ones(ts.shape[0]))/monitor_fps
+                simulated_y=np.cumsum(basedline_v*np.sin(simulated_heading)*np.ones(ts.shape[0]))/monitor_fps
                 simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
             if np.isnan(np.min(agent_xy)) == True:
                 ##remove nan from agent's xy with interpolation
