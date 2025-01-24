@@ -292,6 +292,10 @@ def calculate_relative_position(
     summary_file, focal_animal_file, agent_file, analysis_methods
 ):
     duration_for_baseline = 2
+    pre_stim_ISI = 60
+    trajec_lim = 150
+    randomise_heading_direction=False
+    last_heading_direction_allocentric_view=False
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
@@ -301,8 +305,6 @@ def calculate_relative_position(
     follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", True)
     distribution_with_entire_body = analysis_methods.get("distribution_with_entire_body", True)
     calculate_follow_chance_level = analysis_methods.get("calculate_follow_chance_level", True)
-    pre_stim_ISI = 60
-    trajec_lim = 150
     df_agent_list = []
     with h5py.File(agent_file, "r") as f:
         for hdf_key in f.keys():
@@ -488,6 +490,12 @@ def calculate_relative_position(
                 )
             )
             if calculate_follow_chance_level:
+                if randomise_heading_direction:
+                    simulated_heading=np.random.uniform(-0.5,0.5,1)*np.pi
+                elif last_heading_direction_allocentric_view:
+                    simulated_heading=last_heading
+                else:
+                    simulated_heading=0
                 simulated_x=np.cumsum(basedline_v*np.cos(last_heading)*np.ones(ts.shape[0]))/monitor_fps
                 simulated_y=np.cumsum(basedline_v*np.sin(last_heading)*np.ones(ts.shape[0]))/monitor_fps
                 simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
@@ -788,14 +796,14 @@ def load_data(this_dir, json_file):
         analysis_methods = json_file
     else:
         with open(json_file, "r") as f:
-            print(f"load analysis methods from file {json_file}")
+            #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR3*agent_full.h5"
+    agent_pattern = f"VR1*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR3*XY_full.h5"
+    xy_pattern = f"VR1*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR3*score_full.h5"
+    summary_pattern = f"VR1*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -809,8 +817,8 @@ def load_data(this_dir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_123054"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
