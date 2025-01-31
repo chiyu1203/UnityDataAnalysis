@@ -265,8 +265,7 @@ def align_agent_moving_direction(vector_dif, grp):
 
 
 def conclude_as_pd(
-    df_focal_animal, vector_dif_rotated, epochs_of_interest, fname, agent_no=0
-):
+    df_focal_animal, vector_dif_rotated, epochs_of_interest, fname, agent_no):
     num_frames = df_focal_animal[df_focal_animal["fname"] == fname].shape[0]
     degree_in_the_trial = np.repeat(
         df_focal_animal[df_focal_animal["fname"] == fname]["mu"].to_numpy()[0],
@@ -284,7 +283,7 @@ def conclude_as_pd(
         (vector_dif_rotated[:, epochs_of_interest], degree_time[:, epochs_of_interest])
     )
     follow_pd = pd.DataFrame(np.transpose(follow_wrap))
-    follow_pd.insert(0, "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
+    follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
     return follow_pd
 
 
@@ -294,8 +293,9 @@ def calculate_relative_position(
     duration_for_baseline = 2
     pre_stim_ISI = 60
     trajec_lim = 150
-    randomise_heading_direction=False
+    randomise_heading_direction=True
     last_heading_direction_allocentric_view=False
+    applying_angular_velocity_simulation=False
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
@@ -370,7 +370,7 @@ def calculate_relative_position(
                     normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
                     basedline_w = np.mean(
                         w_of_interest[-duration_for_baseline * monitor_fps :]
-                    )
+                    )#### need to double check here
                     normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
                     last_heading = circmean(heading_direction[-duration_for_baseline * monitor_fps :])
                 else:
@@ -489,6 +489,7 @@ def calculate_relative_position(
                     df_agent[df_agent["fname"] == key]["Y"].to_numpy(),
                 )
             )
+            follow_pd_list = []
             if calculate_follow_chance_level:
                 if randomise_heading_direction:
                     simulated_heading=np.random.uniform(-0.5,0.5,1)*np.pi
@@ -496,118 +497,69 @@ def calculate_relative_position(
                     simulated_heading=last_heading
                 else:
                     simulated_heading=0
-                simulated_x=np.cumsum(basedline_v*np.cos(simulated_heading)*np.ones(ts.shape[0]))/monitor_fps
-                simulated_y=np.cumsum(basedline_v*np.sin(simulated_heading)*np.ones(ts.shape[0]))/monitor_fps
+                if applying_angular_velocity_simulation:
+                    simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])+np.concatenate(np.cumsum(basedline_w*np.ones(duration_for_baseline*monitor_fps)),np.zeros(ts.shape[0]-duration_for_baseline*monitor_fps))
+                else:
+                    simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])
+                #can apply previous angular velocity in the first 2 second here to make it more realistic
+                simulated_x=np.cumsum(basedline_v*np.cos(simulated_heading_arr))/monitor_fps
+                simulated_y=np.cumsum(basedline_v*np.sin(simulated_heading_arr))/monitor_fps
                 simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
-            if np.isnan(np.min(agent_xy)) == True:
-                ##remove nan from agent's xy with interpolation
-                tmp_arr = agent_xy[0]
-                tmp_arr1 = agent_xy[1]
-                nans, x = nan_helper(tmp_arr)
-                tmp_arr[nans] = np.interp(x(nans), x(~nans), tmp_arr[~nans])
-                nans, y = nan_helper(tmp_arr1)
-                tmp_arr1[nans] = np.interp(y(nans), y(~nans), tmp_arr1[~nans])
-            if agent_xy.shape[1] > focal_xy.shape[1]:
-                num_portion = round(agent_xy.shape[1] / focal_xy.shape[1])
-                midpoint = agent_xy.shape[1] // num_portion
-                # Loop through the array in two portions
-                follow_pd_list = []
                 simulated_pd_list=[]
-                for i in range(num_portion):
-                    if i == 0:
-                        this_agent_xy = agent_xy[:, :midpoint]  # First half
-                        # print(f"Processing first half: {this_agent_xy}")
-                    else:
-                        this_agent_xy = agent_xy[:, midpoint:]  # Second half
-                        # print(f"Processing second half: {this_agent_xy}")
-                    epochs_of_interest, vector_dif, angles_in_degree = (
-                        classify_follow_epochs(
-                            focal_xy, instant_speed, ts, this_agent_xy, analysis_methods
-                        )
-                    )
-                    vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
-                    follow_pd = conclude_as_pd(
-                        df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i
-                    )
-                    follow_pd.insert(
-                        0,
-                        "type",
+            if agent_xy.shape[1] > focal_xy.shape[1]:
+                num_agent = round(agent_xy.shape[1] / focal_xy.shape[1])
+            else:
+                num_agent = 1
+                # Loop through the array in two portions
+            agent_split=np.array_split(agent_xy,num_agent,axis=1)
+            for i in range(num_agent):
+                this_agent_xy=agent_split[i]
+                if np.isnan(np.min(agent_xy)) == True:
+                        ##remove nan from agent's xy with interpolation
+                    tmp_arr_x = this_agent_xy[0]
+                    tmp_arr_y = this_agent_xy[1]
+                    nans, x = nan_helper(tmp_arr_x)
+                    tmp_arr_x[nans] = np.interp(x(nans), x(~nans), tmp_arr_x[~nans])
+                    nans, y = nan_helper(tmp_arr_y)
+                    tmp_arr_y[nans] = np.interp(y(nans), y(~nans), tmp_arr_y[~nans])
+                    this_agent_xy=np.vstack((tmp_arr_x,tmp_arr_y))
+                epochs_of_interest, vector_dif, angles_in_degree = (
+                classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy, analysis_methods))
+                vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
+                follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i)
+                follow_pd.insert(follow_pd.shape[1],"type",
                         np.repeat(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
                             follow_pd.shape[0],
-                        ),
-                    )
-                    if calculate_follow_chance_level:
-                        epochs_by_chance,simulated_vector,_=classify_follow_epochs(
+                        ))
+                if calculate_follow_chance_level:
+                    epochs_by_chance,simulated_vector,_=classify_follow_epochs(
                             np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
-                        )
-                        vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
-                        simulated_pd= conclude_as_pd(
+                    )
+                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    simulated_pd= conclude_as_pd(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
-                        )
-                        simulated_pd.insert(
+                    )
+                    simulated_pd.insert(
                             0,
                             "type",
                             np.repeat(
                                 df_agent[df_agent["fname"] == key]["type"].values[0],
                                 simulated_pd.shape[0],
                             ),
-                        )
-                        simulated_pd_list.append(simulated_pd)
-                    if plotting_trajectory:
-                        target_distance = LA.norm(vector_dif, axis=0)
-                        time_series_plot(
+                    )
+                if plotting_trajectory:
+                    target_distance = LA.norm(vector_dif, axis=0)
+                    time_series_plot(
                             target_distance,
                             instant_speed,
                             angles_in_degree,
                             focal_animal_file,
                             key,
-                        )
-                    follow_pd_list.append(follow_pd)
-            else:
-                epochs_of_interest, vector_dif, angles_in_degree = (
-                    classify_follow_epochs(
-                        focal_xy, instant_speed, ts, agent_xy, analysis_methods
                     )
-                )
-                vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
-                follow_pd = conclude_as_pd(
-                    df_focal_animal, vector_dif_rotated, epochs_of_interest, key
-                )
-                follow_pd.insert(
-                    0,
-                    "type",
-                    np.repeat(
-                        df_agent[df_agent["fname"] == key]["type"].values[0],
-                        follow_pd.shape[0],
-                    ),
-                )
-                if calculate_follow_chance_level:
-                    epochs_by_chance,simulated_vector,_=classify_follow_epochs(
-                        np.vstack((simulated_x,simulated_y)), simulated_speed, ts, agent_xy, analysis_methods
-                    )
-                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
-                    simulated_pd= conclude_as_pd(
-                        df_focal_animal, vector_dif_simulated, epochs_by_chance, key
-                    )
-                    simulated_pd.insert(
-                        0,
-                        "type",
-                        np.repeat(
-                            df_agent[df_agent["fname"] == key]["type"].values[0],
-                            simulated_pd.shape[0],
-                        ),
-                    )
-                if plotting_trajectory:
-                    target_distance = LA.norm(vector_dif, axis=0)
-                    time_series_plot(
-                        target_distance,
-                        instant_speed,
-                        angles_in_degree,
-                        focal_animal_file,
-                        key,
-                    )
-            if "follow_pd_list" in locals():
+                follow_pd_list.append(follow_pd)
+                simulated_pd_list.append(simulated_pd)
+            if num_agent>1:
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
                 sum_follow_epochs = follow_pd_combined.shape[0]
@@ -686,16 +638,12 @@ def calculate_relative_position(
         ]
     dif_across_trials_pd = pd.concat(dif_across_trials)
     simulated_across_trials_pd = pd.concat(simulated_across_trials)
-    if dif_across_trials_pd.shape[1] == 2:
-        column_list = ["x", "y"]
-    elif dif_across_trials_pd.shape[1] == 4:
-        column_list = ["x", "y", "degree", "ts"]
-    elif dif_across_trials_pd.shape[1] == 5:
-        column_list = ["type", "x", "y", "degree", "ts"]
-    elif dif_across_trials_pd.shape[1] == 6:
-        column_list = ["type", "agent_id", "x", "y", "degree", "ts"]
-    dif_across_trials_pd.columns=column_list
-    simulated_across_trials_pd.columns=column_list
+    dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
+    dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
+    simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
+    trial_evaluation_pd=pd.concat(trial_evaluation_list)
+    this_animal_follow_ratio=trial_evaluation_pd['num_follow_epochs'].sum()/trial_evaluation_pd['number_frames'].sum()
+    print(f"the follow ratio of {summary_file.stem.split('_')[0]} in {summary_file.parent} is {this_animal_follow_ratio}")
 
     if plotting_event_distribution:
         plt.close()
@@ -799,11 +747,11 @@ def load_data(this_dir, json_file):
             #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR1*agent_full.h5"
+    agent_pattern = f"VR3*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR1*XY_full.h5"
+    xy_pattern = f"VR3*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR1*score_full.h5"
+    summary_pattern = f"VR3*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -815,9 +763,9 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
