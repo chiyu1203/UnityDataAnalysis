@@ -293,9 +293,9 @@ def calculate_relative_position(
     duration_for_baseline = 2
     pre_stim_ISI = 60
     trajec_lim = 150
-    randomise_heading_direction=True
+    randomise_heading_direction=False
     last_heading_direction_allocentric_view=False
-    applying_angular_velocity_simulation=False
+    add_cumulated_angular_velocity=True
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
@@ -368,9 +368,8 @@ def calculate_relative_position(
                         v_of_interest[-duration_for_baseline * monitor_fps :]
                     )
                     normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
-                    basedline_w = np.mean(
-                        w_of_interest[-duration_for_baseline * monitor_fps :]
-                    )#### need to double check here
+                    last_w=w_of_interest[-duration_for_baseline * monitor_fps :]
+                    basedline_w = np.mean(last_w)#### need to double check here
                     normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
                     last_heading = circmean(heading_direction[-duration_for_baseline * monitor_fps :])
                 else:
@@ -497,8 +496,10 @@ def calculate_relative_position(
                     simulated_heading=last_heading
                 else:
                     simulated_heading=0
-                if applying_angular_velocity_simulation:
-                    simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])+np.concatenate(np.cumsum(basedline_w*np.ones(duration_for_baseline*monitor_fps)),np.zeros(ts.shape[0]-duration_for_baseline*monitor_fps))
+                if add_cumulated_angular_velocity:
+                    simulated_angular_velocity=np.concatenate((last_w,np.zeros(ts.shape[0]-duration_for_baseline*monitor_fps)))#or can replace last_w with basedline_w*np.ones(duration_for_baseline*monitor_fps))
+                    heanding_change_fbf=simulated_angular_velocity[:np.diff(ts).shape[0]]*np.diff(ts)
+                    simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])+np.cumsum(np.append(heanding_change_fbf, heanding_change_fbf[heanding_change_fbf.shape[0]-1]))
                 else:
                     simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])
                 #can apply previous angular velocity in the first 2 second here to make it more realistic
@@ -541,7 +542,7 @@ def calculate_relative_position(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
                     )
                     simulated_pd.insert(
-                            0,
+                            simulated_pd.shape[1],
                             "type",
                             np.repeat(
                                 df_agent[df_agent["fname"] == key]["type"].values[0],
@@ -693,13 +694,17 @@ def calculate_relative_position(
             #ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
             ax.set(xlim=(0,60),title=f'agent:{keys[0]},deg:{int(keys[1])}')
             if distribution_with_entire_body:
-                body_points=generate_points_within_rectangles(grp['x'].values,grp['y'].values, 1,4,2,21)
-                ax2.hist2d(body_points[:,0],body_points[:,1],bins=400)
-                body_points=generate_points_within_rectangles(sim_grp['x'].values,sim_grp['y'].values, 1,4,2,21)
-                ax3.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                if grp.shape[0]>0:
+                    body_points=generate_points_within_rectangles(grp['x'].values,grp['y'].values, 1,4,2,21)
+                    ax2.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                if sim_grp.shape[0]>0:
+                    body_points=generate_points_within_rectangles(sim_grp['x'].values,sim_grp['y'].values, 1,4,2,21)
+                    ax3.hist2d(body_points[:,0],body_points[:,1],bins=400)
             else:
-                ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
-                ax3.hist2d(sim_grp['x'].values,sim_grp['y'].values,bins=100)
+                if grp.shape[0]>0:
+                    ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
+                if sim_grp.shape[0]>0:
+                    ax3.hist2d(sim_grp['x'].values,sim_grp['y'].values,bins=100)
             ax2.set(
             yticks=[ylimit[0],ylimit[1]],
             xticks=[xlimit[0],xlimit[1]],
@@ -747,11 +752,11 @@ def load_data(this_dir, json_file):
             #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR3*agent_full.h5"
+    agent_pattern = f"VR1*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR3*XY_full.h5"
+    xy_pattern = f"VR1*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR3*score_full.h5"
+    summary_pattern = f"VR1*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -763,8 +768,9 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
