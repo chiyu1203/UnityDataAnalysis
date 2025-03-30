@@ -88,7 +88,7 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
     fig.show()
 
 
-def behavioural_analysis(
+def plot_behavioural_classification(
     focal_xy, instant_speed, angular_velocity, follow_epochs, file_name, trial_id
 ):
     speed_threshold = 1
@@ -287,7 +287,7 @@ def conclude_as_pd(
     return follow_pd
 
 
-def calculate_relative_position(
+def follow_behaviour_analysis(
     summary_file, focal_animal_file, agent_file, analysis_methods
 ):
     duration_for_baseline = 2
@@ -760,7 +760,7 @@ def load_data(this_dir, json_file):
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
-        calculate_relative_position(
+        follow_behaviour_analysis(
             summary_file, focal_animal_file, agent_file, analysis_methods
         )
     )
