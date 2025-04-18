@@ -1,4 +1,4 @@
-import time, sys, json
+import time, sys, json,warnings
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -14,7 +14,7 @@ from useful_tools import find_file
 from data_cleaning import findLongestConseqSubseq
 colormap_name = "viridis"
 sm = cm.ScalarMappable(cmap=colormap_name)
-
+warnings.filterwarnings(action='ignore', category=RuntimeWarning)
 def nan_helper(y):
     """Helper to handle indices and logical indices of NaNs.
 
@@ -768,9 +768,9 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
-    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
+    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
