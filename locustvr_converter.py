@@ -514,9 +514,6 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY{file_suffix}.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score{file_suffix}.h5"
     agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
-    #summary_file_test = this_file.parent / f"{experiment_id}_score{file_suffix}_test.h5"
-    #curated_path_test = this_file.parent / f"{experiment_id}_XY{file_suffix}_test.h5"
-    #agent_file_test = this_file.parent / f"{experiment_id}_agent{file_suffix}_test.h5"
     # need to think about whether to name them the same regardless analysis methods
 
     if tem_df is None:
