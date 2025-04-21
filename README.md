@@ -105,7 +105,7 @@ The analysis methods are organised into a json file, which is created from a pyt
 
 Therefore, each project has its own json file. Below explains what those analysis methods are about.
 
-    "experiment_name": "choice", this means Scene name in the unity programme, which is used to check datasets from different logging system.
+    "experiment_name": "choice", this means Scene name in the unity programme. The main difference between scene is nevertheless whether how agent's position is logged. Any open-loop (agent's movement is not locked to focal animal's movement) experiment uses "choice". Any closed-loop experiments should use "band".
 
     "overwrite_curated_dataset": boolean, whether to delete the existing HDF file or not. If True, **locustvr_converter.py** will delete the old curated dataset before processing raw data.
 
@@ -117,6 +117,10 @@ Therefore, each project has its own json file. Below explains what those analysi
     
     "plotting_trajectory": boolean, whether to plot the trajectory of the animals in the experiment.
 
+    "plotting_event_distribution": boolean, whether to plot the distribution of follow epochs across trials in an experiment
+
+    "distribution_with_entire_body": boolean, whether to consider the entire body of agents when plotting the 2D heatmap. If true, a 2x6 cm rectangle will be created around the centriod for the heatmap. If false, use centroid (the 0x0x0 point in the Blender model, which is 4 cm away from the most posterior and 2cm away from the most anterior tip)
+
     "load_individual_data" and "select_animals_by_condition": boolean, these are used in the jupyter notebook to load specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
 
     "active_trials_only": boolean, a helper argument to extract animals whose walking distance pass certain threshold. So far, this is only used in **data_exploration_tutorial.ipynb**
@@ -126,6 +130,8 @@ Therefore, each project has its own json file. Below explains what those analysi
     "extract_follow_epoches": boolean,this is used in "sorting_time_series_analysis.py" to extract trajectory during follow_epoches for further analysis. If false, the the entire trajectory durning the experiment will be extracted
     
     "follow_locustVR_criteria": boolean,this is used in "sorting_time_series_analysis.py" to classify follow behaviour. If true, the programme will use distance, velocity and degree deviation to define follow behaviour. If false, the programme will use only distance and velocity.
+
+    "calculate_follow_chance_level": boolean, work in progress, this is used to calculate the frequency of follow behaviour happens at the chance level. Current plan is to shuffle the position of agents across trials but how to implement that remains unclear. Probably just to apply some 45 degree rotation to the trajectory of the agents.
     
     "graph_colour_code": array of string, just a helper array to know which colour is used when plotting the data.
 

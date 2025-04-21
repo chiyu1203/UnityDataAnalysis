@@ -16,6 +16,7 @@ analysis_methods = {
     "align_with_isi_onset": False,
     "extract_follow_epoches": True,
     "follow_locustVR_criteria": True,
+    "calculate_follow_chance_level": True,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],
     "follow_within_distance": 50,
     "camera_fps": 100,
