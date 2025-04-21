@@ -78,15 +78,13 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
     ax2.set(title="Instant Speed")
     ax3.set(title="angular deviation")
     ax1.plot(np.arange(target_distance.shape[0]), target_distance)
-    ax2.axhline(y=50,color="red",linestyle="--")
+    ax1.axhline(y=50,color="red",linestyle="--")
     ax2.plot(np.arange(instant_speed.shape[0]), instant_speed)
     ax2.axhline(y=1,color="red",linestyle="--")
     ax3.plot(np.arange(angles.shape[0]), angles)
     ax3.axhline(y=10,color="red",linestyle="--")
     fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_ts_plot.jpg"
     fig.savefig(file_name.parent / fig_name)
-    fig.show()
-
 
 def behavioural_analysis(
     focal_xy, instant_speed, angular_velocity, follow_epochs, file_name, trial_id
@@ -132,8 +130,6 @@ def behavioural_analysis(
         f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis_speed1.jpg"
     )
     fig.savefig(file_name.parent / fig_name)
-    fig.show()
-
 
 def plot_trajectory(df_focal_animal, df_summary, df_agent, file_name):
     trajec_lim = 150
@@ -345,52 +341,12 @@ def follow_behaviour_analysis(
         # angle_rad = df_focal_animal[df_focal_animal["fname"]==key]["heading"].to_numpy()
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
-        if "type" in df_summary.columns:
-            if align_with_isi_onset:
-                if grp["type"][0] == "empty_trial":
-                    frame_range = analysis_window[1] * monitor_fps
-                    d_of_interest = distance_from_centre[:frame_range]
-                    v_of_interest = instant_speed[:frame_range]
-                    w_of_interest = angular_velocity[:frame_range]
-                else:
-                    frame_range = analysis_window[0] * monitor_fps
-                    d_of_interest = distance_from_centre[frame_range:]
-                    v_of_interest = instant_speed[frame_range:]
-                    w_of_interest = angular_velocity[frame_range:]
-            else:
-                if grp["type"][0] == "empty_trial":
-                    # print("ISI now")
-                    frame_range = analysis_window[0] * monitor_fps
-                    d_of_interest = distance_from_centre[frame_range:]
-                    v_of_interest = instant_speed[frame_range:]
-                    w_of_interest = angular_velocity[frame_range:]
-                    basedline_v = np.mean(
-                        v_of_interest[-duration_for_baseline * monitor_fps :]
-                    )
-                    normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
-                    last_w=w_of_interest[-duration_for_baseline * monitor_fps :]
-                    basedline_w = np.mean(last_w)#### need to double check here
-                    normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
-                    last_heading = circmean(heading_direction[-duration_for_baseline * monitor_fps :])
-                else:
-                    # print("stim now")
-                    frame_range = analysis_window[1] * monitor_fps
-                    d_of_interest = distance_from_centre[:frame_range]
-                    v_of_interest = instant_speed[:frame_range]
-                    w_of_interest = angular_velocity[:frame_range]
-                    if "basedline_v" in locals():
-                        normalised_v = v_of_interest / basedline_v
-                    else:
-                        normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
-                    if "basedline_w" in locals():
-                        normalised_w = w_of_interest / basedline_w
-                    else:
-                        normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
-        else:
+        if "density" in df_summary.columns:
+        #if "type" in df_summary.columns:
             if align_with_isi_onset:
                 if (
-                    df_focal_animal[df_focal_animal["fname"] == key]["density"][0]
-                    == 0.0
+                    #df_focal_animal[df_focal_animal["fname"] == key]["density"][0]
+                    grp['density'][0]==0.0
                 ):
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
@@ -419,23 +375,76 @@ def follow_behaviour_analysis(
                     normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
             else:
                 if (
-                    df_focal_animal[df_focal_animal["fname"] == key]["density"][0]
-                    == 0.0
+                    #df_focal_animal[df_focal_animal["fname"] == key]["density"][0]
+                    grp['density'][0]==0.0
                 ):
                     # print("ISI now")
                     frame_range = analysis_window[0] * monitor_fps
                     d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
                     w_of_interest = angular_velocity[frame_range:]
+                    basedline_v = np.mean(
+                        v_of_interest[-duration_for_baseline * monitor_fps :]
+                    )
+                    normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
+                    last_w=w_of_interest[-duration_for_baseline * monitor_fps :]
+                    basedline_w = np.mean(last_w)#### need to double check here
+                    normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
+                    last_heading = circmean(heading_direction[-duration_for_baseline * monitor_fps :])
 
                 else:
-                    # print("Stim now")
+                    if "basedline_v" in locals():
+                        normalised_v = v_of_interest / basedline_v
+                    else:
+                        normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
+                    if "basedline_w" in locals():
+                        normalised_w = w_of_interest / basedline_w
+                    else:
+                        normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
+        else:
+            if align_with_isi_onset:
+                if grp["type"][0] == "empty_trial":
                     frame_range = analysis_window[1] * monitor_fps
                     d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
                     w_of_interest = angular_velocity[:frame_range]
+                else:
+                    frame_range = analysis_window[0] * monitor_fps
+                    d_of_interest = distance_from_centre[frame_range:]
+                    v_of_interest = instant_speed[frame_range:]
+                    w_of_interest = angular_velocity[frame_range:]
+            else:
+                if grp["type"][0] == "empty_trial":
+                    # print("ISI now")if "density" in grp.columns and grp["density"][0] == 0:
+                    frame_range = analysis_window[0] * monitor_fps
+                    d_of_interest = distance_from_centre[frame_range:]
+                    v_of_interest = instant_speed[frame_range:]
+                    w_of_interest = angular_velocity[frame_range:]
+                    basedline_v = np.mean(
+                        v_of_interest[-duration_for_baseline * monitor_fps :]
+                    )
+                    normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
+                    last_w=w_of_interest[-duration_for_baseline * monitor_fps :]
+                    basedline_w = np.mean(last_w)#### need to double check here
+                    normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
+                    last_heading = circmean(heading_direction[-duration_for_baseline * monitor_fps :])
+                else:
+                    # print("stim now")
+                    frame_range = analysis_window[1] * monitor_fps
+                    d_of_interest = distance_from_centre[:frame_range]
+                    v_of_interest = instant_speed[:frame_range]
+                    w_of_interest = angular_velocity[:frame_range]
+                    if "basedline_v" in locals():
+                        normalised_v = v_of_interest / basedline_v
+                    else:
+                        normalised_v = np.repeat(np.nan, v_of_interest.shape[0])
+                    if "basedline_w" in locals():
+                        normalised_w = w_of_interest / basedline_w
+                    else:
+                        normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
 
-        if "type" in df_summary.columns:
+
+        if "density" in df_summary.columns:
             con_matrex = (
                 d_of_interest,
                 v_of_interest,
@@ -443,8 +452,16 @@ def follow_behaviour_analysis(
                 normalised_v,
                 normalised_w,
                 np.repeat(iteration_count, v_of_interest.shape[0]),
+                # np.repeat(
+                #     df_focal_animal[df_focal_animal["fname"] == key]["mu"][0],
+                #     v_of_interest.shape[0],
+                # ),
+                # np.repeat(
+                #     df_focal_animal[df_focal_animal["fname"] == key]["density"][0],
+                #     v_of_interest.shape[0],
+                # ),
                 np.repeat(grp["mu"][0], v_of_interest.shape[0]),
-                np.repeat(grp["type"][0], v_of_interest.shape[0]),
+                np.repeat(grp["density"][0], v_of_interest.shape[0]),
             )
         else:
             con_matrex = (
@@ -454,14 +471,8 @@ def follow_behaviour_analysis(
                 normalised_v,
                 normalised_w,
                 np.repeat(iteration_count, v_of_interest.shape[0]),
-                np.repeat(
-                    df_focal_animal[df_focal_animal["fname"] == key]["mu"][0],
-                    v_of_interest.shape[0],
-                ),
-                np.repeat(
-                    df_focal_animal[df_focal_animal["fname"] == key]["density"][0],
-                    v_of_interest.shape[0],
-                ),
+                np.repeat(grp["mu"][0], v_of_interest.shape[0]),
+                np.repeat(grp["type"][0], v_of_interest.shape[0]),
             )
         # raw_data=np.vstack(con_matrex)
         raster_list.append(pd.DataFrame(np.transpose(np.vstack(con_matrex))))
@@ -612,10 +623,23 @@ def follow_behaviour_analysis(
                     "object": [grp["type"].values[0]],
                 }
             )
+            if "density" in df_summary.columns:
+                trial_summary['density'] = grp["density"][0]
             trial_evaluation_list.append(trial_summary)
             trial_id = trial_id + 1
     raster_pd = pd.concat(raster_list)
-    if "type" in df_summary.columns:
+    if "density" in df_summary.columns:
+        raster_pd.columns = [
+            "distance_from_centre",
+            "velocity",
+            "omega",
+            "normalised_v",
+            "normalised_omega",
+            "id",
+            "mu",
+            "density",
+        ]
+    elif "type" in df_summary.columns:
         raster_pd.columns = [
             "distance_from_centre",
             "velocity",
@@ -635,8 +659,8 @@ def follow_behaviour_analysis(
             "normalised_omega",
             "id",
             "mu",
-            "density",
         ]
+
     dif_across_trials_pd = pd.concat(dif_across_trials)
     simulated_across_trials_pd = pd.concat(simulated_across_trials)
     dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
@@ -768,12 +792,12 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
