@@ -25,7 +25,7 @@ The following extension are optional depends on your need
 
 C#: useful to create customise bonsai node or workflow
 
-Github copilot: sounds useful but never used it
+Github copilot: a good helper for coding
 
 Remote SSH: if you want to remote in the PC in the lab from your own PC somewhere else (doable, but it needs MPIAB VPN and some additional SSH configuration)
 
@@ -107,29 +107,33 @@ Therefore, each project has its own json file. Below explains what those analysi
 
     "experiment_name": "choice", this means Scene name in the unity programme, which is used to check datasets from different logging system.
 
-    "overwrite_curated_dataset": boolean, whether to overwrite the existing HDF file or not. If True, delete the old curated dataset.
+    "overwrite_curated_dataset": boolean, whether to delete the existing HDF file or not. If True, **locustvr_converter.py** will delete the old curated dataset before processing raw data.
 
     "save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then save any output
 
-    "agents_shared_across_vrs": boolean, a helper argument to check whether the agent's location is shared across VR setup or not.
-
-    "time_series_analysis": boolean, analyse where animals move across trials. If True, select a fileter method to remove tracking noise, If false, spatial discretisation will be applied to analyse animal's trajectory.
+    "time_series_analysis": boolean, analyse where animals move at every time points in the experiment. If True, select a filter method to remove tracking noise, If false, spatial discretisation based on nymph's body size. will be applied to quantify animal's trajectory.
     
-    "filtering_method": 'sg_filter', default is to use savgol_filter. Any string other than that will lead to no filter. 
+    "filtering_method": 'sg_filter', default is to use savgol_filter. Feel free to add your own filter of interest. At the moment, any string other than 'sg_filter' will lead to no filter. 
     
     "plotting_trajectory": boolean, whether to plot the trajectory of the animals in the experiment.
 
-    "load_individual_data" and "select_animals_by_condition": boolean, these are used in the jypter notebook to extract specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
+    "load_individual_data" and "select_animals_by_condition": boolean, these are used in the jupyter notebook to load specific animals for analysis. If both are True, you need to specify what condition in a dictionary. If either of them is False, all animals in the database will be included.
 
-    "active_trials_only": boolean, a helper argument to extract animals whose walking distance pass certain threshold.
+    "active_trials_only": boolean, a helper argument to extract animals whose walking distance pass certain threshold. So far, this is only used in **data_exploration_tutorial.ipynb**
 
-    "align_with_isi_onset": boolean, use together with analysis_window, if True, then 0 in analysis_window means the onset of inter-stimulus interval; if False, then 0 means the onset of stimuli. 
+    "align_with_isi_onset": boolean, use together with "analysis_window" in **time_series_analysis_tutorial.ipynb**, if True, then 0 in "analysis_window" means the onset of inter-stimulus interval; if False, then 0 means the onset of stimuli.
+
+    "extract_follow_epoches": boolean,this is used in "sorting_time_series_analysis.py" to extract trajectory during follow_epoches for further analysis. If false, the the entire trajectory durning the experiment will be extracted
     
-    "graph_colour_code": array of string, just a helper array to know which colour is used.
+    "follow_locustVR_criteria": boolean,this is used in "sorting_time_series_analysis.py" to classify follow behaviour. If true, the programme will use distance, velocity and degree deviation to define follow behaviour. If false, the programme will use only distance and velocity.
+    
+    "graph_colour_code": array of string, just a helper array to know which colour is used when plotting the data.
+
+    "follow_within_distance": int, one of the criteria to define follow behaviour in "sorting_time_series_analysis.py"
 
     "camera_fps": 100, #default video acqusition rate in matrexVR
     
-    "trackball_radius_cm": 0.5,#default video acqusition rate in matrexVR
+    "trackball_radius_cm": 0.5,#default size of air-ball in matrexVR
     
     "monitor_fps": 60,#default monitor target render frequency in matrexVR
     
@@ -137,9 +141,11 @@ Therefore, each project has its own json file. Below explains what those analysi
     
     "growth_condition": "G", Note: "G" for gregarious "S" for solitarious animals
 
-    "analysis_window": [-10,10], a two-element array to define where to slice trials (0 means the onset, unit: sec)
+    "analysis_window": [-10,10], a two-element array to define where to slice trials (0 means the onset, unit: sec) in **time_series_analysis_tutorial.ipynb**
 
-Use **time_series_analysis.ipynb**, if you want do analyse stimulus-evoked responses in details.
+Use **time_series_analysis.ipynb**, if you want to analyse stimulus-evoked responses in details.
+
+Use **preference_analysis.ipynb**, if you want to analyse animal's preference in a two-choice assay.
 
 
 
