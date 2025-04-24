@@ -290,6 +290,7 @@ def follow_behaviour_analysis(
     pre_stim_ISI = 60
     trajec_lim = 150
     randomise_heading_direction=False
+    agent_based_modeling=False
     last_heading_direction_allocentric_view=False
     add_cumulated_angular_velocity=True
     analysis_window = analysis_methods.get("analysis_window")
@@ -500,7 +501,7 @@ def follow_behaviour_analysis(
                 )
             )
             follow_pd_list = []
-            if calculate_follow_chance_level:
+            if calculate_follow_chance_level and agent_based_modeling:
                 if randomise_heading_direction:
                     simulated_heading=np.random.uniform(-0.5,0.5,1)*np.pi
                 elif last_heading_direction_allocentric_view:
@@ -509,8 +510,8 @@ def follow_behaviour_analysis(
                     simulated_heading=0
                 if add_cumulated_angular_velocity:
                     simulated_angular_velocity=np.concatenate((last_w,np.zeros(ts.shape[0]-duration_for_baseline*monitor_fps)))#or can replace last_w with basedline_w*np.ones(duration_for_baseline*monitor_fps))
-                    heanding_change_fbf=simulated_angular_velocity[:np.diff(ts).shape[0]]*np.diff(ts)
-                    simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])+np.cumsum(np.append(heanding_change_fbf, heanding_change_fbf[heanding_change_fbf.shape[0]-1]))
+                    heading_change_fbf=simulated_angular_velocity[:np.diff(ts).shape[0]]*np.diff(ts)
+                    simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])+np.cumsum(np.append(heading_change_fbf, heading_change_fbf[heading_change_fbf.shape[0]-1]))
                 else:
                     simulated_heading_arr=simulated_heading*np.ones(ts.shape[0])
                 #can apply previous angular velocity in the first 2 second here to make it more realistic
@@ -544,7 +545,7 @@ def follow_behaviour_analysis(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
                             follow_pd.shape[0],
                         ))
-                if calculate_follow_chance_level:
+                if calculate_follow_chance_level and agent_based_modeling:
                     epochs_by_chance,simulated_vector,_=classify_follow_epochs(
                             np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
                     )
@@ -552,6 +553,23 @@ def follow_behaviour_analysis(
                     simulated_pd= conclude_as_pd(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
                     )
+                elif calculate_follow_chance_level:
+                    b=np.random.binomial(n=1,p=0.5,size=1)
+                    if b==0:
+                        theta = np.radians(-45)
+                    else:
+                        theta = np.radians(45)
+                    
+                    rot_matrix = np.array(
+                            [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+                        )  # calculate the rotation matrix to align the agent to move along the same direction
+                    this_agent_xy_rotated = rot_matrix @ this_agent_xy
+                    epochs_by_chance,simulated_vector,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
+                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    simulated_pd= conclude_as_pd(
+                            df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
+                    )
+
                     simulated_pd.insert(
                             simulated_pd.shape[1],
                             "type",
@@ -776,11 +794,11 @@ def load_data(this_dir, json_file):
             #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR1*agent_full.h5"
+    agent_pattern = f"VR3*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR1*XY_full.h5"
+    xy_pattern = f"VR3*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR1*score_full.h5"
+    summary_pattern = f"VR3*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -797,7 +815,8 @@ if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
