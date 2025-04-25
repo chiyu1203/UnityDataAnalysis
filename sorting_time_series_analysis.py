@@ -289,8 +289,8 @@ def follow_behaviour_analysis(
     duration_for_baseline = 2
     pre_stim_ISI = 60
     trajec_lim = 150
-    randomise_heading_direction=False
     agent_based_modeling=False
+    randomise_heading_direction=False
     last_heading_direction_allocentric_view=False
     add_cumulated_angular_velocity=True
     analysis_window = analysis_methods.get("analysis_window")
@@ -501,6 +501,7 @@ def follow_behaviour_analysis(
                 )
             )
             follow_pd_list = []
+            simulated_pd_list=[]
             if calculate_follow_chance_level and agent_based_modeling:
                 if randomise_heading_direction:
                     simulated_heading=np.random.uniform(-0.5,0.5,1)*np.pi
@@ -518,7 +519,7 @@ def follow_behaviour_analysis(
                 simulated_x=np.cumsum(basedline_v*np.cos(simulated_heading_arr))/monitor_fps
                 simulated_y=np.cumsum(basedline_v*np.sin(simulated_heading_arr))/monitor_fps
                 simulated_speed=calculate_speed(np.diff(simulated_x), np.diff(simulated_y), ts)
-                simulated_pd_list=[]
+                
             if agent_xy.shape[1] > focal_xy.shape[1]:
                 num_agent = round(agent_xy.shape[1] / focal_xy.shape[1])
             else:
@@ -554,12 +555,14 @@ def follow_behaviour_analysis(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
                     )
                 elif calculate_follow_chance_level:
-                    b=np.random.binomial(n=1,p=0.5,size=1)
-                    if b==0:
-                        theta = np.radians(-45)
-                    else:
-                        theta = np.radians(45)
-                    
+                    probabilities = [1/3, 1/3, 1/3]
+                    randomised_mu=np.random.choice(df_summary['mu'].unique(), 1, p=probabilities)
+                    # b=np.random.binomial(n=1,p=0.5,size=1)
+                    # if b==0:
+                    #     theta = np.radians(-45)
+                    # else:
+                    #     theta = np.radians(45)
+                    theta = np.radians(randomised_mu[0])
                     rot_matrix = np.array(
                             [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
                         )  # calculate the rotation matrix to align the agent to move along the same direction
@@ -814,8 +817,8 @@ if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
-    thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
