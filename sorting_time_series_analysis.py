@@ -289,7 +289,9 @@ def follow_behaviour_analysis(
     duration_for_baseline = 2
     pre_stim_ISI = 60
     trajec_lim = 150
+    calculate_follow_chance_level = analysis_methods.get("calculate_follow_chance_level", False)
     agent_based_modeling=False
+    variables_to_randomise='mu'
     randomise_heading_direction=False
     last_heading_direction_allocentric_view=False
     add_cumulated_angular_velocity=True
@@ -301,7 +303,7 @@ def follow_behaviour_analysis(
     extract_follow_epoches = analysis_methods.get("extract_follow_epoches", True)
     follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", True)
     distribution_with_entire_body = analysis_methods.get("distribution_with_entire_body", True)
-    calculate_follow_chance_level = analysis_methods.get("calculate_follow_chance_level", True)
+
     df_agent_list = []
     with h5py.File(agent_file, "r") as f:
         for hdf_key in f.keys():
@@ -554,9 +556,11 @@ def follow_behaviour_analysis(
                     simulated_pd= conclude_as_pd(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
                     )
-                elif calculate_follow_chance_level:
-                    probabilities = [1/3, 1/3, 1/3]
-                    randomised_mu=np.random.choice(df_summary['mu'].unique(), 1, p=probabilities)
+                elif calculate_follow_chance_level & df_summary[variables_to_randomise].unique().shape[0]>1:
+                    other_vars=df_summary[variables_to_randomise].unique()[grp[variables_to_randomise][0]!=df_summary[variables_to_randomise].unique()]
+                    probabilities=np.ones(other_vars.shape)/other_vars.shape[0]
+                    #probabilities = [1/3, 1/3, 1/3]
+                    randomised_mu=np.random.choice(other_vars, 1, p=probabilities)
                     # b=np.random.binomial(n=1,p=0.5,size=1)
                     # if b==0:
                     #     theta = np.radians(-45)
@@ -591,12 +595,13 @@ def follow_behaviour_analysis(
                             key,
                     )
                 follow_pd_list.append(follow_pd)
-                simulated_pd_list.append(simulated_pd)
+                if "simulated_pd" in locals():
+                    simulated_pd_list.append(simulated_pd)
             if num_agent>1:
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
                 sum_follow_epochs = follow_pd_combined.shape[0]
-                if 'simulated_pd_list' in locals():
+                if 'simulated_pd_list' in locals() and len(simulated_pd_list)>0:
                     simulated_pd_combined = pd.concat(simulated_pd_list)
                     simulated_across_trials.append(simulated_pd_combined)
                     sum_chance_epochs = simulated_pd_combined.shape[0]
@@ -683,10 +688,14 @@ def follow_behaviour_analysis(
         ]
 
     dif_across_trials_pd = pd.concat(dif_across_trials)
-    simulated_across_trials_pd = pd.concat(simulated_across_trials)
+    if 'simulated_across_trials' in locals() and len(simulated_across_trials)>0:
+        simulated_across_trials_pd = pd.concat(simulated_across_trials)
     dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
     dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
-    simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
+    if 'simulated_across_trials_pd' in locals():
+        simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
+    else:
+        simulated_across_trials_pd=[]
     trial_evaluation_pd=pd.concat(trial_evaluation_list)
     this_animal_follow_ratio=trial_evaluation_pd['num_follow_epochs'].sum()/trial_evaluation_pd['number_frames'].sum()
     print(f"the follow ratio of {summary_file.stem.split('_')[0]} in {summary_file.parent} is {this_animal_follow_ratio}")
@@ -729,13 +738,16 @@ def follow_behaviour_analysis(
             xlimit=(-20,100)
             ylimit=(-45,45)
         for keys, grp in dif_across_trials_pd.groupby(['type','degree']):
-            sim_grp=simulated_across_trials_pd[(simulated_across_trials_pd['type']==keys[0])&(simulated_across_trials_pd['degree']==keys[1])]
             fig = plt.figure(figsize=(9,5))
             ax = fig.add_subplot(212)
             ax2 = fig.add_subplot(221)
             ax3 = fig.add_subplot(222)
             ax.hist(grp['ts'].values,bins=100,density=False,color='r')
-            ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.3)
+            if len(simulated_across_trials_pd)>0:
+                sim_grp=simulated_across_trials_pd[(simulated_across_trials_pd['type']==keys[0])&(simulated_across_trials_pd['degree']==keys[1])]
+                ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.3)
+            else:
+                sim_grp=np.array([])
             #ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
             ax.set(xlim=(0,60),title=f'agent:{keys[0]},deg:{int(keys[1])}')
             if distribution_with_entire_body:
@@ -813,11 +825,11 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
