@@ -556,7 +556,7 @@ def follow_behaviour_analysis(
                     simulated_pd= conclude_as_pd(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
                     )
-                elif calculate_follow_chance_level & df_summary[variables_to_randomise].unique().shape[0]>1:
+                elif calculate_follow_chance_level and df_summary[variables_to_randomise].unique().shape[0]>1:
                     other_vars=df_summary[variables_to_randomise].unique()[grp[variables_to_randomise][0]!=df_summary[variables_to_randomise].unique()]
                     probabilities=np.ones(other_vars.shape)/other_vars.shape[0]
                     #probabilities = [1/3, 1/3, 1/3]
@@ -825,13 +825,13 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
