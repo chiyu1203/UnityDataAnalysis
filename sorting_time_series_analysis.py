@@ -177,11 +177,13 @@ def plot_trajectory(df_focal_animal, df_summary, df_agent, file_name):
                         marker=".",
                         alpha=0.5,
                     )
-                    subplots[this_subplot].plot(
-                        df_agent[df_agent["fname"] == key]["X"].to_numpy(),
-                        df_agent[df_agent["fname"] == key]["Y"].to_numpy(),
+                    agent_xy=np.vstack((df_agent[df_agent["fname"] == key]["X"].to_numpy(),df_agent[df_agent["fname"] == key]["Y"].to_numpy()))
+                    subplots[this_subplot].scatter(
+                        agent_xy[0],
+                        agent_xy[1],
                         c="k",
-                        # marker=".",
+                        s=0.01,
+                        marker=".",
                         alpha=0.1,
                     )
                 else:
@@ -825,13 +827,14 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
     # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241201_131605"
     json_file = "./analysis_methods_dictionary.json"
