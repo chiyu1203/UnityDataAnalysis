@@ -1076,14 +1076,15 @@ def preprocess_matrex_data(thisDir, json_file):
                                     and (this_object == 1)
                                     and (trial_condition["objects"][0]["type"] != "")
                                 ):
-                                    theta = np.radians(
-                                        trial_condition["objects"][1]["position"][
-                                            "angle"
-                                        ]
-                                        - trial_condition["objects"][0]["position"][
-                                            "angle"
-                                        ]
-                                    )
+                                    # theta = np.radians(
+                                    #     trial_condition["objects"][1]["position"][
+                                    #         "angle"
+                                    #     ]
+                                    #     - trial_condition["objects"][0]["position"][
+                                    #         "angle"
+                                    #     ]
+                                    # )
+                                    theta = np.radians(trial_condition["objects"][1]['mu']+270)
                                     # applying rotation matrix to rotate the coordinates
                                     # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
                                     rot_matrix = np.array(
@@ -1269,7 +1270,8 @@ if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241228_160619"
     # thisDir = r"C:/Users/neuroLaptop/Documents/20241014_175759"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
