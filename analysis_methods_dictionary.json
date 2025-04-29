@@ -1,5 +1,5 @@
 {
-    "experiment_name": "band",
+    "experiment_name": "choice",
     "overwrite_curated_dataset": true,
     "save_output": true,
     "time_series_analysis": true,
@@ -12,7 +12,7 @@
     "active_trials_only": true,
     "align_with_isi_onset": false,
     "extract_follow_epoches": true,
-    "follow_locustVR_criteria": false,
+    "follow_locustVR_criteria": true,
     "calculate_follow_chance_level": true,
     "graph_colour_code": [
         "r",
