@@ -633,9 +633,11 @@ def follow_behaviour_analysis(
                     "num_chance_epochs": [sum_chance_epochs],
                     "number_frames": [focal_xy.shape[1] - 1],
                     "travel_distance": [np.nansum(focal_distance_fbf)],
-                    "turning_distance": [np.nansum(abs(turn_degree_fbf))],
+                    "total_turning": [np.nansum(abs(turn_degree_fbf))],
+                    "gross_turning": [np.nansum(turn_degree_fbf)],
                     "travel_distance_ISI": [np.nansum(focal_distance_ISI)],
-                    "turning_distance_ISI": [np.nansum(abs(turn_degree_ISI))],
+                    "total_turning_ISI": [np.nansum(abs(turn_degree_ISI))],
+                    "gross_turning_ISI": [np.nansum(turn_degree_ISI)],
                     "duration": [grp["duration"].values[0]],
                     "duration_ISI": [pre_stim_ISI],
                     "temperature": [
