@@ -119,7 +119,7 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
         scatterplots.savefig(f"{fig_name}.png")
         scatterplots.savefig(f"{fig_name}.svg")
 
-def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,thresholds=[4,5,6,7,8],this_vr='all'):
+def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all'):
     spatial_preference_animals=np.zeros((len(thresholds),len(relative_pos_all_animals),relative_pos_all_animals[0]['type'].unique().shape[0]))
     spatial_preference_animals[:]=np.nan
     epochs_forL_all_animals_homo=np.zeros((len(thresholds),len(relative_pos_all_animals)))
