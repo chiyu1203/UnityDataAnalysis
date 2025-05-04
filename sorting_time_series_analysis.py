@@ -201,11 +201,14 @@ def plot_trajectory(df_focal_animal, df_summary, df_agent, file_name):
     fig.savefig(file_name.parent / fig_name)
 
 
-def diff_angular_degree(angle_rad, number_frame_scene_changing):
+def diff_angular_degree(angle_rad, number_frame_scene_changing,convert_unit=True):
     angle_rad[np.isnan(angle_rad)] = 0
     # angle_rad=np.unwrap(angle_rad)
     # ang_deg_diff=np.diff(np.unwrap(angle_rad))
-    ang_deg = np.mod(np.rad2deg(angle_rad), 360.0)  ## if converting the unit to degree
+    if convert_unit:
+        ang_deg = np.mod(np.rad2deg(angle_rad), 360.0)
+    else:
+        ang_deg = np.mod(angle_rad, 360.0)  ## if converting the unit to degree
     ang_deg_diff = np.diff(
         np.unwrap(ang_deg, period=360)
     )  ##if converting the unit to degree
