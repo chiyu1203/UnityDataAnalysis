@@ -4,6 +4,7 @@ file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experiment_name": "band",
     "overwrite_curated_dataset": True,
+    "export_motion_only":True,
     "save_output": True,
     "time_series_analysis": True,
     "filtering_method": "sg_filter",
