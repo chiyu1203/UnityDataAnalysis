@@ -25,7 +25,8 @@ from scipy.signal import savgol_filter
 import h5py
 from deepdiff import DeepDiff
 from pprint import pprint
-
+import pyarrow.parquet as pq
+import pyarrow as pa
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
@@ -35,8 +36,9 @@ from data_cleaning import (
     removeFictracNoise,
     bfill,
     diskretize,
-    findLongestConseqSubseq,
+    findLongestConseqSubseq,interp_fill
 )
+from sorting_time_series_analysis import calculate_speed,diff_angular_degree
 
 lock = Lock()
 
@@ -161,15 +163,10 @@ def calcAffineMatrix(sourcePoints, targetPoints):
     affineTrafo = np.float32([[a0, a2, a4], [a1, a3, a5]])
     return affineTrafo
 
-
-def calculate_speed(dif_x, dif_y):
-    focal_distance_fbf = np.sqrt(np.sum([dif_x**2, dif_y**2], axis=0))
-    # focal_distance_fbf[0:number_frame_scene_changing+1]=np.nan##plus one to include the weird data from taking difference between 0 and some value
-    # instant_speed=focal_distance_fbf/np.diff(ts)
-    return focal_distance_fbf
-
-
 def fill_missing_data(df):
+    ## this is used to fill in missing points in Unity dataset during scene changes. 
+    ## By taking fictrac data as a reference, we can estimate what values unity should have during scene changes
+    ## Note, there is 1 or 2 frames delay when logging fictrac and unity data 
     for i in range(len(df)):
         # Detect the start of a missing block where CurrentStep is 0 and CurrentTrial increments
         if "fill_rot" in locals() and "missing_end" in locals():
@@ -233,49 +230,6 @@ def fill_missing_data(df):
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectPosZ",
             ] = transformed_coordinates[num_zero_fictrac:-1, 1]
-            ##check if curation is correct
-            # fig, axes = plt.subplots(2, 2, figsize=(18, 7), tight_layout=True)
-            # ax, ax1, ax2, ax3 = axes.flatten()
-            # reference_rot=df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_start + 30 + 1,
-            #     "SensRotY",
-            # ].values
-            # curated_rot=df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_start + 30 + 1,
-            #     "GameObjectRotY",
-            # ].values
-            # reference_heading_x = df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_start + 30 + 1,
-            #     "SensPosX",
-            # ].values
-            # reference_heading_y = df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_start + 30 + 1,
-            #     "SensPosY",
-            # ].values
-            # curated_heading_x = df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_start + 30 + 1,
-            #     "GameObjectPosX",
-            # ].values
-            # curated_heading_y = df.loc[
-            #     missing_start + num_zero_fictrac + 1 : missing_start + 30 + 1,
-            #     "GameObjectPosZ",
-            # ].values
-            # x=np.arange(0,curated_rot.shape[0]-1)
-            # ax.plot(x,np.diff(np.unwrap(reference_rot, period=360)))
-            # ax.set(title="reference")
-            # ax1.plot(x,np.diff(np.unwrap(curated_rot, period=360)))
-            # ax1.set(title="curated")
-            # dif_x = np.diff(reference_heading_x)
-            # dif_y = np.diff(reference_heading_y)
-            # diff_reference = calculate_speed(dif_x, dif_y)
-            # dif_x = np.diff(curated_heading_x)
-            # dif_y = np.diff(curated_heading_y)
-            # diff_curated = calculate_speed(dif_x, dif_y)
-            # ax2.plot(x, diff_reference * 5)
-            # ax2.set(title="diff_reference")
-            # ax3.plot(x, diff_curated)
-            # ax3.set(title="diff_curated")
-            # plt.show()
         else:
             continue
 
@@ -329,17 +283,20 @@ def reshape_multiagent_data(df, this_object):
     return new_df
 
 
-def prepare_data(df, this_range):
-    ts = df.loc[this_range, "Current Time"]
+def prepare_data(df,x_title,y_title,rot_title,this_range=None):
+    #this is for collecting data from the fictrac whole dataset
+    if this_range is None:
+        this_range=df["CurrentTrial"]==0
+    ts = df["Current Time"][this_range]
     if ts.empty:
         return None
-    x = df["GameObjectPosX"][this_range]
-    y = df["GameObjectPosZ"][this_range]
-    rot_y = df["GameObjectRotY"][this_range]
+    x = df[x_title][this_range]
+    y = df[y_title][this_range]
+    rot_y = df[rot_title][this_range]
+    trial_no = df["CurrentTrial"][this_range]
     xy = np.vstack((x.to_numpy(), y.to_numpy()))
     xy = bfill(xy)  # Fill missing values for smoother analysis
-    trial_no = df.loc[this_range, "CurrentTrial"]
-    return ts, xy, trial_no, rot_y
+    return ts,trial_no,xy,rot_y
 
 
 def load_file(file):
@@ -478,6 +435,7 @@ def analyse_focal_animal(
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
+    export_motion_only = analysis_methods.get("export_motion_only", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
     scene_name = analysis_methods.get("experiment_name")
     analyze_one_session_only = True
@@ -488,12 +446,15 @@ def analyse_focal_animal(
 
     if type(this_file) == str:
         this_file = Path(this_file)
-
     df = load_file(this_file)
     df = fill_missing_data(df)
     test = np.where(df["GameObjectRotY"].values == 0)[0]
     longest_unity_gap = findLongestConseqSubseq(test, test.shape[0])
     print(f"longest unfilled gap is {longest_unity_gap}")
+    test = np.where(df["SensRotY"].values == 0)[0]
+    longest_fictrac_gap = findLongestConseqSubseq(test, test.shape[0])
+    print(f"longest unfilled gap is {longest_fictrac_gap}")
+
     # replace 0.0 with np.nan since they are generated during scene-switching
     ##if upgrading to pandas 3.0 in the future, try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead
     df.replace(
@@ -501,6 +462,9 @@ def analyse_focal_animal(
             "GameObjectPosX": {0.0: np.nan},
             "GameObjectPosZ": {0.0: np.nan},
             "GameObjectRotY": {0.0: np.nan},
+            "SensPosX": {0.0: np.nan},
+            "SensPosY": {0.0: np.nan},
+            "SensRotY": {0.0: np.nan},
         },
         inplace=True,
     )
@@ -514,8 +478,26 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY{file_suffix}.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score{file_suffix}.h5"
     agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
+    pa_file_path = this_file.parent / f"{experiment_id}_motion.parquet"
     # need to think about whether to name them the same regardless analysis methods
-
+    if export_motion_only:
+        ts,trial_no,xy,rot_y = prepare_data(df,"SensPosX","SensPosY","SensRotY")
+        if len(ts) == 0:
+            print("empty file")
+            return None,None,None,None
+        X = savgol_filter(xy[0], 59, 3, axis=0)
+        Y = savgol_filter(xy[1], 59, 3, axis=0)
+        #xy = interp_fill(xy)
+        elapsed_time = (ts - ts.min()).dt.total_seconds().values
+        instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
+        rot_y = interp_fill(rot_y.to_numpy())
+        _, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
+        instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
+        pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"trial_no": trial_no[1:]}), pa_file_path)
+        print(f"export {pa_file_path}")
+        return None,None,None,None
+        # v_stack=np.vstack((instant_speed,instant_angular_velocity,trial_no[1:]))
+        # np.save("v_stack.npy",v_stack)
     if tem_df is None:
         df["Temperature ˚C (ºC)"] = np.nan
         df["Relative Humidity (%)"] = np.nan
@@ -546,7 +528,8 @@ def analyse_focal_animal(
     ) = ([], [], [], [], [])
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
-        ts, xy, trial_no, rot_y = prepare_data(df, this_range)
+        ts,trial_no,xy,rot_y = prepare_data(df,"GameObjectPosX","GameObjectPosZ","GameObjectRotY",this_range)
+
         if len(ts) == 0:
             break
         elif len(trial_no.value_counts()) > 1 & analyze_one_session_only == True:
@@ -1076,14 +1059,6 @@ def preprocess_matrex_data(thisDir, json_file):
                                     and (this_object == 1)
                                     and (trial_condition["objects"][0]["type"] != "")
                                 ):
-                                    # theta = np.radians(
-                                    #     trial_condition["objects"][1]["position"][
-                                    #         "angle"
-                                    #     ]
-                                    #     - trial_condition["objects"][0]["position"][
-                                    #         "angle"
-                                    #     ]
-                                    # )
                                     theta = np.radians(trial_condition["objects"][1]['mu']+270)
                                     # applying rotation matrix to rotate the coordinates
                                     # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
