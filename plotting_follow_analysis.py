@@ -11,6 +11,8 @@ def plot_follow_response_distribution(all_evaluation):
     ax1, ax2, ax3, ax4 = axes.flatten()
     follow_time_tbt=all_evaluation['num_follow_epochs']/all_evaluation['number_frames']
     follow_time_aba=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()
+    follow_walk_ratio_tbt=all_evaluation['num_follow_epochs']/all_evaluation['num_walk_epochs']
+    follow_walk_ratio_aba=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['num_walk_epochs'].sum()
     simulated_time_aba=all_evaluation.groupby(['animal_id'])['num_chance_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()
     simulated_time_tbt=all_evaluation['num_chance_epochs']/all_evaluation['number_frames']
     print("first 1/3 best of followers:", np.quantile(follow_time_aba, 0.66))
@@ -27,17 +29,22 @@ def plot_follow_response_distribution(all_evaluation):
     if simulated_time_aba.eq(0.0).all()==False:
         ax1.hist(simulated_time_aba,color='tab:gray',alpha=0.5,bins=bins_aba)
     ax1.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,0.5),yticks=[0,20],ylim=(0,20),title='proportion of time following aba')
-    ax2.hist(follow_time_tbt,color='red',bins=bins_aba)
+    bins_tbt=np.linspace(0,1,21)
+    ax2.hist(follow_time_tbt,color='red',bins=bins_tbt)
     if simulated_time_tbt.isnull().all()==False:
-        ax2.hist(simulated_time_tbt,color='tab:gray',alpha=0.5,bins=bins_aba)
+        ax2.hist(simulated_time_tbt,color='tab:gray',alpha=0.5,bins=bins_tbt)
     ax2.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,1),ylim=(0,200),title='proportion of time following tbt')
-    follower_of_interest=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()<good_follower_threshold
-    rows_of_follower=follower_of_interest.repeat(int(all_evaluation.shape[0]/follower_of_interest.shape[0]))
-    ax3.hist(all_evaluation[rows_of_follower.values]['num_follow_epochs']/all_evaluation[rows_of_follower.values]['number_frames'],density=True)
-    ax3.set(xticks=[0,0.25,0.5,0.75,1],xlim=(0,1),title=f'proportion of time from animals below {good_follower_threshold}')
-    follower_of_interest=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()>good_follower_threshold
-    rows_of_follower=follower_of_interest.repeat(int(all_evaluation.shape[0]/follower_of_interest.shape[0]))
-    ax4.hist(all_evaluation[rows_of_follower.values]['num_follow_epochs']/all_evaluation[rows_of_follower.values]['number_frames'],density=True)
-    ax4.set(xticks=[0,0.25,0.5,0.75,1],xlim=(0,1),title=f'proportion of time from animals above {good_follower_threshold}')
+    ax3.hist(follow_walk_ratio_aba,color='red')
+    #ax3.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,0.5),yticks=[0,20],ylim=(0,20),title='follow/walk of locusts')
+    ax4.hist(follow_walk_ratio_tbt,color='red')
+    #ax4.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,1),ylim=(0,200),title='follow/walk of trials')
+    #follower_of_interest=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()<good_follower_threshold
+    #rows_of_follower=follower_of_interest.repeat(int(all_evaluation.shape[0]/follower_of_interest.shape[0]))
+    #ax3.hist(all_evaluation[rows_of_follower.values]['num_follow_epochs']/all_evaluation[rows_of_follower.values]['number_frames'],density=True)
+    #ax3.set(xticks=[0,0.25,0.5,0.75,1],xlim=(0,1),title=f'proportion of time from animals below {good_follower_threshold}')
+    #follower_of_interest=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()>good_follower_threshold
+    #rows_of_follower=follower_of_interest.repeat(int(all_evaluation.shape[0]/follower_of_interest.shape[0]))
+    #ax4.hist(all_evaluation[rows_of_follower.values]['num_follow_epochs']/all_evaluation[rows_of_follower.values]['number_frames'],density=True)
+    #ax4.set(xticks=[0,0.25,0.5,0.75,1],xlim=(0,1),title=f'proportion of time from animals above {good_follower_threshold}')
     plt.show()
-    return follow_time_aba,follow_time_tbt
+    return follow_time_aba,follow_time_tbt,follow_walk_ratio_aba,follow_walk_ratio_tbt

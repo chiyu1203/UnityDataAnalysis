@@ -252,7 +252,7 @@ def classify_follow_epochs(
         epochs_of_interest = (
             np.ones((instant_speed.shape[0])) == 1.0
         )  # created a all-true array for overall heatmap
-    return epochs_of_interest, vector_dif, angles_in_degree
+    return epochs_of_interest, vector_dif, angles_in_degree,walk_criteria
 
 
 def align_agent_moving_direction(vector_dif, grp):
@@ -544,7 +544,7 @@ def follow_behaviour_analysis(
                     nans, y = nan_helper(tmp_arr_y)
                     tmp_arr_y[nans] = np.interp(y(nans), y(~nans), tmp_arr_y[~nans])
                     this_agent_xy=np.vstack((tmp_arr_x,tmp_arr_y))
-                epochs_of_interest, vector_dif, angles_in_degree = (
+                epochs_of_interest, vector_dif, angles_in_degree,walk_epochs = (
                 classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy, analysis_methods))
                 vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
                 follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i)
@@ -554,7 +554,7 @@ def follow_behaviour_analysis(
                             follow_pd.shape[0],
                         ))
                 if calculate_follow_chance_level and agent_based_modeling:
-                    epochs_by_chance,simulated_vector,_=classify_follow_epochs(
+                    epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(
                             np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
                     )
                     vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
@@ -576,7 +576,7 @@ def follow_behaviour_analysis(
                             [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
                         )  # calculate the rotation matrix to align the agent to move along the same direction
                     this_agent_xy_rotated = rot_matrix @ this_agent_xy
-                    epochs_by_chance,simulated_vector,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
+                    epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
                     vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
                     simulated_pd= conclude_as_pd(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
@@ -605,11 +605,14 @@ def follow_behaviour_analysis(
             if num_agent>1:
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
-                sum_follow_epochs = follow_pd_combined.shape[0]
+                num_duplocated_epochs = follow_pd_combined.duplicated(3).sum()
+                sum_follow_epochs = follow_pd_combined.shape[0]-num_duplocated_epochs
+                
                 if 'simulated_pd_list' in locals() and len(simulated_pd_list)>0:
                     simulated_pd_combined = pd.concat(simulated_pd_list)
                     simulated_across_trials.append(simulated_pd_combined)
-                    sum_chance_epochs = simulated_pd_combined.shape[0]
+                    num_duplocated_epochs = simulated_pd_combined.duplicated(3).sum()
+                    sum_chance_epochs = simulated_pd_combined.shape[0]-num_duplocated_epochs
                 else:
                     sum_chance_epochs=np.nan
             else:
@@ -634,6 +637,7 @@ def follow_behaviour_analysis(
                     # "this_vr": [grp['this_vr'][0]],
                     "num_follow_epochs": [sum_follow_epochs],
                     "num_chance_epochs": [sum_chance_epochs],
+                    "num_walk_epochs":[sum(walk_epochs)],
                     "number_frames": [focal_xy.shape[1] - 1],
                     "travel_distance": [np.nansum(focal_distance_fbf)],
                     "total_turning": [np.nansum(abs(turn_degree_fbf))],
