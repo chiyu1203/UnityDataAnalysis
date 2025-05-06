@@ -480,26 +480,28 @@ def analyse_focal_animal(
     agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
     pa_file_path = this_file.parent / f"{experiment_id}_motion.parquet"
     # need to think about whether to name them the same regardless analysis methods
-    if export_motion_only:
-        ts,trial_no,xy,rot_y = prepare_data(df,"SensPosX","SensPosY","SensRotY")
-        if len(ts) == 0:
-            print("empty file")
-            return None,None,None,None
-        if analysis_methods.get("filtering_method") == "sg_filter":
-            X = savgol_filter(xy[0], 59, 3, axis=0)
-            Y = savgol_filter(xy[1], 59, 3, axis=0)
-        else:
-            X = xy[0]
-            Y = xy[1]
-        #xy = interp_fill(xy)
-        elapsed_time = (ts - ts.min()).dt.total_seconds().values
+
+    ts,trial_no,xy,rot_y = prepare_data(df,"SensPosX","SensPosY","SensRotY")
+    if len(ts) == 0:
+        print("empty file")
+        return None,None,None,None
+    if analysis_methods.get("filtering_method") == "sg_filter":
+        X = savgol_filter(xy[0], 59, 3, axis=0)
+        Y = savgol_filter(xy[1], 59, 3, axis=0)
+    else:
+        X = xy[0]
+        Y = xy[1]
+    #xy = interp_fill(xy)
+    elapsed_time = (ts - ts.min()).dt.total_seconds().values
+    if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
         pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"trial_no": trial_no}), pa_file_path)
-        #instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
-        #rot_y = interp_fill(rot_y.to_numpy())
-        #_, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
-        #instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
-        #pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"trial_no": trial_no[1:]}), pa_file_path)
-        print(f"export {pa_file_path}")
+    #instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
+    #rot_y = interp_fill(rot_y.to_numpy())
+    #_, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
+    #instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
+    #pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"trial_no": trial_no[1:]}), pa_file_path)
+    print(f"export {pa_file_path}")
+    if export_motion_only:
         return None,None,None,None
         # v_stack=np.vstack((instant_speed,instant_angular_velocity,trial_no[1:]))
         # np.save("v_stack.npy",v_stack)
