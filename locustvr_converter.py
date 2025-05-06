@@ -485,15 +485,20 @@ def analyse_focal_animal(
         if len(ts) == 0:
             print("empty file")
             return None,None,None,None
-        X = savgol_filter(xy[0], 59, 3, axis=0)
-        Y = savgol_filter(xy[1], 59, 3, axis=0)
+        if analysis_methods.get("filtering_method") == "sg_filter":
+            X = savgol_filter(xy[0], 59, 3, axis=0)
+            Y = savgol_filter(xy[1], 59, 3, axis=0)
+        else:
+            X = xy[0]
+            Y = xy[1]
         #xy = interp_fill(xy)
         elapsed_time = (ts - ts.min()).dt.total_seconds().values
-        instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
-        rot_y = interp_fill(rot_y.to_numpy())
-        _, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
-        instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
-        pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"trial_no": trial_no[1:]}), pa_file_path)
+        pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"trial_no": trial_no}), pa_file_path)
+        #instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
+        #rot_y = interp_fill(rot_y.to_numpy())
+        #_, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
+        #instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
+        #pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"trial_no": trial_no[1:]}), pa_file_path)
         print(f"export {pa_file_path}")
         return None,None,None,None
         # v_stack=np.vstack((instant_speed,instant_angular_velocity,trial_no[1:]))
