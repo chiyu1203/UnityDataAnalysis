@@ -293,11 +293,11 @@ def prepare_data(df,x_title,y_title,rot_title,this_range=None):
     x = df[x_title][this_range]
     y = df[y_title][this_range]
     rot_y = df[rot_title][this_range]
-    trial_id = df["CurrentStep"][this_range]
+    step_id = df["CurrentStep"][this_range]
     session_id= df["CurrentTrial"][this_range]
     xy = np.vstack((x.to_numpy(), y.to_numpy()))
     xy = bfill(xy)  # Fill missing values for smoother analysis
-    return ts,xy,rot_y,trial_id,session_id
+    return ts,xy,rot_y,step_id,session_id
 
 
 def load_file(file):
@@ -482,7 +482,7 @@ def analyse_focal_animal(
     pa_file_path = this_file.parent / f"{experiment_id}_motion.parquet"
     # need to think about whether to name them the same regardless analysis methods
 
-    ts,xy,rot_y,trial_id,session_id =prepare_data(df,"SensPosX","SensPosY","SensRotY")
+    ts,xy,rot_y,step_id,session_id =prepare_data(df,"SensPosX","SensPosY","SensRotY")
     if len(ts) == 0:
         print("empty file")
         return None,None,None,None
@@ -495,16 +495,16 @@ def analyse_focal_animal(
     #xy = interp_fill(xy)
     elapsed_time = (ts - ts.min()).dt.total_seconds().values
     if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
-        pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"trial_id": trial_id}), pa_file_path)
+        pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"step_id": step_id}), pa_file_path)
     #instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
     #rot_y = interp_fill(rot_y.to_numpy())
     #_, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
     #instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
-    #pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"trial_id": trial_id[1:]}), pa_file_path)
+    #pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"step_id": step_id[1:]}), pa_file_path)
     print(f"export {pa_file_path}")
     if export_motion_only:
         return None,None,None,None
-        # v_stack=np.vstack((instant_speed,instant_angular_velocity,trial_id[1:]))
+        # v_stack=np.vstack((instant_speed,instant_angular_velocity,step_id[1:]))
         # np.save("v_stack.npy",v_stack)
     if tem_df is None:
         df["Temperature ˚C (ºC)"] = np.nan
@@ -536,7 +536,7 @@ def analyse_focal_animal(
     ) = ([], [], [], [], [])
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
-        ts,xy,rot_y,trial_id,session_id = prepare_data(df,"GameObjectPosX","GameObjectPosZ","GameObjectRotY",this_range)
+        ts,xy,rot_y,_,session_id = prepare_data(df,"GameObjectPosX","GameObjectPosZ","GameObjectRotY",this_range)
 
         if len(ts) == 0:
             break
