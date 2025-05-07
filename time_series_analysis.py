@@ -54,10 +54,10 @@ def split_trials(analysis_methods,all_trials,metrics_name='velocity',metrics_nam
         these_metrics.append(this_metrics)
         these_normalised_metrics.append(this_data[metrics_name2].values)
     return movement_trial_boolean,these_metrics,these_normalised_metrics
-def extract_trial_index(movement_trial_boolean,analysis_methods):
+def extract_trial_index(movement_trial_boolean,num_animals,analysis_methods):
     align_with_isi_onset=analysis_methods.get("align_with_isi_onset",False)
 #int((trial_id)/2) means the number of stimulus trial
-    trial_id=len(movement_trial_boolean)/32
+    trial_id=len(movement_trial_boolean)/num_animals
     after_movement_ith_trial=[]
     after_no_movement_ith_trial=[]
     if align_with_isi_onset:
