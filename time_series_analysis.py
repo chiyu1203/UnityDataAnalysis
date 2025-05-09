@@ -1,7 +1,13 @@
+import sys
+from pathlib import Path
+current_working_directory = Path.cwd()
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as st
+parent_dir = current_working_directory.resolve().parents[0]
+sys.path.insert(0, str(parent_dir) + "\\utilities")
+from useful_tools import select_animals_gpt,find_file,column_name_list,get_fill_between_range
 
 def fix_data_type(all_trials):
     all_trials['id'] = all_trials['id'].astype(int)
@@ -68,36 +74,7 @@ def extract_trial_index(movement_trial_boolean,num_animals,analysis_methods):
         after_movement_ith_trial=[i for i, x in enumerate(movement_trial_boolean[::2]) if x]
         after_no_movement_ith_trial=[i for i, x in enumerate(movement_trial_boolean[::2]) if x==False]
     return after_movement_ith_trial,after_no_movement_ith_trial
-def get_fill_between_range(data,confidence_interval=True,circular_statistics=False):
-    if circular_statistics:
-        mean_data=st.circmean(data,high=180,low=-180,axis=0)
-        if confidence_interval:
-            pass
-        else:
-            #sem_response = st.circstd(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
-            std_response = st.circstd(data,high=180,low=-180,axis=0)
-            dif_y1=mean_data + std_response
-            dif_y2=mean_data - std_response        
-    else:
-        mean_data=np.nanmean(data,axis=0)
-        sem_response = np.nanstd(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
-        if confidence_interval:
-            ##to plot distribution with 95% confidence interval with t distribution (since the sample is usually not big)
-            confidence_level = 0.95
-            
-            sem_response = np.nanstd(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
-            cl95=st.t.interval(confidence=confidence_level, df=len(data)-1, loc=mean_data, scale=sem_response)
-            #cl95=st.norm.interval(confidence_level,loc=mean_data,scale=st.sem(data))
-            dif_y1=cl95[0][:]
-            dif_y2=cl95[1][:]
-            # a = 1.0 * np.array(data)
-            # n = len(a)
-            # m, se = np.mean(a), scipy.stats.sem(a)
-            # h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
-        else:
-            dif_y1=mean_data + sem_response
-            dif_y2=mean_data - sem_response
-    return dif_y1,dif_y2
+
 def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_movement_ith_trial,after_no_movement_ith_trial,analysis_methods,metrics_name='velocity',row_of_interest=None,type_key="",variable_values=None):
     exp_name=analysis_methods.get('experiment_name')
     number_frame_scene_changing=analysis_methods.get("largest_unfilled_gap",12)
