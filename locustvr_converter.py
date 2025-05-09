@@ -36,7 +36,7 @@ from data_cleaning import (
     removeFictracNoise,
     bfill,
     diskretize,
-    findLongestConseqSubseq,interp_fill
+    findLongestConseqSubseq,interp_fill,euclean_distance
 )
 from sorting_time_series_analysis import calculate_speed,diff_angular_degree
 
@@ -105,10 +105,6 @@ def save_curated_dataset(
                                     name=tracklet_id, data=theses_coordinates
                                 )
                             elif theses_coordinates.ndim == 3:
-                                # for val, body_part_title in enumerate(args[0]):
-                                #     tracklets.create_dataset(
-                                #         name=body_part_title, data=theses_coordinates[val, :, :]
-                                #     )
                                 print(
                                     "presumably the 3rd dimension will be visibility. Not sure how to save it though"
                                 )
@@ -130,10 +126,7 @@ def save_curated_dataset(
                     if theses_coordinates.ndim == 2:
                         tracklets.create_dataset(name="XY1", data=theses_coordinates)
                     elif theses_coordinates.ndim == 3:
-                        # for val, body_part_title in enumerate(args[0]):
-                        #     tracklets.create_dataset(
-                        #         name=body_part_title, data=theses_coordinates[val, :, :]
-                        #     )
+
                         print(
                             "presumably the 3rd dimension will be visibility. Not sure how to save it though"
                         )
@@ -257,15 +250,9 @@ def reshape_multiagent_data(df, this_object):
     elif "Current Time" in df.columns:
         number_of_instances = 2
         trial_length = int(df["Current Time"].shape[0] / number_of_instances)
-        # number_of_duplicates = df["Current Time"].drop_duplicates().shape[0]
-        # number_of_instances = int(df.shape[0] / number_of_duplicates)
-        # agent_id = np.tile(np.arange(number_of_instances),trial_length)
         agent_id = np.repeat(np.arange(number_of_instances), trial_length)
         c_name_list = ["agent" + str(num) for num in agent_id]
-        # df["id"]=df.index
-        # df=df.sort_values(by=['Current Time','id'])
         df.reset_index(inplace=True)
-        # df=df.drop(['id','index'], axis=1)
         df = df.drop(["index"], axis=1)
         test = pd.concat([df, pd.DataFrame(c_name_list)], axis=1)
         df_values = [df.columns[1], df.columns[2]]
@@ -274,12 +261,6 @@ def reshape_multiagent_data(df, this_object):
         )
     else:
         Warning("no columns found")
-
-    # if "VisibilityPhase" in df.columns:
-    #     df_values = ["X", "Z", "VisibilityPhase"]
-    # else:
-    #     df_values = [df.columns[1], df.columns[2]]
-    # new_df.loc[:, (slice(None), ["agent0"])] to access columns with multi-index
     return new_df
 
 
@@ -486,6 +467,7 @@ def analyse_focal_animal(
     if len(ts) == 0:
         print("empty file")
         return None,None,None,None
+    xy=xy*analysis_methods.get("trackball_radius_cm")
     if analysis_methods.get("filtering_method") == "sg_filter":
         X = savgol_filter(xy[0], 59, 3, axis=0)
         Y = savgol_filter(xy[1], 59, 3, axis=0)
@@ -493,19 +475,14 @@ def analyse_focal_animal(
         X = xy[0]
         Y = xy[1]
     #xy = interp_fill(xy)
+    remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
+    loss = 1 - remains
     elapsed_time = (ts - ts.min()).dt.total_seconds().values
     if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
         pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"step_id": step_id}), pa_file_path)
-    #instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
-    #rot_y = interp_fill(rot_y.to_numpy())
-    #_, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
-    #instant_angular_velocity = turn_degree_fbf / np.diff(elapsed_time)
-    #pq.write_table(pa.table({"velocity": instant_speed,"angular_velocity": instant_angular_velocity,"step_id": step_id[1:]}), pa_file_path)
     print(f"export {pa_file_path}")
     if export_motion_only:
         return None,None,None,None
-        # v_stack=np.vstack((instant_speed,instant_angular_velocity,step_id[1:]))
-        # np.save("v_stack.npy",v_stack)
     if tem_df is None:
         df["Temperature ˚C (ºC)"] = np.nan
         df["Relative Humidity (%)"] = np.nan
@@ -571,7 +548,6 @@ def analyse_focal_animal(
             angles_rad = np.radians(
                 -rot_y.values
             )  # turn negative to acount for Unity's axis and turn radian
-            # if id == 119 and experiment_id=='VR4_2024-11-16_155242':
             remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
             loss = 1 - remains
         else:
@@ -616,8 +592,6 @@ def analyse_focal_animal(
             xm = np.nansum(c) / num_spatial_decision
             ym = np.nansum(s) / num_spatial_decision
             meanAngle = np.arctan2(ym, xm)
-            # ang_deg = np.rad2deg(ang_rad) ## if converting the unit to degree
-            # ang_deg = np.mod(ang_deg,360.)# if the range is from 0 to 360
             meanVector = (
                 np.sqrt(np.square(np.nansum(c)) + np.square(np.nansum(s)))
                 / num_spatial_decision
@@ -627,7 +601,7 @@ def analyse_focal_animal(
         std = np.sqrt(2 * (1 - meanVector))
 
         tdist = (
-            np.sum(np.sqrt(np.add(np.square(np.diff(X)), np.square(np.diff(Y)))))
+            np.sum(euclean_distance(X,Y))
             if time_series_analysis
             else len(dX) * BODY_LENGTH3
         )  ##The distance calculated based on spatial discretisation should be the shortest
@@ -645,17 +619,6 @@ def analyse_focal_animal(
                 value2 = diff_con["values_changed"]["root['type']"]["new_value"]
                 condition["type"] = f"{value1}_x_{value2}"
 
-        #   condition_is_tuple = False
-        # elif isinstance(
-        #     condition, tuple
-        # ):  # designed for the choice assay, which use tuple to carry duration
-        #     condition_is_tuple = True
-        #     duration = condition[1]  # drop the duration from the
-        #     condition = condition[0]
-        # else:
-        #     condition_is_tuple = False
-        #     pass
-
         spe = [condition["speed"]] * len(dX)
         mu = [condition["mu"]] * len(dX)
         du = [condition["duration"]] * len(dX)
@@ -667,12 +630,6 @@ def analyse_focal_animal(
             radial_distance = [condition["radial_distance"]] * len(dX)
 
         if scene_name.lower() == "choice":
-            # if condition["type"] == "LeaderLocust":
-            #     object_type = ["mov_glocust"] * len(dX)
-            # elif condition["type"] == "LeaderLocust_black":
-            #     object_type = ["mov_locustb"] * len(dX)
-            # elif condition["type"] == "InanimatedLeaderLocust_black":
-            #     object_type = ["sta_locustb"] * len(dX)
             if condition["type"] == "":
                 object_type = ["empty_trial"] * len(dX)
             else:
@@ -705,7 +662,6 @@ def analyse_focal_animal(
             df_curated["density"] = density
             df_curated["kappa"] = order
         if scene_name.lower() == "choice" or scene_name.lower() == "band":
-            # df_curated["type"] = object_type
             df_curated["radial_distance"] = radial_distance
             df_curated["polar_angle"] = polar_angle
             # Probably no need to save the following into curated database but just in case
@@ -761,11 +717,6 @@ def analyse_focal_animal(
                     agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
             if "agent_dX" in locals() and scene_name.lower() == "choice":
                 df_agent_list = []
-                # if 'value1' in locals():
-                #     value_list=[value1,value2]
-                #     del value1,value2
-                # else:
-                #     value_list=[object_type]
                 for k in range(len(agent_dXY_list)):
                     this_agent_dx = agent_dXY_list[k][0]
                     this_agent_dy = agent_dXY_list[k][1]
@@ -893,13 +844,8 @@ def analyse_focal_animal(
                 ):
                     store = pd.HDFStore(this_name)
                     if len(hdf_keys) > 1 and this_name == agent_file_path:
-                        # if 'value1' in locals():
-                        #     value_list=[value1,value2]
-                        #     del value1,value2
-                        # else:
                         value_list = [object_type[0]] * len(df_agent_list)
                         for j in range(len(df_agent_list)):
-                            # agent_key=f'agent{j}'
                             agent_key = value_list[j]
                             this_pd = df_agent_list[j]
                             store.append(
@@ -943,13 +889,6 @@ def analyse_focal_animal(
     save_curated_dataset(
         summary_file_path, ts_across_trials, pd.concat(summary_across_trials)
     )
-    # save_curated_dataset(agent_file_test, ts_across_trials, agent_across_trials)
-    # save_curated_dataset(
-    #     curated_path_test,
-    #     ts_across_trials,
-    #     xy_across_trials,
-    #     heading_direction_across_trials,
-    # )
     if plotting_trajectory == True and save_output == True:
         fig.savefig(trajectory_fig_path)
     return (
