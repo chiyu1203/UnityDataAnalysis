@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as st
+
 def fix_data_type(all_trials):
     all_trials['id'] = all_trials['id'].astype(int)
     all_trials['mu'] = all_trials['mu'].astype(int)
@@ -67,19 +68,35 @@ def extract_trial_index(movement_trial_boolean,num_animals,analysis_methods):
         after_movement_ith_trial=[i for i, x in enumerate(movement_trial_boolean[::2]) if x]
         after_no_movement_ith_trial=[i for i, x in enumerate(movement_trial_boolean[::2]) if x==False]
     return after_movement_ith_trial,after_no_movement_ith_trial
-def get_fill_between_range(data,mean_data,using_confidence_interval=True):
-
-    ##to plot distribution with 95% confidence interval with t distribution (since the sample is usually not big)
-    if using_confidence_interval:
-        confidence_level = 0.95
-        #cl95=st.t.interval(confidence=0.95, df=len(data)-1, loc=np.mean(data), scale=st.sem(data)) 
-        cl95=st.norm.interval(confidence_level,loc=mean_data,scale=st.sem(data))
-        dif_y1=cl95[0][:]
-        dif_y2=cl95[1][:]
+def get_fill_between_range(data,confidence_interval=True,circular_statistics=False):
+    if circular_statistics:
+        mean_data=st.circmean(data,high=180,low=-180,axis=0)
+        if confidence_interval:
+            pass
+        else:
+            #sem_response = st.circstd(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
+            std_response = st.circstd(data,high=180,low=-180,axis=0)
+            dif_y1=mean_data + std_response
+            dif_y2=mean_data - std_response        
     else:
-        sem_response = np.std(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
-        dif_y1=mean_data + sem_response
-        dif_y2=mean_data - sem_response
+        mean_data=np.nanmean(data,axis=0)
+        sem_response = np.nanstd(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
+        if confidence_interval:
+            ##to plot distribution with 95% confidence interval with t distribution (since the sample is usually not big)
+            confidence_level = 0.95
+            
+            sem_response = np.nanstd(data, axis=0, ddof=1) / np.sqrt(data.shape[0])
+            cl95=st.t.interval(confidence=confidence_level, df=len(data)-1, loc=mean_data, scale=sem_response)
+            #cl95=st.norm.interval(confidence_level,loc=mean_data,scale=st.sem(data))
+            dif_y1=cl95[0][:]
+            dif_y2=cl95[1][:]
+            # a = 1.0 * np.array(data)
+            # n = len(a)
+            # m, se = np.mean(a), scipy.stats.sem(a)
+            # h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+        else:
+            dif_y1=mean_data + sem_response
+            dif_y2=mean_data - sem_response
     return dif_y1,dif_y2
 def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_movement_ith_trial,after_no_movement_ith_trial,analysis_methods,metrics_name='velocity',row_of_interest=None,type_key="",variable_values=None):
     exp_name=analysis_methods.get('experiment_name')
@@ -135,31 +152,36 @@ def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_mo
     ax1.plot(np.transpose(p1),linewidth=0.1)
     mean_p1=np.nanmean(p1,axis=0)
     ax1.plot(mean_p1,'k',linewidth=1)
-    dif_y1,dif_y2=get_fill_between_range(p1,mean_p1)
+    if metrics_name=='velocity':
+        circular_statistics=False
+        confidence_interval=True
+    else:
+        circular_statistics=True
+        confidence_interval=False
+    dif_y1,dif_y2=get_fill_between_range(p1,confidence_interval,circular_statistics)
     ax1.fill_between(x,dif_y1,dif_y2, alpha=0.4,color='k')
     ax2.plot(np.transpose(p2),linewidth=0.1)
     mean_p2=np.nanmean(p2,axis=0)
-
     ax2.plot(mean_p2,'k',linewidth=1)
-    dif_y1,dif_y2=get_fill_between_range(p2,mean_p2)
+    dif_y1,dif_y2=get_fill_between_range(p2,confidence_interval,circular_statistics)
     ax2.fill_between(x,dif_y1,dif_y2, alpha=0.4,color='k')
     ax3.plot(np.transpose(p3),linewidth=0.1)
     mean_p3=np.nanmean(p3,axis=0)
     ax3.plot(mean_p3,'k',linewidth=1)
-    dif_y1,dif_y2=get_fill_between_range(p3,mean_p3)
+    dif_y1,dif_y2=get_fill_between_range(p3)
     ax3.fill_between(x,dif_y1,dif_y2, alpha=0.4,color='k')
     mean_p4=np.nanmean(p4,axis=0)
-    dif_y1,dif_y2=get_fill_between_range(p4,mean_p4)
+    dif_y1,dif_y2=get_fill_between_range(p4)
     ax4.plot(np.transpose(p4),linewidth=0.1)
     ax4.plot(mean_p4,'k',linewidth=1)
     ax4.fill_between(x,dif_y1,dif_y2, alpha=0.4,color='k')
     mean_p5=np.nanmean(p5,axis=0)
-    dif_y1,dif_y2=get_fill_between_range(p5,mean_p5)
+    dif_y1,dif_y2=get_fill_between_range(p5)
     ax5.plot(np.transpose(p5),linewidth=0.1)
     ax5.plot(mean_p5,'k',linewidth=1)
     ax5.fill_between(x,dif_y1,dif_y2, alpha=0.4,color='k')
     mean_p6=np.nanmean(p6,axis=0)
-    dif_y1,dif_y2=get_fill_between_range(p6,mean_p6)
+    dif_y1,dif_y2=get_fill_between_range(p6)
     ax6.plot(np.transpose(p6),linewidth=0.1)
     ax6.plot(mean_p6,'k',linewidth=1)
     ax6.fill_between(x,dif_y1,dif_y2,alpha=0.4,color='k')
@@ -193,28 +215,24 @@ def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_mo
         ax4.set_ylim([-1*ylimit,1*ylimit])
     ax1.set(
         ylabel=f"sum of {metrics_name}",
-        #xlabel="frame",
         xlabel="Time (s)",
         xticks=[0,analysis_window[1]*monitor_fps],
         xticklabels=(['0', str(analysis_window[1])]),
     )
     ax2.set(
         ylabel=f"sum of {metrics_name}",
-        #xlabel="frame",
         xlabel="Time (s)",
         xticks=[0,analysis_window[1]*monitor_fps],
         xticklabels=(['0', str(analysis_window[1])]),
     )
     ax3.set(
         ylabel=metrics_name,
-        #xlabel="frame",
         xlabel="Time (s)",
         xticks=[0,analysis_window[1]*monitor_fps],
         xticklabels=(['0', str(analysis_window[1])]),
     )
     ax4.set(
         ylabel=metrics_name,
-        #xlabel="frame",
         xlabel="Time (s)",
         xticks=[0,analysis_window[1]*monitor_fps],
         xticklabels=(['0', str(analysis_window[1])]),
@@ -229,17 +247,11 @@ def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_mo
         xlabel="frame",
         ylim=[1/ylimit_log,ylimit_log],
     )
-    # if metrics_name=='velocity':
-    #     peak_distribution_stationary=np.argmax(p3, axis=1)
-    #     peak_distribution_move=np.argmax(p4, axis=1)
-    # else:
     peak_distribution_stationary=np.argmax(abs(p3[:,number_frame_scene_changing:]), axis=1)
     peak_distribution_stationary=peak_distribution_stationary+number_frame_scene_changing
-    
-    #print(peak_distribution_stationary.shape)
+
     peak_distribution_move=np.argmax(abs(p4[:,number_frame_scene_changing:]), axis=1)
     peak_distribution_move=peak_distribution_move+number_frame_scene_changing
-    #print(peak_distribution_move.shape)
     ax5.set_yscale('log')
     ax6.set_yscale('log')
     ax7.hist(abs(peak_distribution_stationary),bins=10)
