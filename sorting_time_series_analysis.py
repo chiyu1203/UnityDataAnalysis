@@ -11,7 +11,7 @@ current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file
-from data_cleaning import findLongestConseqSubseq
+from data_cleaning import findLongestConseqSubseq,interp_fill
 colormap_name = "viridis"
 sm = cm.ScalarMappable(cmap=colormap_name)
 warnings.filterwarnings(action='ignore', category=RuntimeWarning)
@@ -31,6 +31,62 @@ def nan_helper(y):
     """
 
     return np.isnan(y), lambda z: z.nonzero()[0]
+
+def sort_raster_fictrac(raster_across_animals_fictrac,all_evaluation,animal_interest,step_interest,var1,var2,analysis_methods):
+    analysis_window=analysis_methods.get("analysis_window")
+    split_stationary_moving_ISI=analysis_methods.get("split_stationary_moving_ISI")
+    monitor_fps=analysis_methods.get("monitor_fps")
+    walk_threshold=1
+    raster_interest=[]
+    column_list = ["step_id", "elapsed_time", "instant_speed", "instant_angular_velocity"]
+    n_datapoints=(analysis_window[1]-analysis_window[0])*monitor_fps
+    for this_animal in animal_interest:
+        this_raster=raster_across_animals_fictrac[this_animal]
+        this_evaluation=all_evaluation[all_evaluation['animal_id']==this_animal]
+        X=this_raster["X"].to_numpy()
+        Y=this_raster["Y"].to_numpy()
+        step_id=this_raster["step_id"].to_numpy()
+        elapsed_time=this_raster["elapsed_time"].to_numpy()
+        rot_y=this_raster["heading_angle"].to_numpy()
+        rot_y = interp_fill(rot_y)
+        _, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
+        instant_angular_velocity = turn_degree_fbf /np.diff(elapsed_time)
+        instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
+        degree_time = np.vstack(
+        (
+            step_id[:-1],
+            elapsed_time[:-1],
+            instant_speed,
+            instant_angular_velocity
+        ))
+        follow_pd = pd.DataFrame(np.transpose(degree_time))
+        follow_pd.columns=column_list
+        convert_types = {'step_id':int}
+        follow_pd = follow_pd.astype(convert_types)
+        for this_step in step_interest:    
+            analysis_ts=follow_pd[follow_pd['step_id']==this_step]['elapsed_time'].values[0]+analysis_window[0]
+            condition_index = follow_pd.index[follow_pd['elapsed_time']>analysis_ts].tolist()
+            start_idx = condition_index[0]
+            following_rows = follow_pd.iloc[start_idx:start_idx + n_datapoints]
+            this_v=following_rows["instant_speed"].to_numpy()
+            #this_w=following_rows["instant_angular_velocity"].to_numpy()
+            pd_to_extract=follow_pd[follow_pd['elapsed_time']>analysis_ts][:n_datapoints]
+            heading_angle=rot_y[start_idx:start_idx + n_datapoints]
+            heading_angle_0=heading_angle-heading_angle[abs(analysis_window[0]*monitor_fps)]
+            heading_angle_0=np.unwrap(heading_angle_0, period=360)
+            if split_stationary_moving_ISI:
+                run_trial=np.mean(this_v[:abs(analysis_window[0]*monitor_fps)])>walk_threshold
+                pd_to_extract.insert(0,'run_trial',np.repeat(run_trial,n_datapoints))
+            pd_to_extract.insert(0,'heading',heading_angle_0)
+            pd_to_extract.insert(0, 'frame_count', np.arange(n_datapoints))
+            pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var1].to_numpy(),n_datapoints))
+            pd_to_extract.insert(0, var2, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var2].to_numpy(),n_datapoints))
+            pd_to_extract.insert(0,'animal_id',np.repeat(this_animal,n_datapoints))
+            #pd_to_extract = pd_to_extract.set_index([var1, var2]) 
+            raster_interest.append(pd_to_extract)
+    ready_to_plot=pd.concat(raster_interest)
+    ready_to_plot.reset_index(inplace=True)
+    return ready_to_plot
 
 
 def generate_points_within_rectangles(x_values, y_values, width,height1, height2, num_points):
@@ -208,7 +264,8 @@ def diff_angular_degree(angle_rad, number_frame_scene_changing,convert_unit=True
     if convert_unit:
         ang_deg = np.mod(np.rad2deg(angle_rad), 360.0)
     else:
-        ang_deg = np.mod(angle_rad, 360.0)  ## if converting the unit to degree
+        #ang_deg = np.mod(angle_rad, 360.0)  ## if converting the unit to degree
+        ang_deg=angle_rad
     ang_deg_diff = np.diff(
         np.unwrap(ang_deg, period=360)
     )  ##if converting the unit to degree
@@ -343,9 +400,9 @@ def follow_behaviour_analysis(
         heading_direction = df_focal_animal[df_focal_animal["fname"] == key][
             "heading"
         ].to_numpy()
-        distance_from_centre = np.sqrt(
-            np.sum([focal_xy[0] ** 2, focal_xy[1] ** 2], axis=0)
-        )
+        # distance_from_centre = np.sqrt(
+        #     np.sum([focal_xy[0] ** 2, focal_xy[1] ** 2], axis=0)
+        # )
         # angle_rad = df_focal_animal[df_focal_animal["fname"]==key]["heading"].to_numpy()
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
@@ -357,7 +414,8 @@ def follow_behaviour_analysis(
                     grp['density'][0]==0.0
                 ):
                     frame_range = analysis_window[1] * monitor_fps
-                    d_of_interest = distance_from_centre[:frame_range]
+                    xy_of_interest=focal_xy[:,:frame_range]
+                    #d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
                     w_of_interest = angular_velocity[:frame_range]
                     if "basedline_v" in locals():
@@ -370,7 +428,8 @@ def follow_behaviour_analysis(
                         normalised_w = np.repeat(np.nan, w_of_interest.shape[0])
                 else:
                     frame_range = analysis_window[0] * monitor_fps
-                    d_of_interest = distance_from_centre[frame_range:]
+                    xy_of_interest=focal_xy[:,frame_range:]
+                    #d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
                     w_of_interest = angular_velocity[frame_range:]
                     basedline_v = np.mean(
@@ -388,7 +447,8 @@ def follow_behaviour_analysis(
                 ):
                     # print("ISI now")
                     frame_range = analysis_window[0] * monitor_fps
-                    d_of_interest = distance_from_centre[frame_range:]
+                    xy_of_interest=focal_xy[:,frame_range:]
+                    #d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
                     w_of_interest = angular_velocity[frame_range:]
                     basedline_v = np.mean(
@@ -413,19 +473,22 @@ def follow_behaviour_analysis(
             if align_with_isi_onset:
                 if grp["type"][0] == "empty_trial":
                     frame_range = analysis_window[1] * monitor_fps
-                    d_of_interest = distance_from_centre[:frame_range]
+                    xy_of_interest=focal_xy[:,:frame_range]
+                    #d_of_interest = distance_from_centre[:frame_range]
                     v_of_interest = instant_speed[:frame_range]
                     w_of_interest = angular_velocity[:frame_range]
                 else:
                     frame_range = analysis_window[0] * monitor_fps
-                    d_of_interest = distance_from_centre[frame_range:]
+                    xy_of_interest=focal_xy[:,frame_range:]
+                    #d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
                     w_of_interest = angular_velocity[frame_range:]
             else:
                 if grp["type"][0] == "empty_trial":
                     # print("ISI now")if "density" in grp.columns and grp["density"][0] == 0:
                     frame_range = analysis_window[0] * monitor_fps
-                    d_of_interest = distance_from_centre[frame_range:]
+                    xy_of_interest=focal_xy[:,frame_range:]
+                    #d_of_interest = distance_from_centre[frame_range:]
                     v_of_interest = instant_speed[frame_range:]
                     w_of_interest = angular_velocity[frame_range:]
                     basedline_v = np.mean(
@@ -439,7 +502,8 @@ def follow_behaviour_analysis(
                 else:
                     # print("stim now")
                     frame_range = analysis_window[1] * monitor_fps
-                    d_of_interest = distance_from_centre[:frame_range]
+                    #d_of_interest = distance_from_centre[:frame_range]
+                    xy_of_interest=focal_xy[:,:frame_range]
                     v_of_interest = instant_speed[:frame_range]
                     w_of_interest = angular_velocity[:frame_range]
                     if "basedline_v" in locals():
@@ -454,26 +518,22 @@ def follow_behaviour_analysis(
 
         if "density" in df_summary.columns:
             con_matrex = (
-                d_of_interest,
+                #d_of_interest,
+                xy_of_interest[0,:],
+                xy_of_interest[1,:],
                 v_of_interest,
                 w_of_interest,
                 normalised_v,
                 normalised_w,
                 np.repeat(iteration_count, v_of_interest.shape[0]),
-                # np.repeat(
-                #     df_focal_animal[df_focal_animal["fname"] == key]["mu"][0],
-                #     v_of_interest.shape[0],
-                # ),
-                # np.repeat(
-                #     df_focal_animal[df_focal_animal["fname"] == key]["density"][0],
-                #     v_of_interest.shape[0],
-                # ),
                 np.repeat(grp["mu"][0], v_of_interest.shape[0]),
                 np.repeat(grp["density"][0], v_of_interest.shape[0]),
             )
         else:
             con_matrex = (
-                d_of_interest,
+                #d_of_interest,
+                xy_of_interest[0,:],
+                xy_of_interest[1,:],
                 v_of_interest,
                 w_of_interest,
                 normalised_v,
@@ -634,7 +694,6 @@ def follow_behaviour_analysis(
                     "polar_angle": [grp["polar_angle"].values[0]],
                     "radial_distance": [grp["radial_distance"].values[0]],
                     "speed": [grp["speed"][0]],
-                    # "this_vr": [grp['this_vr'][0]],
                     "num_follow_epochs": [sum_follow_epochs],
                     "num_chance_epochs": [sum_chance_epochs],
                     "num_walk_epochs":[sum(walk_epochs)],
@@ -667,7 +726,8 @@ def follow_behaviour_analysis(
     raster_pd = pd.concat(raster_list)
     if "density" in df_summary.columns:
         raster_pd.columns = [
-            "distance_from_centre",
+            "X",
+            "Y",
             "velocity",
             "omega",
             "normalised_v",
@@ -678,7 +738,8 @@ def follow_behaviour_analysis(
         ]
     elif "type" in df_summary.columns:
         raster_pd.columns = [
-            "distance_from_centre",
+            "X",
+            "Y",
             "velocity",
             "omega",
             "normalised_v",
@@ -689,7 +750,8 @@ def follow_behaviour_analysis(
         ]
     else:
         raster_pd.columns = [
-            "distance_from_centre",
+            "X",
+            "Y",
             "velocity",
             "omega",
             "normalised_v",
