@@ -14,6 +14,7 @@ analysis_methods = {
     "load_individual_data": True,
     "select_animals_by_condition": True,
     "active_trials_only": True,
+    "split_stationary_moving_ISI":True,
     "align_with_isi_onset": False,
     "extract_follow_epoches": True,
     "follow_locustVR_criteria": True,
@@ -25,7 +26,7 @@ analysis_methods = {
     "monitor_fps": 60,
     "body_length": 4,
     "growth_condition": "G",
-    "analysis_window": [-10, 10],
+    "analysis_window": [-2, 5],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:
