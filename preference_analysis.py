@@ -27,15 +27,20 @@ def plot_relative_pos_distribution(relative_pos_of_interest,trial_type_of_intere
 def plot_preference_index(left_right_preference_across_animals,exp_con_preference_across_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all'):
     save_output= analysis_methods.get("save_output")
     object_of_interest=trial_type_of_interest[0].split("_x_")
-    if len(trial_type_of_interest)==1:
-        fig_name=f"preference_index_{this_vr}_condition_{trial_type_of_interest[0]}"
+    if len(object_of_interest)==1 and len(trial_type_of_interest)==2:
+        fig_name=f"preference_index_VR{this_vr}_homegenous_trials_multiple_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
         data_color='k'
-    elif len(trial_type_of_interest[0].split("_x_"))==1:
-        fig_name=f"preference_index_{this_vr}_homegenous_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
-        data_color='k'
-    else:
-        fig_name=f"preference_index_{this_vr}_top_{object_of_interest[1]}_bottom_{object_of_interest[0]}"
+    elif len(object_of_interest)==2 and len(trial_type_of_interest)==2:
+        fig_name=f"preference_index_VR{this_vr}_heterogenous_trials_multiple_condition_top_{object_of_interest[1]}_bottom_{object_of_interest[0]}"
         data_color='b'
+    elif len(object_of_interest)==1 and len(trial_type_of_interest)==1:
+        fig_name=f"preference_index_VR{this_vr}_homegenous_trials_single_condition_object_type_{object_of_interest[0]}"
+        data_color='k'
+    elif len(object_of_interest)==2 and len(trial_type_of_interest)==1:
+        fig_name=f"preference_index_VR{this_vr}_heterogenous_trials_single_condition_top_{object_of_interest[1]}_bottom_{object_of_interest[0]}"
+        data_color='b'
+    else:
+        print("error. trial type or object type used in the analysis should be no more than 2")
     preference_plot, (ax1,ax2) = plt.subplots(
         nrows=1, ncols=2, figsize=(8, 4), tight_layout=True
     )
@@ -129,17 +134,21 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
     epochs_exp_all_animals_hetero=np.zeros((len(thresholds),len(relative_pos_all_animals)))
     epochs_con_all_animals_hetero=np.zeros((len(thresholds),len(relative_pos_all_animals)))
     object_of_interest=trial_type_of_interest[0].split("_x_")
-    if len(trial_type_of_interest)==1:
-        print(f"assign epoch con is for {object_of_interest[0]} and epochs exp is for {object_of_interest[1]}")
-        fig_name=f"epochs_con_{object_of_interest[0]}_exp_{object_of_interest[1]}"
+    if len(object_of_interest)==1 and len(trial_type_of_interest)==2:
+        fig_name=f"epochs_VR{this_vr}_homegenous_trials_multiple_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
         data_color='k'
-    elif len(trial_type_of_interest[0].split("_x_"))==1:
-        fig_name=f"epochs_{this_vr}_homegenous_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
-        data_color='k'
-    else:
+    elif len(object_of_interest)==2 and len(trial_type_of_interest)==2:
         print(f"assign epoch con is for {object_of_interest[0]} and epochs exp is for {object_of_interest[1]}")
-        fig_name=f"epochs_con_{object_of_interest[0]}_exp_{object_of_interest[1]}"
+        fig_name=f"epochs_VR{this_vr}_heterogenous_trials_multiple_condition_con_{object_of_interest[0]}_exp_{object_of_interest[1]}"
         data_color='b'
+    elif len(object_of_interest)==1 and len(trial_type_of_interest)==1:
+        fig_name=f"epochs_VR{this_vr}_homegenous_trials_single_condition_object_type_{object_of_interest[0]}"
+        data_color='k'
+    elif len(object_of_interest)==2 and len(trial_type_of_interest)==1:
+        fig_name=f"epochs_VR{this_vr}_heterogenous_trials_single_condition_object_type_{object_of_interest[0]}_and_{object_of_interest[1]}"
+        data_color='b'
+    else:
+        print("error. trial type or object type used in the analysis should be no more than 2")
     for i,relative_pos_this_animal in enumerate(relative_pos_all_animals):
         trial_type_list=sorted(relative_pos_this_animal['type'].unique(), key=len)
         if len(trial_type_list)<4:
@@ -161,20 +170,29 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
             epochs_con_array=np.zeros((len(thresholds)))
             for j,this_threshold in enumerate(thresholds):
                 ##return agent ID when relative distance is within the threshold
-                ##sum agent ID to get epochs for the Right object because agent ID is 1 for the right object and 0 for the left object
-                epochs_forR=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)
+                ##sum agent ID to get epochs for the Right object because agent ID is 0 for the right object and 1 for the left object
+                epochs_forL=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)
                 ##epochs for the L object comes from the rest of element in the array
-                epochs_forL=grp[relative_distance<this_threshold]["agent_id"].values.shape[0]-epochs_forR
+                epochs_forR=grp[relative_distance<this_threshold]["agent_id"].values.shape[0]-epochs_forL
                 ##assign epochs_exp or epochs_con based on the trial type, if the trial type is not of interest, assign NaN
-                if key==trial_type_of_interest[1]:
-                    epochs_exp=epochs_forR
-                    epochs_con=epochs_forL
-                elif key==trial_type_of_interest[0]:
-                    epochs_exp=epochs_forL
-                    epochs_con=epochs_forR
-                else:
-                    epochs_exp=np.nan
-                    epochs_con=np.nan
+                if len(trial_type_of_interest)==2:
+                    if key==trial_type_of_interest[1]:
+                        epochs_exp=epochs_forL
+                        epochs_con=epochs_forR
+                    elif key==trial_type_of_interest[0]:
+                        epochs_exp=epochs_forR
+                        epochs_con=epochs_forL
+                    else:
+                        (epochs_con,epochs_exp,epochs_forL,epochs_forR)=(np.nan,np.nan,np.nan,np.nan)
+                elif len(trial_type_of_interest)==1:
+                    if len(object_of_interest)==1 and key==object_of_interest[0]:
+                        epochs_exp=epochs_forR
+                        epochs_con=epochs_forL
+                    elif len(object_of_interest)==2 and key==trial_type_of_interest[0]:
+                        epochs_exp=epochs_forR
+                        epochs_con=epochs_forL
+                    else:
+                        (epochs_con,epochs_exp,epochs_forL,epochs_forR)=(np.nan,np.nan,np.nan,np.nan)
                 epochs_forL_array[j]=epochs_forL
                 epochs_forR_array[j]=epochs_forR
                 epochs_exp_array[j]=epochs_exp
@@ -191,23 +209,39 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
                 hetero_no=hetero_no+1
             else:
                 Warning("unknown trial")
-        epochs_forL_all_animals_homo[:,i]=np.sum(epochs_forL_this_animal_homo,axis=1)
-        epochs_forR_all_animals_homo[:,i]=np.sum(epochs_forR_this_animal_homo,axis=1)
-        epochs_forL_all_animals_hetero[:,i]=np.sum(epochs_forL_this_animal_hetero,axis=1)
-        epochs_forR_all_animals_hetero[:,i]=np.sum(epochs_forR_this_animal_hetero,axis=1)
-        epochs_exp_all_animals_hetero[:,i]=np.sum(epochs_exp_this_animal_hetero,axis=1)
-        epochs_con_all_animals_hetero[:,i]=np.sum(epochs_con_this_animal_hetero,axis=1)
+        epochs_forL_all_animals_homo[:,i]=np.nansum(epochs_forL_this_animal_homo,axis=1)
+        epochs_forR_all_animals_homo[:,i]=np.nansum(epochs_forR_this_animal_homo,axis=1)
+        epochs_forL_all_animals_hetero[:,i]=np.nansum(epochs_forL_this_animal_hetero,axis=1)
+        epochs_forR_all_animals_hetero[:,i]=np.nansum(epochs_forR_this_animal_hetero,axis=1)
+        epochs_exp_all_animals_hetero[:,i]=np.nansum(epochs_exp_this_animal_hetero,axis=1)
+        epochs_con_all_animals_hetero[:,i]=np.nansum(epochs_con_this_animal_hetero,axis=1)
+        #print(epochs_forL_all_animals_homo)
     ##calculate preference index: positive value means prefer L object and negative value means prefer R object
-    #preferL_index=(epochs_forL-epochs_forR)/(epochs_forR+epochs_forL)
-    if len(trial_type_of_interest[0].split("_x_")) == len(trial_type_of_interest[1].split("_x_")):
-        if len(trial_type_of_interest[0].split("_x_"))==1:
-            epochs_exp_all_animals=epochs_forL_all_animals_homo
-            epochs_con_all_animals=epochs_forR_all_animals_homo
+    if len(object_of_interest)==1:
+        if len(trial_type_of_interest)==1:
+            #single homo
+            epochs_con_all_animals=epochs_forL_all_animals_homo
+            epochs_exp_all_animals=epochs_forR_all_animals_homo
             epochs_forL_all_animals=epochs_forL_all_animals_homo
             epochs_forR_all_animals=epochs_forR_all_animals_homo
-            left_right_preference_across_animals=(epochs_forL_all_animals_homo-epochs_forR_all_animals_homo)/(epochs_forL_all_animals_homo+epochs_forR_all_animals_homo)
-            exp_con_preference_across_animals=left_right_preference_across_animals
-        elif len(trial_type_of_interest[0].split("_x_"))==2:
+        elif len(trial_type_of_interest)==2:
+            #multiple homo
+            epochs_con_all_animals=epochs_forL_all_animals_homo
+            epochs_exp_all_animals=epochs_forR_all_animals_homo
+            epochs_forL_all_animals=epochs_forL_all_animals_homo
+            epochs_forR_all_animals=epochs_forR_all_animals_homo
+        else:
+            Warning("unknown trial naming")
+            left_right_preference_across_animals,exp_con_preference_across_animals=(np.nan,np.nan)
+    elif len(object_of_interest)==2:
+        if len(trial_type_of_interest)==1:
+            #multiple homo
+            epochs_exp_all_animals=epochs_forR_all_animals_hetero
+            epochs_con_all_animals=epochs_forL_all_animals_hetero
+            epochs_forL_all_animals=epochs_forL_all_animals_hetero
+            epochs_forR_all_animals=epochs_forR_all_animals_hetero
+        elif len(trial_type_of_interest)==2:
+            #multiple hetero
             epochs_exp_all_animals=epochs_exp_all_animals_hetero
             epochs_con_all_animals=epochs_con_all_animals_hetero
             epochs_forL_all_animals=epochs_forL_all_animals_hetero
@@ -216,8 +250,9 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
             Warning("unknown trial naming")
             left_right_preference_across_animals,exp_con_preference_across_animals=(np.nan,np.nan)
     else:
-        Warning("mixing heterogeneous and homoegeneous trials")
+        Warning("unknown trial naming")
         left_right_preference_across_animals,exp_con_preference_across_animals=(np.nan,np.nan)
+
     exp_con_preference_across_animals=(epochs_exp_all_animals-epochs_con_all_animals)/(epochs_exp_all_animals+epochs_con_all_animals)
     left_right_preference_across_animals=(epochs_forL_all_animals-epochs_forR_all_animals)/(epochs_forL_all_animals+epochs_forR_all_animals)
     plot_epochs_time(epochs_exp_all_animals,epochs_con_all_animals,epochs_forL_all_animals,epochs_forR_all_animals,analysis_methods,fig_name,data_color,thresholds)
