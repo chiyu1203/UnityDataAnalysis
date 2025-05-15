@@ -57,7 +57,11 @@ class MplColorHelper:
 colormap_name = "coolwarm"
 sm = cm.ScalarMappable(cmap=colormap_name)
 COL = MplColorHelper(colormap_name, 0, 8)
-
+def get_list_depth(lst):
+    if isinstance(lst, list):
+        return 1 + max(get_list_depth(item) for item in lst)
+    else:
+        return 0
 
 def save_curated_dataset(
     thisH5,
@@ -229,7 +233,7 @@ def fill_missing_data(df):
     return df
 
 
-def reshape_multiagent_data(df, this_object):
+def reshape_multiagent_data(df, this_object=None):
     if "Timestamp" in df.columns:
         number_of_duplicates = df["Timestamp"].drop_duplicates().shape[0]
         number_of_instances = int(df.shape[0] / number_of_duplicates)
@@ -314,7 +318,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
             agent_speed = df.columns[10]
             conditions = {
                 "density": float(density),
-                mu.split(":")[0].lower(): int(mu.split(":")[1]),
+                mu.split(":")[0].lower(): float(mu.split(":")[1]),
                 kappa.split(":")[0].lower(): float(kappa.split(":")[1]),
                 "speed": float(agent_speed.split(":")[1]),
             }
@@ -324,7 +328,7 @@ def read_agent_data(this_file, analysis_methods, these_parameters=None):
             agent_speed = these_parameters["locustSpeed"]
             conditions = {
                 "density": float(density),
-                "mu": int(mu),
+                "mu": float(mu),
                 "kappa": float(kappa),
                 "speed": float(agent_speed),
             }
@@ -520,6 +524,7 @@ def analyse_focal_animal(
         elif len(session_id.value_counts()) > 1 & analyze_one_session_only == True:
             break
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
+        list_depth=get_list_depth(df_simulated_animal)
         if scene_name == "choice" and id % 2 > 0:
             if type(df_simulated_animal[id]) == list:
                 df_simulated = df_simulated_animal[id][0]
@@ -536,7 +541,16 @@ def analyse_focal_animal(
             these_simulated_agents = these_simulated_agents.reindex(
                 ts.index, method="nearest"
             )
-
+        elif (
+            scene_name != "choice"
+            and isinstance(df_simulated_animal[id], pd.DataFrame) == False
+        ):
+            if list_depth==1:
+                pass
+            elif isinstance(df_simulated_animal[id][0], pd.DataFrame) == True:
+                these_simulated_agents = df_simulated_animal[id][0].reindex(ts.index, method="nearest")
+                plus1 = df_simulated_animal[id][1].reindex(ts.index, method="nearest")
+                these_simulated_agents=these_simulated_agents.join(plus1)
         if time_series_analysis:
             elapsed_time = (ts - ts.min()).dt.total_seconds().values
             if analysis_methods.get("filtering_method") == "sg_filter":
@@ -619,15 +633,15 @@ def analyse_focal_animal(
                 value2 = diff_con["values_changed"]["root['type']"]["new_value"]
                 condition["type"] = f"{value1}_x_{value2}"
 
-        spe = [condition["speed"]] * len(dX)
-        mu = [condition["mu"]] * len(dX)
+        spe = [float(condition["speed"])] * len(dX)
+        mu = [float(condition["mu"])] * len(dX)
         du = [condition["duration"]] * len(dX)
         if scene_name.lower() == "swarm" or scene_name.lower() == "band":
-            order = [condition["kappa"]] * len(dX)
+            order = [float(condition["kappa"])] * len(dX)
             density = [condition["density"]] * len(dX)
         if scene_name.lower() == "choice" or scene_name.lower() == "band":
-            polar_angle = [condition["polar_angle"]] * len(dX)
-            radial_distance = [condition["radial_distance"]] * len(dX)
+            polar_angle = [float(condition["polar_angle"])] * len(dX)
+            radial_distance = [float(condition["radial_distance"])] * len(dX)
 
         if scene_name.lower() == "choice":
             if condition["type"] == "":
@@ -649,7 +663,7 @@ def analyse_focal_animal(
                 "heading": angles,
                 "fname": f,
                 "mu": mu,
-                "agent_speed": spe,
+                "speed": spe,
                 "duration": du,
             }
         )
@@ -695,26 +709,31 @@ def analyse_focal_animal(
                             agent_dY = agent_rXY[1][newindex]
                         agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
 
-            elif (
-                isinstance(df_simulated_animal[id], pd.DataFrame) == True
-                and "these_simulated_agents" in locals()
-            ):
+            # elif (
+            #     isinstance(df_simulated_animal[id], pd.DataFrame) == True
+            #     and "these_simulated_agents" in locals()
+            # ):
+            elif "these_simulated_agents" in locals():
+                pivot_table_column=3
                 num_agent = int(these_simulated_agents.shape[1] / 3)
                 agent_dXY_list = []
-                for i in range(0, num_agent):
-                    agent_xy = np.vstack(
-                        (
-                            these_simulated_agents.iloc[:,0].values,
-                            these_simulated_agents.iloc[:,1].values,
+                if isinstance(df_simulated_animal[id], pd.DataFrame) == True or isinstance(df_simulated_animal[id][0], pd.DataFrame) == True:
+                    for i in range(0, num_agent):
+                        agent_xy = np.vstack(
+                            (
+                                these_simulated_agents.iloc[:,i*pivot_table_column].values,
+                                these_simulated_agents.iloc[:,i*pivot_table_column+1].values,
+                            )
                         )
-                    )
-                    agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
-                    if time_series_analysis:
-                        (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
-                    else:
-                        agent_dX = agent_rXY[0][newindex]
-                        agent_dY = agent_rXY[1][newindex]
-                    agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
+                        agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
+                        if time_series_analysis:
+                            (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
+                        else:
+                            agent_dX = agent_rXY[0][newindex]
+                            agent_dY = agent_rXY[1][newindex]
+                        agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
+                del these_simulated_agents
+                
             if "agent_dX" in locals() and scene_name.lower() == "choice":
                 df_agent_list = []
                 for k in range(len(agent_dXY_list)):
@@ -726,7 +745,7 @@ def analyse_focal_animal(
                             "Y": this_agent_dy,
                             "fname": [fchop] * len(this_agent_dx),
                             "mu": mu,
-                            "agent_speed": spe,
+                            "speed": spe,
                         }
                     )
                     # df_agent["agent_type"] = [value_list[k]] * len(
@@ -742,7 +761,7 @@ def analyse_focal_animal(
                         "Y": agent_dY,
                         "fname": [fchop] * len(agent_dX),
                         "mu": mu,
-                        "agent_speed": spe,
+                        "speed": spe,
                     }
                 )
                 print("there is a unfixed bug about how to name the number of agent")
@@ -757,8 +776,8 @@ def analyse_focal_animal(
                             "X": this_agent_dx,
                             "Y": this_agent_dy,
                             "fname": [fchop] * len(this_agent_dx),
-                            "mu": mu,
-                            "agent_speed": spe,
+                            # "mu": mu,
+                            # "speed": spe,
                         }
                     )
                     # df_agent["agent_type"] = [value_list[k]] * len(
@@ -866,7 +885,6 @@ def analyse_focal_animal(
                                     this_pd[this_different_key] = np.nan
                                 else:
                                     pass
-
                         store.append(
                             this_hdf,
                             this_pd,
@@ -1095,6 +1113,10 @@ def preprocess_matrex_data(thisDir, json_file):
                             else:
                                 df_agent = None
                             result_list.append(df_agent)
+                            if this_object==0 and num_object_on_scene==2:
+                                condition["duration"] = trial_sequence["sequences"][idx]["duration"]  # may need to add condition to exclude some kind of data from choice assay.
+                                condition_list.append(condition)
+
                     condition["duration"] = trial_sequence["sequences"][idx][
                         "duration"
                     ]  # may need to add condition to exclude some kind of data from choice assay.
@@ -1191,9 +1213,11 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
     # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241012_162147"
+    #thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241013_144457"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250513_121205"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250103_140602"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241228_160619"
     # thisDir = r"C:/Users/neuroLaptop/Documents/20241014_175759"
     # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
