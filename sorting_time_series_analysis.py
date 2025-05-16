@@ -32,11 +32,11 @@ def nan_helper(y):
 
     return np.isnan(y), lambda z: z.nonzero()[0]
 
-def sort_raster_fictrac(raster_across_animals_fictrac,all_evaluation,animal_interest,step_interest,var1,var2,analysis_methods):
+def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_interest,analysis_methods,all_evaluation,var1,var2=None):
     analysis_window=analysis_methods.get("analysis_window")
     split_stationary_moving_ISI=analysis_methods.get("split_stationary_moving_ISI")
     monitor_fps=analysis_methods.get("monitor_fps")
-    walk_threshold=1
+    walk_threshold=0.1
     raster_interest=[]
     column_list = ["step_id", "elapsed_time", "instant_speed", "instant_angular_velocity"]
     n_datapoints=(analysis_window[1]-analysis_window[0])*monitor_fps
@@ -52,6 +52,7 @@ def sort_raster_fictrac(raster_across_animals_fictrac,all_evaluation,animal_inte
         _, turn_degree_fbf = diff_angular_degree(rot_y,0,False)
         instant_angular_velocity = turn_degree_fbf /np.diff(elapsed_time)
         instant_speed = calculate_speed(np.diff(X),np.diff(Y),elapsed_time,0)
+        #plt.hist(instant_speed)
         degree_time = np.vstack(
         (
             step_id[:-1],
@@ -79,8 +80,12 @@ def sort_raster_fictrac(raster_across_animals_fictrac,all_evaluation,animal_inte
                 pd_to_extract.insert(0,'run_trial',np.repeat(run_trial,n_datapoints))
             pd_to_extract.insert(0,'heading',heading_angle_0)
             pd_to_extract.insert(0, 'frame_count', np.arange(n_datapoints))
-            pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var1].to_numpy(),n_datapoints))
-            pd_to_extract.insert(0, var2, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var2].to_numpy(),n_datapoints))
+            if 'step_id' in this_evaluation.columns:
+                pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['step_id']==int(this_step)][var1].to_numpy(),n_datapoints))
+            elif 'trial_id' in this_evaluation.columns:
+                pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var1].to_numpy(),n_datapoints))
+            if var2 != None:
+                pd_to_extract.insert(0, var2, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var2].to_numpy(),n_datapoints))
             pd_to_extract.insert(0,'animal_id',np.repeat(this_animal,n_datapoints))
             #pd_to_extract = pd_to_extract.set_index([var1, var2]) 
             raster_interest.append(pd_to_extract)
