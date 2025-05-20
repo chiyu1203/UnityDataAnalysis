@@ -36,7 +36,7 @@ def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_inter
     analysis_window=analysis_methods.get("analysis_window")
     split_stationary_moving_ISI=analysis_methods.get("split_stationary_moving_ISI")
     monitor_fps=analysis_methods.get("monitor_fps")
-    walk_threshold=0.1
+    walk_threshold=1
     raster_interest=[]
     column_list = ["step_id", "elapsed_time", "instant_speed", "instant_angular_velocity"]
     n_datapoints=(analysis_window[1]-analysis_window[0])*monitor_fps
@@ -391,6 +391,12 @@ def follow_behaviour_analysis(
     raster_list = []
     trial_id = 0
     iteration_count = 0
+    if analysis_methods.get("analyse_first_half_only", False):
+        df_summary=df_summary[:int(df_summary.shape[0]/2)]
+    elif analysis_methods.get("analyse_second_half_only", False):
+        df_summary=df_summary[int(df_summary.shape[0]/2):]
+    else:
+        pass
     for key, grp in df_summary.groupby("fname"):
         focal_xy = np.vstack(
             (

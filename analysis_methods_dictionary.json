@@ -1,8 +1,8 @@
 {
     "experiment_name": "choice",
     "overwrite_curated_dataset": true,
-    "export_motion_only": true,
-    "save_output": true,
+    "export_motion_only": false,
+    "save_output": false,
     "time_series_analysis": true,
     "filtering_method": "sg_filter",
     "plotting_trajectory": false,
@@ -16,6 +16,8 @@
     "extract_follow_epoches": true,
     "follow_locustVR_criteria": true,
     "calculate_follow_chance_level": true,
+    "analyse_first_half_only": true,
+    "analyse_second_half_only": false,
     "graph_colour_code": [
         "r",
         "b",
@@ -28,12 +30,12 @@
     ],
     "follow_within_distance": 50,
     "camera_fps": 100,
-    "trackball_radius_cm": 0.5,
+    "trackball_radius_cm": 5,
     "monitor_fps": 60,
     "body_length": 4,
     "growth_condition": "G",
     "analysis_window": [
-        -2,
-        5
+        -10,
+        10
     ]
 }
