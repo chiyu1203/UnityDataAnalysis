@@ -420,7 +420,7 @@ def analyse_focal_animal(
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
-    export_motion_only = analysis_methods.get("export_motion_only", False)
+    export_fictrac_data_only = analysis_methods.get("export_fictrac_data_only", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
     scene_name = analysis_methods.get("experiment_name")
     analyze_one_session_only = True
@@ -481,10 +481,11 @@ def analyse_focal_animal(
     remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
     loss = 1 - remains
     elapsed_time = (ts - ts.min()).dt.total_seconds().values
-    if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
-        pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"step_id": step_id}), pa_file_path)
+    if time_series_analysis==True:
+        if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
+            pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"step_id": step_id}), pa_file_path)
     print(f"export {pa_file_path}")
-    if export_motion_only:
+    if export_fictrac_data_only:
         return None,None,None,None
     if tem_df is None:
         df["Temperature ˚C (ºC)"] = np.nan
@@ -536,6 +537,7 @@ def analyse_focal_animal(
             scene_name != "choice"
             and isinstance(df_simulated_animal[id], pd.DataFrame) == True
         ):
+            num_agent_game_object=len(df_simulated_animal[id])
             these_simulated_agents = df_simulated_animal[id]
             these_simulated_agents = these_simulated_agents.reindex(
                 ts.index, method="nearest"
@@ -547,9 +549,14 @@ def analyse_focal_animal(
             if list_depth==1:
                 pass
             elif isinstance(df_simulated_animal[id][0], pd.DataFrame) == True:
-                these_simulated_agents = df_simulated_animal[id][0].reindex(ts.index, method="nearest")
-                plus1 = df_simulated_animal[id][1].reindex(ts.index, method="nearest")
-                these_simulated_agents=these_simulated_agents.join(plus1)
+                num_agent_game_object=len(df_simulated_animal[id])
+                reindex_temp_list=[]
+                for i in range(num_agent_game_object):
+                    reindex_temp_list.append(df_simulated_animal[id][i].reindex(ts.index, method="nearest"))
+                #these_simulated_agents = df_simulated_animal[id][0].reindex(ts.index, method="nearest")
+                #plus1 = df_simulated_animal[id][1].reindex(ts.index, method="nearest")
+                these_simulated_agents=pd.concat(reindex_temp_list,axis=1)
+                #these_simulated_agents=these_simulated_agents.join(plus1)
         if time_series_analysis:
             elapsed_time = (ts - ts.min()).dt.total_seconds().values
             if analysis_methods.get("filtering_method") == "sg_filter":
@@ -713,24 +720,25 @@ def analyse_focal_animal(
             #     and "these_simulated_agents" in locals()
             # ):
             elif "these_simulated_agents" in locals():
-                pivot_table_column=3
-                num_agent = int(these_simulated_agents.shape[1] / 3)
+                pivot_table_column=int(len(these_simulated_agents.columns)/len(these_simulated_agents.columns.get_level_values(0).unique()))
+                num_agent_per_object = int(these_simulated_agents.shape[1] / pivot_table_column/2)
                 agent_dXY_list = []
                 if isinstance(df_simulated_animal[id], pd.DataFrame) == True or isinstance(df_simulated_animal[id][0], pd.DataFrame) == True:
-                    for i in range(0, num_agent):
-                        agent_xy = np.vstack(
-                            (
-                                these_simulated_agents.iloc[:,i*pivot_table_column].values,
-                                these_simulated_agents.iloc[:,i*pivot_table_column+1].values,
+                    for j in range(num_agent_game_object):
+                        for i in range(num_agent_per_object):
+                            agent_xy = np.vstack(
+                                (
+                                    these_simulated_agents.iloc[:,0*num_agent_per_object+j*num_agent_per_object*pivot_table_column+i].values,
+                                    these_simulated_agents.iloc[:,1*num_agent_per_object+j*num_agent_per_object*pivot_table_column+i].values,
+                                )
                             )
-                        )
-                        agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
-                        if time_series_analysis:
-                            (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
-                        else:
-                            agent_dX = agent_rXY[0][newindex]
-                            agent_dY = agent_rXY[1][newindex]
-                        agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
+                            agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
+                            if time_series_analysis:
+                                (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
+                            else:
+                                agent_dX = agent_rXY[0][newindex]
+                                agent_dY = agent_rXY[1][newindex]
+                            agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
                 del these_simulated_agents
                 
             if "agent_dX" in locals() and scene_name.lower() == "choice":
@@ -770,6 +778,7 @@ def analyse_focal_animal(
                 for k in range(len(agent_dXY_list)):
                     this_agent_dx = agent_dXY_list[k][0]
                     this_agent_dy = agent_dXY_list[k][1]
+                    #if num_agent_game_object>1 and num_agent_per_object>1 and k>0:
                     df_agent = pd.DataFrame(
                         {
                             "X": this_agent_dx,
@@ -863,15 +872,25 @@ def analyse_focal_animal(
                     store = pd.HDFStore(this_name)
                     if len(hdf_keys) > 1 and this_name == agent_file_path:
                         value_list = [object_type[0]] * len(df_agent_list)
-                        for j in range(len(df_agent_list)):
-                            agent_key = value_list[j]
-                            this_pd = df_agent_list[j]
+                        if scene_name.lower() == "band"and num_agent_game_object>1 and num_agent_per_object>1:  
+                            agent_key = value_list[0]
+                            this_pd = pd.concat(df_agent_list,axis=0)
                             store.append(
                                 agent_key,
                                 this_pd,
                                 format="t",
                                 data_columns=this_pd.columns,
                             )
+                        else:
+                            for j in range(len(df_agent_list)):
+                                agent_key = value_list[j]
+                                this_pd = df_agent_list[j]
+                                store.append(
+                                    agent_key,
+                                    this_pd,
+                                    format="t",
+                                    data_columns=this_pd.columns,
+                                )
                         store.close()
                     else:
                         if len(different_key_list) > 0:
@@ -953,7 +972,7 @@ def preprocess_matrex_data(thisDir, json_file):
     scene_name = analysis_methods.get("experiment_name")
     ## here to load simulated agent's data
     for i in range(num_vr):
-        if analysis_methods.get("export_motion_only",False)==False:
+        if analysis_methods.get("export_fictrac_data_only",False)==False:
             if scene_name.lower() == "swarm" or scene_name.lower() == "band":
                 agent_pattern = f"*SimulatedLocustsVR{i+1}*"
             elif scene_name.lower() == "choice":

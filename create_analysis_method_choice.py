@@ -4,7 +4,7 @@ file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experiment_name": "choice",
     "overwrite_curated_dataset": True,
-    "export_motion_only":False,
+    "export_fictrac_data_only":False,
     "save_output": False,
     "time_series_analysis": True,
     "filtering_method": "sg_filter",
