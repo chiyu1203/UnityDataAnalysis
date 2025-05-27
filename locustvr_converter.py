@@ -36,7 +36,7 @@ from data_cleaning import (
     removeFictracNoise,
     bfill,
     diskretize,
-    findLongestConseqSubseq,interp_fill,euclean_distance
+    findLongestConseqSubseq,interp_fill,euclidean_distance
 )
 from sorting_time_series_analysis import calculate_speed,diff_angular_degree
 
@@ -416,7 +416,6 @@ def analyse_focal_animal(
     conditions,
     tem_df=None,
 ):
-
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     save_output = analysis_methods.get("save_output", False)
@@ -615,7 +614,7 @@ def analyse_focal_animal(
         std = np.sqrt(2 * (1 - meanVector))
 
         tdist = (
-            np.sum(euclean_distance(X,Y))
+            np.sum(euclidean_distance(X,Y))
             if time_series_analysis
             else len(dX) * BODY_LENGTH3
         )  ##The distance calculated based on spatial discretisation should be the shortest
@@ -954,212 +953,170 @@ def preprocess_matrex_data(thisDir, json_file):
     scene_name = analysis_methods.get("experiment_name")
     ## here to load simulated agent's data
     for i in range(num_vr):
-        if scene_name.lower() == "swarm" or scene_name.lower() == "band":
-            agent_pattern = f"*SimulatedLocustsVR{i+1}*"
-        elif scene_name.lower() == "choice":
-            agent_pattern = "*Leader*"
-        found_result = find_file(thisDir, agent_pattern)
-        if found_result is None:
-            return print(f"file with {agent_pattern} not found")
-        else:
-            df_simulated_animal = []
-            conditions = []
-            if isinstance(found_result, list):
-                num_type_object = len(found_result)
-                print(
-                    f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
-                )
-                json_pattern = "*sequenceConfig.json"
-                json_file = find_file(thisDir, json_pattern)
-                with open(json_file, "r") as f:
-                    print(f"load trial sequence from file {json_file}")
-                    trial_sequence = json.loads(f.read())
-                for idx in range(len(trial_sequence["sequences"])):
-                    if "configFile" in trial_sequence["sequences"][idx]["parameters"]:
-                        config_file = trial_sequence["sequences"][idx]["parameters"][
-                            "configFile"
-                        ]  # need to figure out how to deal with swarm data
-                        this_config_file = find_file(thisDir, "*" + config_file)
-                        with open(this_config_file, "r") as f:
-                            print(f"load trial conditions from file {this_config_file}")
-                            trial_condition = json.loads(f.read())
-                        num_object_on_scene = len(trial_condition["objects"])
-                    else:
-                        trial_condition = trial_sequence["sequences"][idx]["parameters"]
-                        num_object_on_scene = 1
-                    # this_file = found_result[idx * num_object_on_scene]
-                    result_list = []
-                    condition_list = []
-                    if scene_name.lower() == "choice":
-                        df_list = []
-                        if "df" not in locals():
-                            for j in range(len(found_result)):
-                                df_list.append(load_file(found_result[j]))
-                            df = pd.concat(df_list, ignore_index=True)
-                        this_range = (df["CurrentStep"] == idx) & (
-                            df["CurrentTrial"] == 0
-                        )
-                        for this_object in range(num_object_on_scene):
-                            result, condition = read_agent_data(
-                                df[this_range],
-                                analysis_methods,
-                                trial_condition["objects"][this_object],
+        if analysis_methods.get("export_motion_only",False)==False:
+            if scene_name.lower() == "swarm" or scene_name.lower() == "band":
+                agent_pattern = f"*SimulatedLocustsVR{i+1}*"
+            elif scene_name.lower() == "choice":
+                agent_pattern = "*Leader*"
+            found_result = find_file(thisDir, agent_pattern)
+            if found_result is None:
+                return print(f"file with {agent_pattern} not found")
+            else:
+                df_simulated_animal = []
+                conditions = []
+                if isinstance(found_result, list):
+                    print(
+                        f"Analyze {agent_pattern} data which come with multiple trials of vr models. Use a for-loop to go through them"
+                    )
+                    json_pattern = "*sequenceConfig.json"
+                    json_file = find_file(thisDir, json_pattern)
+                    with open(json_file, "r") as f:
+                        print(f"load trial sequence from file {json_file}")
+                        trial_sequence = json.loads(f.read())
+                    for idx in range(len(trial_sequence["sequences"])):
+                        if "configFile" in trial_sequence["sequences"][idx]["parameters"]:
+                            config_file = trial_sequence["sequences"][idx]["parameters"][
+                                "configFile"
+                            ]  # need to figure out how to deal with swarm data
+                            this_config_file = find_file(thisDir, "*" + config_file)
+                            if type(this_config_file) == list:
+                                this_config_file = this_config_file[0]
+                            with open(this_config_file, "r") as f:
+                                print(f"load trial conditions from file {this_config_file}")
+                                trial_condition = json.loads(f.read())
+                            num_object_on_scene = len(trial_condition["objects"])
+                        else:
+                            ## if not using config file then only one Unity object is present in a trial
+                            trial_condition = trial_sequence["sequences"][idx]["parameters"]
+                            num_object_on_scene = 1
+                        result_list = []
+                        condition_list = []
+                        if scene_name.lower() == "choice":
+                            df_list = []
+                            if "df" not in locals():
+                                for j in range(len(found_result)):
+                                    df_list.append(load_file(found_result[j]))
+                                df = pd.concat(df_list, ignore_index=True)
+                            this_range = (df["CurrentStep"] == idx) & (
+                                df["CurrentTrial"] == 0
                             )
-
-                            if num_object_on_scene > 1:
-                                # if isinstance(result, pd.DataFrame) == True:
-                                #     result.drop_duplicates(subset=["GameObjectPosZ"], keep='last',inplace=True)
-                                if this_object == 0:
-                                    condition["duration"] = trial_sequence["sequences"][
-                                        idx
-                                    ][
-                                        "duration"
-                                    ]  # may need to add condition to exclude some kind of data from choice assay.
-                                    condition_list.append(condition)
-                                if (
-                                    (
-                                        trial_condition["objects"][0]["type"]
-                                        == trial_condition["objects"][1]["type"]
-                                    )
-                                    and (this_object == 1)
-                                    and (trial_condition["objects"][0]["type"] != "")
-                                ):
-                                    theta = np.radians(trial_condition["objects"][1]['mu']+270)
-                                    # applying rotation matrix to rotate the coordinates
-                                    # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
-                                    rot_matrix = np.array(
-                                        [
-                                            [np.cos(theta), -np.sin(theta)],
-                                            [np.sin(theta), np.cos(theta)],
-                                        ]
-                                    )
-                                    rXY = rot_matrix @ np.vstack(
-                                        (
-                                            result["GameObjectPosX"].values,
-                                            result["GameObjectPosZ"].values,
-                                        )
-                                    )
-                                    result["GameObjectPosX"] = rXY[1]
-                                    result["GameObjectPosZ"] = rXY[0]
-                                result_list.append(result)
-                                if isinstance(result, pd.DataFrame) == True and (
-                                    this_object == 1
-                                ):
-                                    if len(result_list[0]) >= len(result_list[1]):
-                                        matched_id = np.searchsorted(
-                                            result_list[0]["Current Time"].values,
-                                            result_list[1]["Current Time"].values,
-                                        )
-                                        if (
-                                            matched_id.shape[0]
-                                            == result_list[0].shape[0]
-                                        ):
-                                            pass
-                                        elif matched_id[-1] >= result_list[0].shape[0]:
-                                            result_list[0] = result_list[0].iloc[
-                                                matched_id[:-1], :
-                                            ]
-                                        else:
-                                            result_list[0] = result_list[0].iloc[
-                                                matched_id, :
-                                            ]
-                                    elif len(result_list[0]) < len(result_list[1]):
-                                        matched_id = np.searchsorted(
-                                            result_list[1]["Current Time"].values,
-                                            result_list[0]["Current Time"].values,
-                                        )
-                                        if (
-                                            matched_id.shape[0]
-                                            == result_list[1].shape[0]
-                                        ):
-                                            pass
-                                        elif matched_id[-1] >= result_list[1].shape[0]:
-                                            result_list[1] = result_list[1].iloc[
-                                                matched_id[:-1], :
-                                            ]
-                                        else:
-                                            result_list[1] = result_list[1].iloc[
-                                                matched_id, :
-                                            ]
-                                    df_agent = reshape_multiagent_data(
-                                        pd.concat(result_list), this_object
-                                    )
-                                    result_list = []
-                                    result_list.append(df_agent)
-                                else:
-                                    df_agent = None
-                            else:
-                                result_list.append(result)
-                    else:
-                        for this_object in range(num_object_on_scene):
-                            if "objects" in trial_condition:
+                            for this_object in range(num_object_on_scene):
                                 result, condition = read_agent_data(
-                                    found_result[
-                                        idx * num_object_on_scene + this_object
-                                    ],
+                                    df[this_range],
                                     analysis_methods,
                                     trial_condition["objects"][this_object],
                                 )
-                            else:
-                                result, condition = read_agent_data(
-                                    found_result[
-                                        idx * num_object_on_scene + this_object
-                                    ],
-                                    analysis_methods,
-                                    trial_condition,
-                                )
-                            if isinstance(result, pd.DataFrame) == True:
-                                df_agent = reshape_multiagent_data(result, this_object)
-                            else:
-                                df_agent = None
-                            result_list.append(df_agent)
-                            if this_object==0 and num_object_on_scene==2:
-                                condition["duration"] = trial_sequence["sequences"][idx]["duration"]  # may need to add condition to exclude some kind of data from choice assay.
-                                condition_list.append(condition)
 
-                    condition["duration"] = trial_sequence["sequences"][idx][
-                        "duration"
-                    ]  # may need to add condition to exclude some kind of data from choice assay.
-                    condition_list.append(condition)
-                    if num_object_on_scene == 1:
-                        conditions.append(condition_list[0])
-                        df_simulated_animal.append(result_list[0])
-                    else:
-                        conditions.append(condition_list)
-                        df_simulated_animal.append(result_list)
-
-            elif len(found_result.stem) > 0:
-                json_pattern = "*sequenceConfig.json"
-                json_file = find_file(thisDir, json_pattern)
-                with open(json_file, "r") as f:
-                    print(f"load trial sequence from file {json_file}")
-                    trial_sequence = json.loads(f.read())
-                for idx in range(len(trial_sequence["sequences"])):
-                    if "configFile" in trial_sequence["sequences"][idx]["parameters"]:
-                        config_file = trial_sequence["sequences"][idx]["parameters"][
-                            "configFile"
-                        ]  # need to figure out how to deal with swarm data
-                        this_config_file = find_file(thisDir, "*" + config_file)
-                        with open(this_config_file, "r") as f:
-                            print(f"load trial conditions from file {this_config_file}")
-                            trial_condition = json.loads(f.read())
-                        num_object_on_scene = len(trial_condition["objects"])
-                    else:
-                        trial_condition = trial_sequence["sequences"][idx]["parameters"]
-                        num_object_on_scene = 1
-                    result_list = []
-                    condition_list = []
-                    if scene_name.lower() == "choice":
-                        df = load_file(found_result)
-                        this_range = (df["CurrentStep"] == idx) & (
-                            df["CurrentTrial"] == 0
-                        )
-                        result, condition = read_agent_data(
-                            df[this_range],
-                            analysis_methods,
-                            trial_condition["objects"][0],
-                        )
-                        result_list.append(result)
+                                if num_object_on_scene > 1:
+                                    # if isinstance(result, pd.DataFrame) == True:
+                                    #     result.drop_duplicates(subset=["GameObjectPosZ"], keep='last',inplace=True)
+                                    if this_object == 0:
+                                        condition["duration"] = trial_sequence["sequences"][
+                                            idx
+                                        ][
+                                            "duration"
+                                        ]  # may need to add condition to exclude some kind of data from choice assay.
+                                        condition_list.append(condition)
+                                    if (
+                                        (
+                                            trial_condition["objects"][0]["type"]
+                                            == trial_condition["objects"][1]["type"]
+                                        )
+                                        and (this_object == 1)
+                                        and (trial_condition["objects"][0]["type"] != "")
+                                    ):
+                                        theta = np.radians(trial_condition["objects"][1]['mu']+270)
+                                        # applying rotation matrix to rotate the coordinates
+                                        # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+                                        rot_matrix = np.array(
+                                            [
+                                                [np.cos(theta), -np.sin(theta)],
+                                                [np.sin(theta), np.cos(theta)],
+                                            ]
+                                        )
+                                        rXY = rot_matrix @ np.vstack(
+                                            (
+                                                result["GameObjectPosX"].values,
+                                                result["GameObjectPosZ"].values,
+                                            )
+                                        )
+                                        result["GameObjectPosX"] = rXY[1]
+                                        result["GameObjectPosZ"] = rXY[0]
+                                    result_list.append(result)
+                                    if isinstance(result, pd.DataFrame) == True and (
+                                        this_object == 1
+                                    ):
+                                        if len(result_list[0]) >= len(result_list[1]):
+                                            matched_id = np.searchsorted(
+                                                result_list[0]["Current Time"].values,
+                                                result_list[1]["Current Time"].values,
+                                            )
+                                            if (
+                                                matched_id.shape[0]
+                                                == result_list[0].shape[0]
+                                            ):
+                                                pass
+                                            elif matched_id[-1] >= result_list[0].shape[0]:
+                                                result_list[0] = result_list[0].iloc[
+                                                    matched_id[:-1], :
+                                                ]
+                                            else:
+                                                result_list[0] = result_list[0].iloc[
+                                                    matched_id, :
+                                                ]
+                                        elif len(result_list[0]) < len(result_list[1]):
+                                            matched_id = np.searchsorted(
+                                                result_list[1]["Current Time"].values,
+                                                result_list[0]["Current Time"].values,
+                                            )
+                                            if (
+                                                matched_id.shape[0]
+                                                == result_list[1].shape[0]
+                                            ):
+                                                pass
+                                            elif matched_id[-1] >= result_list[1].shape[0]:
+                                                result_list[1] = result_list[1].iloc[
+                                                    matched_id[:-1], :
+                                                ]
+                                            else:
+                                                result_list[1] = result_list[1].iloc[
+                                                    matched_id, :
+                                                ]
+                                        df_agent = reshape_multiagent_data(
+                                            pd.concat(result_list), this_object
+                                        )
+                                        result_list = []
+                                        result_list.append(df_agent)
+                                    else:
+                                        df_agent = None
+                                else:
+                                    result_list.append(result)
+                        else:
+                            for this_object in range(num_object_on_scene):
+                                if "objects" in trial_condition:
+                                    result, condition = read_agent_data(
+                                        found_result[
+                                            idx * num_object_on_scene + this_object
+                                        ],
+                                        analysis_methods,
+                                        trial_condition["objects"][this_object],
+                                    )
+                                else:
+                                    result, condition = read_agent_data(
+                                        found_result[
+                                            idx * num_object_on_scene + this_object
+                                        ],
+                                        analysis_methods,
+                                        trial_condition,
+                                    )
+                                if isinstance(result, pd.DataFrame) == True:
+                                    df_agent = reshape_multiagent_data(result, this_object)
+                                else:
+                                    df_agent = None
+                                result_list.append(df_agent)
+                                if (num_object_on_scene-this_object>1) and (num_object_on_scene>1):
+                                    condition["duration"] = trial_sequence["sequences"][idx]["duration"]  # may need to add condition to exclude some kind of data from choice assay.
+                                    condition_list.append(condition)
 
                         condition["duration"] = trial_sequence["sequences"][idx][
                             "duration"
@@ -1172,6 +1129,54 @@ def preprocess_matrex_data(thisDir, json_file):
                             conditions.append(condition_list)
                             df_simulated_animal.append(result_list)
 
+                elif len(found_result.stem) > 0:
+                    json_pattern = "*sequenceConfig.json"
+                    json_file = find_file(thisDir, json_pattern)
+                    with open(json_file, "r") as f:
+                        print(f"load trial sequence from file {json_file}")
+                        trial_sequence = json.loads(f.read())
+                    for idx in range(len(trial_sequence["sequences"])):
+                        if "configFile" in trial_sequence["sequences"][idx]["parameters"]:
+                            config_file = trial_sequence["sequences"][idx]["parameters"][
+                                "configFile"
+                            ]  # need to figure out how to deal with swarm data
+                            this_config_file = find_file(thisDir, "*" + config_file)
+                            if type(this_config_file) == list:
+                                this_config_file = this_config_file[0]
+                            with open(this_config_file, "r") as f:
+                                print(f"load trial conditions from file {this_config_file}")
+                                trial_condition = json.loads(f.read())
+                            num_object_on_scene = len(trial_condition["objects"])
+                        else:
+                            trial_condition = trial_sequence["sequences"][idx]["parameters"]
+                            num_object_on_scene = 1
+                        result_list = []
+                        condition_list = []
+                        if scene_name.lower() == "choice":
+                            df = load_file(found_result)
+                            this_range = (df["CurrentStep"] == idx) & (
+                                df["CurrentTrial"] == 0
+                            )
+                            result, condition = read_agent_data(
+                                df[this_range],
+                                analysis_methods,
+                                trial_condition["objects"][0],
+                            )
+                            result_list.append(result)
+
+                            condition["duration"] = trial_sequence["sequences"][idx][
+                                "duration"
+                            ]  # may need to add condition to exclude some kind of data from choice assay.
+                            condition_list.append(condition)
+                            if num_object_on_scene == 1:
+                                conditions.append(condition_list[0])
+                                df_simulated_animal.append(result_list[0])
+                            else:
+                                conditions.append(condition_list)
+                                df_simulated_animal.append(result_list)
+        else:
+            df_simulated_animal=[]
+            conditions=[]
         ## here to load focal_animal's data
         animal_name_pattern = f"*_VR{i+1}*"
         found_result = find_file(thisDir, animal_name_pattern)
@@ -1211,28 +1216,7 @@ def preprocess_matrex_data(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240818_170807"
-    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240824_143943"
-    #thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241013_144457"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250513_121205"
-    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250103_140602"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241228_160619"
-    # thisDir = r"C:/Users/neuroLaptop/Documents/20241014_175759"
-    # thisDir = r"D:\MatrexVR_navigation_Data\RunData\archive\20241014_194555"
-    # thisDir = r"D:/MatrexVR_Swarm_Data/RunData/20240815_134157"
-    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240816_145830"
-    # thisDir = r"D:\MatrexVR_Swarm_Data\RunData\20240826_150826"
-    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_171158"
-    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\20240904_151537"
-    # thisDir = r"D:\MatrexVR_blackbackground_Data\RunData\archive\20240905_193855"
-    # thisDir = r"D:\MatrexVR_grass1_Data\RunData\20241207_175920"
-    # thisDir = r"D:\MatrexVR_2024_Data\RunData\20241112_150308"
-    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_155210"
-    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_151917"
-    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241124_132715"
-    # thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
