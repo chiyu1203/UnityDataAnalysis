@@ -188,7 +188,7 @@ def behavioural_analysis(
         alpha=0.4,
     )
     fig_name = (
-        f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis_speed1.jpg"
+        f"{file_name.stem.split('_')[0]}_{trial_id}_trajectory_analysis_speed{speed_threshold}.jpg"
     )
     fig.savefig(file_name.parent / fig_name)
 

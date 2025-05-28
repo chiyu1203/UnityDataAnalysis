@@ -238,7 +238,8 @@ def plot_travel_histrogram(df,analysis_methods,parameters,variable_name,vr_num='
         plt.savefig(hist_fig_name)
     plt.show()
 
-def plot_pi_oi_comparison(all_PIs,all_OIs,all_tortuosity,all_PIs_follow_only,analysis_methods,travel_distance=np.ones(all_OIs.shape[1]),parameters='',parameter_name='mu',vr_num='all'):
+def plot_pi_oi_comparison(all_PIs,all_OIs,all_tortuosity,all_PIs_follow_only,analysis_methods,travel_distance=None,parameters='',parameter_name='mu',vr_num='all'):
+    travel_distance=np.ones(all_OIs.shape[1])
     save_output= analysis_methods.get("save_output")
     scene_name=analysis_methods.get("experiment_name")
     if analysis_methods.get("active_trials_only"):
