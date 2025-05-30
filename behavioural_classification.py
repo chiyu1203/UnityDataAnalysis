@@ -35,15 +35,21 @@ def classify_heading_direction(data, mu=0):
     against_of = ((3 * np.pi / 4 <= rotated_data) & (rotated_data < np.pi)) | (
         (-3 * np.pi / 4 > rotated_data) & (rotated_data >= -np.pi)
     )
+    for_left=(3 * np.pi / 4 > rotated_data) & (rotated_data >= np.pi / 4)
+    for_right=(-np.pi / 4 > rotated_data) & (-3 * np.pi / 4 <= rotated_data)
     # group_3_mask = ((np.pi/4 <= data) & (data < 3*np.pi/4))
     # group_4_mask = ((-np.pi/4 > data) & (data >= -3*np.pi/4))
     # Apply classifications based on masks
     labels[for_of] = "for_of"
     labels[against_of] = "against_of"
+    labels[for_left]="for_left"
+    labels[for_right]="for_right"
     labels[0] = "initial_heading"
     num_for_of = sum(labels == "for_of")
     num_against_of = sum(labels == "against_of")
-    num_target_ob = sum(labels == "target_ob")
+    num_for_l=sum(labels == "for_left" )
+    num_for_r=sum(labels == "for_right")
+    num_target_ob = num_for_l+num_for_r
     of_responses = num_for_of + num_against_of
     if of_responses == 0:
         oi = np.nan
@@ -52,11 +58,14 @@ def classify_heading_direction(data, mu=0):
     if labels.shape[0] == 1:
         pi = np.nan
         pi_follow_of_only = np.nan
+        p_left_right=np.nan
     else:
         pi = (of_responses - num_target_ob) / (of_responses + num_target_ob)
         pi_follow_of_only = (num_for_of - num_target_ob) / (num_for_of + num_target_ob)
+        p_left_right=(num_for_l - num_for_r) / (num_for_l + num_for_r)
+    
 
-    return labels, oi, pi, pi_follow_of_only
+    return labels, oi, pi, pi_follow_of_only,p_left_right
 
 
 def load_data(this_dir, json_file):
@@ -81,7 +90,7 @@ def load_data(this_dir, json_file):
         #     continue
         this_mu = grp["mu"].unique()
         if grp["heading"].shape[0] > 1:
-            l, _, _, rotated_angles = classify_heading_direction(
+            l, _, _, rotated_angles,_ = classify_heading_direction(
                 grp["heading"].values, this_mu
             )
             fig2, (ax1, ax2) = plt.subplots(
@@ -119,7 +128,7 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:\MatrexVR_navigation_Data\RunData\20241014_134432"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_data(thisDir, json_file)
