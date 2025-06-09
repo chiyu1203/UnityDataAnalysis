@@ -1,5 +1,5 @@
 {
-    "experiment_name": "band",
+    "experiment_name": "choice",
     "overwrite_curated_dataset": true,
     "export_fictrac_data_only": false,
     "save_output": true,
@@ -16,6 +16,7 @@
     "extract_follow_epoches": true,
     "follow_locustVR_criteria": false,
     "calculate_follow_chance_level": true,
+    "frequency_based_preference_index": true,
     "analyse_first_half_only": false,
     "analyse_second_half_only": false,
     "graph_colour_code": [
@@ -28,7 +29,7 @@
         "m",
         "r"
     ],
-    "follow_within_distance": 50,
+    "follow_within_distance": 5,
     "camera_fps": 100,
     "trackball_radius_cm": 5,
     "monitor_fps": 60,

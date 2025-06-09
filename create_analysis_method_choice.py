@@ -19,6 +19,7 @@ analysis_methods = {
     "extract_follow_epoches": True,
     "follow_locustVR_criteria": True,
     "calculate_follow_chance_level": True,
+    "frequency_based_preference_index":True,
     "analyse_first_half_only":True,
     "analyse_second_half_only":False,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],

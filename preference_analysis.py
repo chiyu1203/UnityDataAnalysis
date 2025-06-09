@@ -95,17 +95,26 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
     ##try using seaborn to plot the data next time
     save_output=analysis_methods.get("save_output")
     camera_fps=analysis_methods.get("camera_fps")
+    frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
+    if frequency_based_preference_index:
+        unit='(count)'
+        camera_fps=1
+        limits=[35,40,45,50,55]
+    else:
+        unit='(sec)'
+        limits=[25,30,35,40,45]
     num_subplots=len(thresholds)
     scatterplots, axes = plt.subplots(
         nrows=1, ncols=num_subplots*2, figsize=(40, 4), tight_layout=True
     )
+
     #limits=[15,20,25,30,35]
-    limits=[25,30,35,40,45]
+    
     for i in range(epochs_exp.shape[0]):
         axes[i].scatter(epochs_con[i,:]/camera_fps,epochs_exp[i,:]/camera_fps,c='r')
         axes[i].set(
-            xlabel="con (sec)",
-            ylabel="exp (sec)",
+            xlabel=f"con {unit}",
+            ylabel=f"exp {unit}",
             title=f"threshold {thresholds[i]} cm",
             xlim=(0,limits[i]),ylim=(0,limits[i]),
             xticks=[0,limits[i]//2,limits[i]],yticks=[0,limits[i]//2,limits[i]],
@@ -113,8 +122,8 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
         axes[i].plot([0, 1], [0, 1], transform=axes[i].transAxes, color='gray', linestyle='--')
         axes[i+num_subplots].scatter(epochs_L[i,:]/camera_fps,epochs_R[i,:]/camera_fps,c=data_color)
         axes[i+num_subplots].set(
-            xlabel="L (sec)",
-            ylabel="R (sec)",
+            xlabel=f"L {unit}",
+            ylabel=f"R {unit}",
             title=f"threshold {thresholds[i]} cm",
             xlim=(0,limits[i]),ylim=(0,limits[i]),
             xticks=[0,limits[i]//2,limits[i]],yticks=[0,limits[i]//2,limits[i]],
@@ -125,6 +134,9 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
         scatterplots.savefig(f"{fig_name}.svg")
 
 def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all'):
+    # frequency_based_preference_index=False
+    # analysis_methods['frequency_based_preference_index'] = frequency_based_preference_index
+    frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
     spatial_preference_animals=np.zeros((len(thresholds),len(relative_pos_all_animals),relative_pos_all_animals[0]['type'].unique().shape[0]))
     spatial_preference_animals[:]=np.nan
     epochs_forL_all_animals_homo=np.zeros((len(thresholds),len(relative_pos_all_animals)))
@@ -161,8 +173,10 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         epochs_forR_this_animal_hetero=np.zeros((len(thresholds),2))
         epochs_exp_this_animal_hetero=np.zeros((len(thresholds),2))
         epochs_con_this_animal_hetero=np.zeros((len(thresholds),2))
+        relative_pos_this_animal['distance']=LA.norm(np.vstack((relative_pos_this_animal["x"].values,relative_pos_this_animal["y"].values)),axis=0)
         for key,grp in relative_pos_this_animal.groupby('type'):
-            #Note1: group by sort type first based on alphabetical order, and then based on length of the string
+            #Note1: start to do analysis based on the functionality of groupby and sorted
+            #The first trial type to analyse is based on alphabetical order, and then based on length of the string
             relative_distance=LA.norm(np.vstack((grp["x"].values,grp["y"].values)),axis=0)
             epochs_forL_array=np.zeros((len(thresholds)))
             epochs_forR_array=np.zeros((len(thresholds)))
@@ -170,10 +184,22 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
             epochs_con_array=np.zeros((len(thresholds)))
             for j,this_threshold in enumerate(thresholds):
                 ##return agent ID when relative distance is within the threshold
-                ##sum agent ID to get epochs for the Right object because agent ID is 0 for the right object and 1 for the left object
-                epochs_forL=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)
-                ##epochs for the L object comes from the rest of element in the array
-                epochs_forR=grp[relative_distance<this_threshold]["agent_id"].values.shape[0]-epochs_forL
+
+                grp['enter_roi']=grp['distance']<this_threshold
+                ## when entering ROI happens, based on the agent_id to know whether it is enter L or R
+                transitions_toL = (grp['enter_roi'].shift(1) == False) & (grp['enter_roi'] == True) & (grp['agent_id'] == 1)
+                visit_frequency_L=transitions_toL.sum()
+                transitions_toR = (grp['enter_roi'].shift(1) == False) & (grp['enter_roi'] == True) & (grp['agent_id'] == 0)
+                visit_frequency_R=transitions_toR.sum()
+                if frequency_based_preference_index:
+                    epochs_forL=visit_frequency_L
+                    epochs_forR=visit_frequency_R
+                else:
+                    ##sum agent ID to get epochs for the left object because agent ID is 0 for the right object and 1 for the left object
+                    epochs_forL=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)
+                    ##epochs for the R object comes from the rest of element in the array
+                    epochs_forR=grp[relative_distance<this_threshold]["agent_id"].values.shape[0]-epochs_forL
+
                 ##assign epochs_exp or epochs_con based on the trial type, if the trial type is not of interest, assign NaN
                 if len(trial_type_of_interest)==2:
                     if key==trial_type_of_interest[1]:
@@ -183,7 +209,9 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
                         epochs_exp=epochs_forR
                         epochs_con=epochs_forL
                     else:
+                        ## refer the value to nan if the key is not this type. This seperate no exploration from wrong trial type
                         (epochs_con,epochs_exp,epochs_forL,epochs_forR)=(np.nan,np.nan,np.nan,np.nan)
+                    
                 elif len(trial_type_of_interest)==1:
                     if len(object_of_interest)==1 and key==object_of_interest[0]:
                         epochs_exp=epochs_forR
@@ -197,6 +225,7 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
                 epochs_forR_array[j]=epochs_forR
                 epochs_exp_array[j]=epochs_exp
                 epochs_con_array[j]=epochs_con
+                
             if len(key.split("_x_"))==1:
                 epochs_forL_this_animal_homo[:,homo_no]=epochs_forL_array
                 epochs_forR_this_animal_homo[:,homo_no]=epochs_forR_array
@@ -215,17 +244,16 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         epochs_forR_all_animals_hetero[:,i]=np.nansum(epochs_forR_this_animal_hetero,axis=1)
         epochs_exp_all_animals_hetero[:,i]=np.nansum(epochs_exp_this_animal_hetero,axis=1)
         epochs_con_all_animals_hetero[:,i]=np.nansum(epochs_con_this_animal_hetero,axis=1)
-        #print(epochs_forL_all_animals_homo)
     ##calculate preference index: positive value means prefer L object and negative value means prefer R object
     if len(object_of_interest)==1:
         if len(trial_type_of_interest)==1:
-            #single homo
+            #single homogeneous trials
             epochs_con_all_animals=epochs_forL_all_animals_homo
             epochs_exp_all_animals=epochs_forR_all_animals_homo
             epochs_forL_all_animals=epochs_forL_all_animals_homo
             epochs_forR_all_animals=epochs_forR_all_animals_homo
         elif len(trial_type_of_interest)==2:
-            #multiple homo
+            #multiple homogeneous trials
             epochs_con_all_animals=epochs_forL_all_animals_homo
             epochs_exp_all_animals=epochs_forR_all_animals_homo
             epochs_forL_all_animals=epochs_forL_all_animals_homo
@@ -235,13 +263,13 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
             left_right_preference_across_animals,exp_con_preference_across_animals=(np.nan,np.nan)
     elif len(object_of_interest)==2:
         if len(trial_type_of_interest)==1:
-            #multiple homo
+            #single heterogeneous trials
             epochs_exp_all_animals=epochs_forR_all_animals_hetero
             epochs_con_all_animals=epochs_forL_all_animals_hetero
             epochs_forL_all_animals=epochs_forL_all_animals_hetero
             epochs_forR_all_animals=epochs_forR_all_animals_hetero
         elif len(trial_type_of_interest)==2:
-            #multiple hetero
+            #multiple heterogeneous trials
             epochs_exp_all_animals=epochs_exp_all_animals_hetero
             epochs_con_all_animals=epochs_con_all_animals_hetero
             epochs_forL_all_animals=epochs_forL_all_animals_hetero
