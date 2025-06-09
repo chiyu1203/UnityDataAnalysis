@@ -33,7 +33,7 @@ sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file
 from data_cleaning import (
     load_temperature_data,
-    removeFictracNoise,
+    remove_unreliable_tracking,
     bfill,
     diskretize,
     findLongestConseqSubseq,interp_fill,euclidean_distance
@@ -478,7 +478,7 @@ def analyse_focal_animal(
         X = xy[0]
         Y = xy[1]
     #xy = interp_fill(xy)
-    remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
+    remains, X, Y,_ = remove_unreliable_tracking(X, Y, analysis_methods)
     loss = 1 - remains
     elapsed_time = (ts - ts.min()).dt.total_seconds().values
     if time_series_analysis==True:
@@ -568,12 +568,12 @@ def analyse_focal_animal(
             angles_rad = np.radians(
                 -rot_y.values
             )  # turn negative to acount for Unity's axis and turn radian
-            remains, X, Y = removeFictracNoise(X, Y, analysis_methods)
+            remains, X, Y,_ = remove_unreliable_tracking(X, Y, analysis_methods)
             loss = 1 - remains
         else:
             ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
             elapsed_time = None
-            remains, X, Y = removeFictracNoise(xy[0], xy[1], analysis_methods)
+            remains, X, Y,_ = remove_unreliable_tracking(xy[0], xy[1], analysis_methods)
             loss = 1 - remains
             if len(X) == 0:
                 print("all is noise")
@@ -592,7 +592,7 @@ def analyse_focal_animal(
             angles = (angles_rad + np.pi) % (2 * np.pi) - np.pi
             temperature = df[this_range]["Temperature ˚C (ºC)"].values
             humidity = df[this_range]["Relative Humidity (%)"].values
-            num_spatial_decision = len(angles)
+            #num_spatial_decision = len(angles)
         else:
             newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
             dX = rXY[0][newindex]
@@ -603,7 +603,7 @@ def analyse_focal_animal(
             angles = np.insert(
                 angles, 0, np.nan
             )  # add the initial heading direction, which is an nan to avoid bias toward certain degree.
-            num_spatial_decision = len(angles) - 1
+        num_spatial_decision = len(angles) - 1
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
@@ -661,7 +661,6 @@ def analyse_focal_animal(
             f_angle = [condition["rotationAngle"]] * len(dX)
             object_type = [condition["type"]] * len(dX)
 
-        groups = [growth_condition] * len(dX)
         df_curated = pd.DataFrame(
             {
                 "X": dX,
@@ -797,18 +796,18 @@ def analyse_focal_animal(
         df_summary = pd.DataFrame(
             {
                 "fname": [f[0]],
-                "loss": [loss],
-                "mu": [mu[0]],
-                "speed": [spe[0]],
-                "groups": [groups[0]],
-                "mean_angle": [meanAngle],
-                "vector": [meanVector],
-                "variance": [std],
-                "distX": [dX[-1]],
-                "distTotal": [tdist],
-                "sin": [VecSin],
-                "cos": [VecCos],
-                "duration": [du[0]],
+                "loss": loss,
+                "mu": mu[0],
+                "speed": spe[0],
+                "groups": [growth_condition],
+                "mean_angle": meanAngle,
+                "vector": meanVector,
+                "variance": std,
+                "distX": dX[-1],
+                "distTotal": tdist,
+                "sin": VecSin,
+                "cos": VecCos,
+                "duration": du[0],
             }
         )
         if scene_name.lower() == "swarm" or scene_name.lower() == "band":
