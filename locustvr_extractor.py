@@ -24,7 +24,7 @@ def process_file(this_file, analysis_methods,count):
     BODY_LENGTH3 = (
         analysis_methods.get("body_length", 4) * 3
     )
-    df = pd.read_csv(this_file, sep=' ', header=0)
+    df = pd.read_csv(this_file, sep=' ',header=None)
 
     # if 'velocities_all' in basepath:
     #     df = df.iloc[:,-4:-2]

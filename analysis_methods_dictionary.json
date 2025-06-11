@@ -1,5 +1,5 @@
 {
-    "experiment_name": "choice",
+    "experiment_name": "locustvr",
     "overwrite_curated_dataset": true,
     "export_fictrac_data_only": false,
     "save_output": true,
