@@ -29,20 +29,20 @@ def process_file(this_file, analysis_methods,count):
     # if 'velocities_all' in basepath:
     #     df = df.iloc[:,-4:-2]
     #     df = df.cumsum() * -1
-    #s = "{} {} {} {} {} {} {} {} {} {} {} {}\n".format(self.deltas[0], self.deltas[1],time.time(),trialNum,state,pos1[0], pos1[1], pos1_variable, pos2[0], pos2[1],pos2_variable,posBaitx, posBaity)
-    #default_column_names = ["X","Y","trial_id","trial_type","ts","variable1","variable2"]
-    default_column_names = ["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","trial_type","ts","variable1","variable2"]
+    #s = "{} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(self.deltas[0], self.deltas[1],heading_direction,time.time(),trialNum,state,trial_label,pos1[0], pos1[1], pos2[0], pos2[1],posBaitx, posBaity)
+    default_column_names = ["X","Y",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"BaitX","BaitY"]    
+    #default_column_names = ["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
     #df.iloc[:,-5:].columns=default_column_names[-7:-2]
     df.columns=default_column_names[:df.shape[1]]
 
     ##The unit of raw data is in meters so we need to convert it to cm
-    cols_to_convert=["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y"]
+    cols_to_convert=["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"X","Y"]
     df[cols_to_convert] = df[cols_to_convert]* 100
-    df_bait=df[["BaitX","BaitY", 'trial_id',"trial_type","ts"]]
-    #df_choices=df[['AgentX1', 'AgentY1', 'AgentX2', 'AgentY2', 'trial_id', 'trial_type']]
-    #df_XY=df[["x","y",'trial_id', 'trial_type',"ts"]]
-    df_agent = pd.concat([pd.concat([df['AgentX1'], df['AgentX2']], ignore_index=True),pd.concat([df['AgentY1'], df['AgentY2']], ignore_index=True),pd.concat([df['trial_id'], df['trial_id']], ignore_index=True),pd.concat([df['trial_type'], df['trial_type']], ignore_index=True),pd.concat([df['ts'], df['ts']], ignore_index=True)],axis=1)
-    df_agent.columns=['x','y','trial_id', 'trial_type',"ts"]
+    df_bait=df[["BaitX","BaitY", "state_type",'trial_id',"ts"]]
+    #df_choices=df[['AgentX1', 'AgentY1', 'AgentX2', 'AgentY2', 'trial_id', 'state_type']]
+    #df_XY=df[["x","y",'trial_id', 'state_type',"ts"]]
+    df_agent = pd.concat([pd.concat([df['AgentX1'], df['AgentX2']], ignore_index=True),pd.concat([df['AgentY1'], df['AgentY2']], ignore_index=True),pd.concat([df["state_type"], df["state_type"]], ignore_index=True),pd.concat([df['trial_id'], df['trial_id']], ignore_index=True),pd.concat([df['ts'], df['ts']], ignore_index=True)],axis=1)
+    df_agent.columns=['X','Y',"state_type",'trial_id',"ts"]
     # df_summary["radial_distance"]
     trial_list=[]
     XY_list=[]
@@ -56,14 +56,17 @@ def process_file(this_file, analysis_methods,count):
         curated_file_path.unlink(missing_ok=True)
         agent_file_path.unlink(missing_ok=True)
     if plotting_trajectory:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
-        ax1.set_title("ISI")
-        ax2.set_title("Trial")
+        fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(18, 7), tight_layout=True)
+        ax1.set_title("Bait state1")
+        ax2.set_title("Choice state1")
+        ax3.set_title("Bait state2")
+        ax4.set_title("Choice state2")
     for this_trial in df['trial_id'].unique():
-        X=np.cumsum(df[df['trial_id'] == this_trial]['x'].to_numpy())
-        Y=np.cumsum(df[df['trial_id'] == this_trial]['y'].to_numpy())
+        X=np.cumsum(df[df['trial_id'] == this_trial]['X'].to_numpy())
+        Y=np.cumsum(df[df['trial_id'] == this_trial]['Y'].to_numpy())
         ts= df[df['trial_id'] == this_trial]['ts'].to_numpy()
-        trial_type= df[df['trial_id'] == this_trial]['trial_type'][0]
+        state_type= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
+        trial_label=df[df['trial_id'] == this_trial]['trial_label'].values[-1]##get trial label this way because in the first version, trial label is updated one row later 
         if time_series_analysis:
             #elapsed_time = ts - ts.min()
             if analysis_methods.get("filtering_method") == "sg_filter":
@@ -116,12 +119,14 @@ def process_file(this_file, analysis_methods,count):
             'Y': dY,
             'ts':dts,
             'trial_id': this_trial,
+            'state_type': df[df['trial_id'] == this_trial]['state_type'].values,
         })
         df_trial = pd.DataFrame({
             'fname': [fchop],
             'loss': loss,
             'trial_id': this_trial,
-            'trial_type':trial_type,
+            'state_type':state_type,
+            'trial_label':trial_label,
             "groups": [growth_condition],
             'score': meanAngle,
             'vector': meanVector,
@@ -132,12 +137,14 @@ def process_file(this_file, analysis_methods,count):
             'cos': VecCos,
         })
         if plotting_trajectory == True:
-            if trial_type!=0:
+            if state_type==1:
                     ## if using plot instead of scatter plot
-                ax2.plot(dX, dY)
+                ax1.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
+                ax2.plot(df_xy['X'][df_xy['state_type']==1].values, df_xy['Y'][df_xy['state_type']==1].values)
             else:
             ##blue is earlier colour and yellow is later colour
-                ax1.plot(dX, dY)
+                ax3.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
+                ax4.plot(df_xy['X'][df_xy['state_type']==2].values, df_xy['Y'][df_xy['state_type']==2].values)
                     # ax1.scatter(
                     #     dX,
                     #     dY,
@@ -198,7 +205,7 @@ def load_files(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"Z:\DATA\experiment_locustVR\Data\20250606_1428_1749212917_2choice"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
