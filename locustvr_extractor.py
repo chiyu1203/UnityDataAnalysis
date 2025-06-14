@@ -64,6 +64,7 @@ def process_file(this_file, analysis_methods,count):
     for this_trial in df['trial_id'].unique():
         X=np.cumsum(df[df['trial_id'] == this_trial]['X'].to_numpy())
         Y=np.cumsum(df[df['trial_id'] == this_trial]['Y'].to_numpy())
+        heading=df[df['trial_id']== this_trial]['heading_direction'].to_numpy()
         ts= df[df['trial_id'] == this_trial]['ts'].to_numpy()
         state_type= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
         trial_label=df[df['trial_id'] == this_trial]['trial_label'].values[-1]##get trial label this way because in the first version, trial label is updated one row later 
@@ -72,13 +73,13 @@ def process_file(this_file, analysis_methods,count):
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(X, 59, 3, axis=0)
                 Y = savgol_filter(Y, 59, 3, axis=0)
-            loss, dX, dY,dts = remove_unreliable_tracking(X, Y,analysis_methods,ts)
+            loss, dX, dY,dts,angles = remove_unreliable_tracking(X, Y,analysis_methods,ts,heading)
             loss = 1 - loss
-            #num_spatial_decision = len(angles) The angle here should come from locustVR directly
+            num_spatial_decision = len(angles)
+            this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         else:
-            loss, X, Y,ts = remove_unreliable_tracking(X, Y,analysis_methods,ts)
+            loss, X, Y,ts,_ = remove_unreliable_tracking(X, Y,analysis_methods,ts)
             loss = 1 - loss
-
             if len(X) == 0:
                 continue
             rXY = np.vstack((X, Y))
@@ -86,9 +87,10 @@ def process_file(this_file, analysis_methods,count):
             dX = rXY[0][newindex]
             dY = rXY[1][newindex]
             dts = ts[newindex]
-        angles = np.arctan2(np.diff(dY), np.diff(dX)) ## in time series analysis, the angles should come from locustVR directly.
-        angles = np.insert(angles, 0, np.nan)
-        num_spatial_decision = len(angles) - 1
+            angles = np.arctan2(np.diff(dY), np.diff(dX)) ## in time series analysis, the angles should come from locustVR directly.
+            angles = np.insert(angles, 0, np.nan)
+            this_state_type=df[df['trial_id'] == this_trial]['state_type'].values[-1]
+            num_spatial_decision = len(angles) - 1
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
@@ -117,9 +119,10 @@ def process_file(this_file, analysis_methods,count):
         df_xy = pd.DataFrame({
             'X': dX,
             'Y': dY,
+            'heading':angles,
             'ts':dts,
             'trial_id': this_trial,
-            'state_type': df[df['trial_id'] == this_trial]['state_type'].values,
+            'state_type': this_state_type,
         })
         df_trial = pd.DataFrame({
             'fname': [fchop],
@@ -145,47 +148,28 @@ def process_file(this_file, analysis_methods,count):
             ##blue is earlier colour and yellow is later colour
                 ax3.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
                 ax4.plot(df_xy['X'][df_xy['state_type']==2].values, df_xy['Y'][df_xy['state_type']==2].values)
-                    # ax1.scatter(
-                    #     dX,
-                    #     dY,
-                    #     c=np.arange(len(dY)),
-                    #     marker=".",
-                    # )
-                    # ax2.scatter(
-                    #     dX,
-                    #     dY,
-                    #     c=np.arange(len(dY)),
-                    #     marker=".",
-                    # )
-                    # if "agent_dX" in locals():
-                    #     for j in range(len(df_agent_list)):
-                    #         this_pd = df_agent_list[j]
-                    #         ax2.plot(
-                    #             this_pd["X"].values,
-                    #             this_pd["Y"].values,
-                    #             c="k",
-                    #             linewidth=1,
-                    #         )
+
         trial_list.append(df_trial)
         XY_list.append(df_xy)
-        # bait_list.append(df_trial)
-        # agent_list.append(df_trial)
-    # if time_series_analysis:
-    #     df_xy=df_xy
-    # else:
-    #     df_xy
     df_summary=pd.concat(trial_list, ignore_index=True)
     df_curated=pd.concat(XY_list, ignore_index=True)
     # Use lock to prevent concurrent writes
     if save_output == True:
         with lock:
-            store = pd.HDFStore(curated_file_path)
-            store.append('name_of_frame', df_curated, format='t', data_columns=df_curated.columns)
-            store.close()
-            store = pd.HDFStore(summary_file_path)
-            store.append('name_of_frame', df_summary, format='t', data_columns=df_summary.columns)
-            store.close()
-    
+            file_list=[summary_file_path,curated_file_path,agent_file_path]
+            data_frame_list=[df_summary,df_curated]
+            df_agent_list=[df_bait,df_agent]
+            agent_key_list=['bait','choices']            
+            for i,this_file in enumerate(file_list):
+                if this_file==agent_file_path:
+                    store = pd.HDFStore(agent_file_path)
+                    for this_agent, this_hdf_key in zip(df_agent_list, agent_key_list):
+                        store.append(this_hdf_key, this_agent, format='t', data_columns=this_agent.columns)
+                    store.close()
+                else:
+                    store = pd.HDFStore(this_file)
+                    store.append("focal_animal", data_frame_list[i], format='t', data_columns=data_frame_list[i].columns)
+                    store.close()
     if plotting_trajectory == True and save_output == True:
         fig.savefig(trajectory_fig_path)
     return print(f'finished preprocessing step for {fchop} ')
