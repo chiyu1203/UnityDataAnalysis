@@ -30,22 +30,24 @@ def process_file(this_file, analysis_methods,count):
     #     df = df.iloc[:,-4:-2]
     #     df = df.cumsum() * -1
     #s = "{} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(self.deltas[0], self.deltas[1],heading_direction,time.time(),trialNum,state,trial_label,pos1[0], pos1[1], pos2[0], pos2[1],posBaitx, posBaity)
-    default_column_names = ["X","Y",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"BaitX","BaitY"]    
+    default_column_names = ["X","Y",'heading_direction',"ts","trial_id","state_type","trial_label","BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']    
     #default_column_names = ["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
     #df.iloc[:,-5:].columns=default_column_names[-7:-2]
     df.columns=default_column_names[:df.shape[1]]
 
     ##The unit of raw data is in meters so we need to convert it to cm
-    cols_to_convert=["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"X","Y"]
+    cols_to_convert=["X","Y",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"BaitX","BaitY"]
     df[cols_to_convert] = df[cols_to_convert]* 100
-    df_bait=df[["BaitX","BaitY", "state_type",'trial_id',"ts"]]
+    #df_bait=df[["BaitX","BaitY", "state_type",'trial_id',"ts"]]
     #df_choices=df[['AgentX1', 'AgentY1', 'AgentX2', 'AgentY2', 'trial_id', 'state_type']]
     #df_XY=df[["x","y",'trial_id', 'state_type',"ts"]]
-    df_agent = pd.concat([pd.concat([df['AgentX1'], df['AgentX2']], ignore_index=True),pd.concat([df['AgentY1'], df['AgentY2']], ignore_index=True),pd.concat([df["state_type"], df["state_type"]], ignore_index=True),pd.concat([df['trial_id'], df['trial_id']], ignore_index=True),pd.concat([df['ts'], df['ts']], ignore_index=True)],axis=1)
-    df_agent.columns=['X','Y',"state_type",'trial_id',"ts"]
+    #df_agent = pd.concat((pd.concat((df["BaitX"],df['AgentX1'], df['AgentX2']), ignore_index=True),pd.concat((df["BaitY"],df['AgentY1'], df['AgentY2']), ignore_index=True),pd.concat((df['trial_id'],df['trial_id'], df['trial_id']), ignore_index=True)),axis=1)
+    #df_agent.columns=['X','Y',"state_type",'trial_id',"ts"]
     # df_summary["radial_distance"]
     trial_list=[]
     XY_list=[]
+    bait_list=[]
+    agent_list=[]
     file_suffix = "_full" if time_series_analysis else ""
     curated_file_path = this_file.parent / f"XY{file_suffix}.h5"
     summary_file_path = this_file.parent / f"summary{file_suffix}.h5"
@@ -62,23 +64,38 @@ def process_file(this_file, analysis_methods,count):
         ax3.set_title("Bait state2")
         ax4.set_title("Choice state2")
     for this_trial in df['trial_id'].unique():
-        X=np.cumsum(df[df['trial_id'] == this_trial]['X'].to_numpy())
-        Y=np.cumsum(df[df['trial_id'] == this_trial]['Y'].to_numpy())
-        heading=df[df['trial_id']== this_trial]['heading_direction'].to_numpy()
-        ts= df[df['trial_id'] == this_trial]['ts'].to_numpy()
-        state_type= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
+        pd_this_trial=df[df['trial_id'] == this_trial]
+        X=np.cumsum(pd_this_trial['X'].to_numpy())
+        Y=np.cumsum(pd_this_trial['Y'].to_numpy())        
+        heading=pd_this_trial['heading_direction'].to_numpy()
+        elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
+        df_bait = pd_this_trial[['BaitX','BaitY','trial_id']]
+        agent1=pd_this_trial[['AgentX1','AgentY1','trial_id']]
+        agent1.columns=['X','Y','trial_id']
+        agent1.loc[:,'agent_id']=list(np.ones(agent1.shape[0], dtype=int))
+        agent2=pd_this_trial[['AgentX2','AgentY2','trial_id']]
+        agent2.columns=['X','Y','trial_id']
+        agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
+        state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
         trial_label=df[df['trial_id'] == this_trial]['trial_label'].values[-1]##get trial label this way because in the first version, trial label is updated one row later 
+        this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         if time_series_analysis:
-            #elapsed_time = ts - ts.min()
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(X, 59, 3, axis=0)
                 Y = savgol_filter(Y, 59, 3, axis=0)
-            loss, dX, dY,dts,angles = remove_unreliable_tracking(X, Y,analysis_methods,ts,heading)
+            loss, dX, dY,mask= remove_unreliable_tracking(X, Y,analysis_methods)
             loss = 1 - loss
+            if mask.shape[1]>0:
+                heading.iloc[mask]=np.nan
+            angles=heading
+            dts =elapsed_time
             num_spatial_decision = len(angles)
-            this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         else:
-            loss, X, Y,ts,_ = remove_unreliable_tracking(X, Y,analysis_methods,ts)
+            loss, X, Y,mask = remove_unreliable_tracking(X, Y,analysis_methods)
+            elapsed_time=elapsed_time[1:][mask]
+            df_bait=df_bait.iloc[1:,:][mask]
+            agent1=agent1.iloc[1:,:][mask]
+            agent2=agent2.iloc[1:,:][mask]
             loss = 1 - loss
             if len(X) == 0:
                 continue
@@ -86,11 +103,15 @@ def process_file(this_file, analysis_methods,count):
             newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
             dX = rXY[0][newindex]
             dY = rXY[1][newindex]
-            dts = ts[newindex]
             angles = np.arctan2(np.diff(dY), np.diff(dX)) ## in time series analysis, the angles should come from locustVR directly.
             angles = np.insert(angles, 0, np.nan)
-            this_state_type=df[df['trial_id'] == this_trial]['state_type'].values[-1]
+            dts = elapsed_time[newindex]
+            df_bait=df_bait.iloc[newindex,:]
+            agent1=agent1.iloc[newindex,:]
+            agent2=agent2.iloc[newindex,:]
+            this_state_type=this_state_type[newindex]
             num_spatial_decision = len(angles) - 1
+        df_agent=pd.concat([agent1,agent2],axis=0,ignore_index=True)
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
@@ -128,7 +149,7 @@ def process_file(this_file, analysis_methods,count):
             'fname': [fchop],
             'loss': loss,
             'trial_id': this_trial,
-            'state_type':state_type,
+            'state_type':state_type_summary,
             'trial_label':trial_label,
             "groups": [growth_condition],
             'score': meanAngle,
@@ -140,19 +161,27 @@ def process_file(this_file, analysis_methods,count):
             'cos': VecCos,
         })
         if plotting_trajectory == True:
-            if state_type==1:
+            if state_type_summary==1:
                     ## if using plot instead of scatter plot
                 ax1.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
+                ax1.scatter(df_bait['BaitX'][df_bait['BaitX']<10000].values, df_bait['BaitY'][df_bait['BaitY']<10000].values,c='k',s=1)
                 ax2.plot(df_xy['X'][df_xy['state_type']==1].values, df_xy['Y'][df_xy['state_type']==1].values)
+                ax2.scatter(df_agent['X'][df_agent['X']<10000].values, df_agent['Y'][df_agent['Y']<10000].values,c='k',s=1)
             else:
             ##blue is earlier colour and yellow is later colour
                 ax3.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
+                ax3.scatter(df_bait['BaitX'][df_bait['BaitX']<10000].values, df_bait['BaitY'][df_bait['BaitY']<10000].values,c='k',s=1)
                 ax4.plot(df_xy['X'][df_xy['state_type']==2].values, df_xy['Y'][df_xy['state_type']==2].values)
+                ax4.scatter(df_agent['X'][df_agent['X']<10000].values, df_agent['Y'][df_agent['Y']<10000].values,c='k',s=1)
 
         trial_list.append(df_trial)
         XY_list.append(df_xy)
+        bait_list.append(df_bait)
+        agent_list.append(df_agent)
     df_summary=pd.concat(trial_list, ignore_index=True)
     df_curated=pd.concat(XY_list, ignore_index=True)
+    df_bait=pd.concat(bait_list, ignore_index=True)
+    df_agent=pd.concat(agent_list, ignore_index=True)
     # Use lock to prevent concurrent writes
     if save_output == True:
         with lock:
