@@ -105,9 +105,9 @@ The analysis methods are organised into a json file, which is created from a pyt
 
 Therefore, each project has its own json file. Below explains what those analysis methods are about.
 
-    "experiment_name": "choice", this means Scene name in the unity programme. The main difference between scene is nevertheless whether how agent's position is logged. Any open-loop (agent's movement is not locked to focal animal's movement) experiment uses "choice". Any closed-loop experiments should use "band".
+    "experiment_name": "choice", this means Scene name in the unity programme. The main difference between scene is nevertheless whether how agent's position is logged. Any open-loop (agent's movement is not locked to focal animal's movement) experiment uses "choice". Any closed-loop experiments should use "band". For the data coming from locustvr, fill in "locustvr"
 
-    "overwrite_curated_dataset": boolean, whether to delete the existing HDF file or not. If True, **locustvr_converter.py** will delete the old curated dataset before processing raw data.
+    "overwrite_curated_dataset": boolean, whether to delete the existing HDF file or not. If True, **locustvr_converter.py** or **locustvr_extractor.py** will delete the old curated dataset before processing raw data.
 
     "save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then save any output
 
@@ -131,7 +131,11 @@ Therefore, each project has its own json file. Below explains what those analysi
     
     "follow_locustVR_criteria": boolean,this is used in "sorting_time_series_analysis.py" to classify follow behaviour. If true, the programme will use distance, velocity and degree deviation to define follow behaviour. If false, the programme will use only distance and velocity.
 
-    "calculate_follow_chance_level": boolean, work in progress, this is used to calculate the frequency of follow behaviour happens at the chance level. Current plan is to shuffle the position of agents across trials but how to implement that remains unclear. Probably just to apply some 45 degree rotation to the trajectory of the agents.
+    "calculate_follow_chance_level": boolean, work in progress, this is used to calculate the frequency of follow behaviour happens at the chance level. Current plan is to shuffle the position of agents across trials. This, however, may violate the trial exchangeability assumption depending on experiment design.
+
+    "frequency_based_preference_index": boolean, this is used in the preference assay. Instead of calculating the time of follow epochs, use the frequency of entering a follow epoch.
+
+    "analyse_first_half_only" and "analyse_second_half_only": boolean. This is used in the sorting_time_series_analysis.py. Default settings: both of them is false to analyse the entire experiment. There is no definition for both of them is true.
     
     "graph_colour_code": array of string, just a helper array to know which colour is used when plotting the data.
 
@@ -151,7 +155,7 @@ Therefore, each project has its own json file. Below explains what those analysi
 
 Use **time_series_analysis.ipynb**, if you want to analyse stimulus-evoked responses in details.
 
-Use **preference_analysis.ipynb**, if you want to analyse animal's preference in a two-choice assay.
+Use **preference_analysis.ipynb**, if you want to calculate animal's preference index based on follow behaviour.
 
 
 
