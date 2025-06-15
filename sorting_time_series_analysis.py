@@ -633,16 +633,18 @@ def follow_behaviour_analysis(
                             df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
                     )
                 elif calculate_follow_chance_level and df_summary[variables_to_randomise].unique().shape[0]>1:
-                    other_vars=df_summary[variables_to_randomise].unique()[grp[variables_to_randomise][0]!=df_summary[variables_to_randomise].unique()]
-                    probabilities=np.ones(other_vars.shape)/other_vars.shape[0]
+                    #other_vars=df_summary[variables_to_randomise].unique()[grp[variables_to_randomise][0]!=df_summary[variables_to_randomise].unique()]
+                    #permutation_vars=other_vars
+                    permutation_vars=df_summary[variables_to_randomise].unique()### this is used to calculate shuffled variables. Depends on the trial exchangability, it can be called as permutation test sometimes
+                    probabilities=np.ones(permutation_vars.shape)/permutation_vars.shape[0]
                     #probabilities = [1/3, 1/3, 1/3]
-                    randomised_mu=np.random.choice(other_vars, 1, p=probabilities)
+                    shuffled_mu=np.random.choice(permutation_vars, 1, p=probabilities)
                     # b=np.random.binomial(n=1,p=0.5,size=1)
                     # if b==0:
                     #     theta = np.radians(-45)
                     # else:
                     #     theta = np.radians(45)
-                    theta = np.radians(randomised_mu[0])
+                    theta = np.radians(shuffled_mu[0])
                     rot_matrix = np.array(
                             [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
                         )  # calculate the rotation matrix to align the agent to move along the same direction
