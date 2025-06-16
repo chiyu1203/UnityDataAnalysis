@@ -79,7 +79,7 @@ def extract_trial_index(movement_trial_boolean,num_animals,analysis_methods):
         after_no_movement_ith_trial=[i for i, x in enumerate(movement_trial_boolean[::2]) if x==False]
     return after_movement_ith_trial,after_no_movement_ith_trial
 
-def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_movement_ith_trial,after_no_movement_ith_trial,analysis_methods,metrics_name='velocity',row_of_interest=None,type_key="",variable_values=None):
+def plot_visual_evoked_behaviour(these_metrics,these_metrics2,after_movement_ith_trial,after_no_movement_ith_trial,analysis_methods,metrics_name='velocity',row_of_interest=None,type_key="",variable_values=None):
     exp_name=analysis_methods.get('experiment_name')
     number_frame_scene_changing=analysis_methods.get("largest_unfilled_gap",12)
     number_frame_scene_changing=10#set an arbitrary value to escape from the effect of missing value when plotting the histogram
@@ -90,13 +90,13 @@ def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_mo
     camera_fps=analysis_methods.get("camera_fps")
     all_animals=False
     tmp=np.vstack(these_metrics)
-    tmp3=np.vstack(these_normalised_metrics)
+    tmp3=np.vstack(these_metrics2)
     if align_with_isi_onset:
        stim_evoked_metrics=tmp[::2]
-       stim_evoked_norm_metrics=tmp3[::2]
+       stim_evoked_metrics2=tmp3[::2]
     else:
        stim_evoked_metrics=tmp[1::2]
-       stim_evoked_norm_metrics=tmp3[1::2]
+       stim_evoked_metrics2=tmp3[1::2]
 
     if all_animals==False and type(row_of_interest)==pd.Series:
         animal_interest_stationary=[]
@@ -108,14 +108,14 @@ def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_mo
                 animal_interest_move.append(i)
         p3=stim_evoked_metrics[animal_interest_stationary,:]
         p4=stim_evoked_metrics[animal_interest_move,:]
-        p5=stim_evoked_norm_metrics[animal_interest_stationary,:]
-        p6=stim_evoked_norm_metrics[animal_interest_move,:]
+        p5=stim_evoked_metrics2[animal_interest_stationary,:]
+        p6=stim_evoked_metrics2[animal_interest_move,:]
 
     else:
         p3=stim_evoked_metrics[after_no_movement_ith_trial,:]
         p4=stim_evoked_metrics[after_movement_ith_trial,:]
-        p5=stim_evoked_norm_metrics[after_no_movement_ith_trial,:]
-        p6=stim_evoked_norm_metrics[after_movement_ith_trial,:]
+        p5=stim_evoked_metrics2[after_no_movement_ith_trial,:]
+        p6=stim_evoked_metrics2[after_movement_ith_trial,:]
 
     # plt.rcParams.update(plt.rcParamsDefault)
     # plt.rcParams.update({'font.size': 8})
@@ -134,40 +134,48 @@ def plot_visual_evoked_behaviour(these_metrics,these_normalised_metrics,after_mo
         agent_distance=8
         agent1_loc=(agent_distance*np.cos((np.pi/4)),agent_distance*np.sin((np.pi/4)))
         agent2_loc=(agent_distance*np.cos((-np.pi/4)),agent_distance*np.sin((-np.pi/4)))
-        ax1.plot([agent1_loc[0],agent1_loc[0]+agent_speed*analysis_window[1]],[agent1_loc[1],agent1_loc[1]],'k--')
-        ax1.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'k--')
-        ax2.plot([agent1_loc[0],agent1_loc[0]+agent_speed*analysis_window[1]],[agent1_loc[1],agent1_loc[1]],'k--')
-        ax2.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'k--')
+        ax1.plot([agent1_loc[0],agent1_loc[0]+agent_speed*analysis_window[1]],[agent1_loc[1],agent1_loc[1]],'w--')
+        ax1.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'w--')
+        ax2.plot([agent1_loc[0],agent1_loc[0]+agent_speed*analysis_window[1]],[agent1_loc[1],agent1_loc[1]],'w--')
+        ax2.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'w--')
         ax3.plot([agent1_loc[0],agent1_loc[0]+agent_speed*analysis_window[1]],[agent1_loc[1],agent1_loc[1]],'k--')
         ax3.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'k--')
         ax4.plot([agent1_loc[0],agent1_loc[0]+agent_speed*analysis_window[1]],[agent1_loc[1],agent1_loc[1]],'k--')
         ax4.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'k--')
         for i in range(p3.shape[0]):
-            ax1.plot(p3[i,:],p5[i,:])
+            #ax1.plot(p3[i,:],p5[i,:])
+            ax1.hist2d(p3[i,:],p5[i,:],bins=10)
             ax3.plot(p3[i,:],p5[i,:])
-            ax5.scatter(p3[i,:],p5[i,:],c=np.arange(p3.shape[1]),marker=".")
+            ax5.hist2d(p3[i,:],p5[i,:],bins=10)
+            #ax5.scatter(p3[i,:],p5[i,:],c=np.arange(p3.shape[1]),marker=".")
             ax7.scatter(p3[i,:],p5[i,:],c=np.arange(p3.shape[1]),marker=".")       
         for i in range(p4.shape[0]):
-            ax2.plot(p4[i,:],p6[i,:])
+            #ax2.plot(p4[i,:],p6[i,:])
+            ax2.hist2d(p4[i,:],p6[i,:],bins=10)
             ax4.plot(p4[i,:],p6[i,:])
-            ax6.scatter(p4[i,:],p6[i,:],c=np.arange(p4.shape[1]),marker=".")
+            ax6.hist2d(p4[i,:],p6[i,:],bins=10)
+            #ax6.scatter(p4[i,:],p6[i,:],c=np.arange(p4.shape[1]),marker=".")
             ax8.scatter(p4[i,:],p6[i,:],c=np.arange(p4.shape[1]),marker=".")
-        ax3.set_ylim([-10,10])
-        ax4.set_ylim([-10,10])
+        #ax3.set_ylim([-10,10])
+        #ax4.set_ylim([-10,10])
+        ax3.set_ylim([-15,15])
+        ax4.set_ylim([-15,15])
         ax3.set_xlim([-5,30])
         ax4.set_xlim([-5,30])
         ax5.set_ylim([-15,15])
         ax6.set_ylim([-15,15])
-        ax5.set_xlim([-5,120])
-        ax6.set_xlim([-5,120])
-        ax7.set_ylim([-10,10])
-        ax8.set_ylim([-10,10])
+        #ax5.set_xlim([-5,120])
+        #ax6.set_xlim([-5,120])
+        # ax7.set_ylim([-10,10])
+        # ax8.set_ylim([-10,10])
+        ax7.set_ylim([-15,15])
+        ax8.set_ylim([-15,15])
         ax7.set_xlim([-5,30])
         ax8.set_xlim([-5,30])
         ax1.set_ylim([-15,15])
         ax2.set_ylim([-15,15])
-        ax1.set_xlim([-5,120])
-        ax2.set_xlim([-5,120])
+        #ax1.set_xlim([-5,120])
+        #ax2.set_xlim([-5,120])
 
         #plt.hist2d(p4,p6),bins=50)
     else:
