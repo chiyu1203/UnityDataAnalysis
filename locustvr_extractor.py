@@ -14,6 +14,7 @@ from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distan
 
 lock = Lock()
 def process_file(this_file, analysis_methods,count):
+    analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     save_output = analysis_methods.get("save_output", False)
@@ -30,18 +31,28 @@ def process_file(this_file, analysis_methods,count):
     #     df = df.iloc[:,-4:-2]
     #     df = df.cumsum() * -1
     #s = "{} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(self.deltas[0], self.deltas[1],heading_direction,time.time(),trialNum,state,trial_label,pos1[0], pos1[1], pos2[0], pos2[1],posBaitx, posBaity)
-    default_column_names = ["X","Y",'heading_direction',"ts","trial_id","state_type","trial_label","BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']    
-    #default_column_names = ["BaitX","BaitY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
+    
+    ### dx and dy means derivative of x and y
+    ### heading_direction comes from locustVR directly, which is estimated based on OpenCV blob detection
+    ### ts is the timestamp in miliseconds
+    ### trial_id is the trial number
+    ### state_type is the state of the animal, 0 is pre-choice phase, 1 is choices type 1 , 2 is choices type 2
+    ### trial_label indicates which type of stimuli is in choice type 1 and type 2
+    ### baitX and baitY means the relative position of the bait to the focal animal
+    ### AgentX1,X2 and AgentY1,Y2 means the position of the two agents in the trial
+
+    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label","preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']    
+    #default_column_names = ["preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
     #df.iloc[:,-5:].columns=default_column_names[-7:-2]
     df.columns=default_column_names[:df.shape[1]]
 
     ##The unit of raw data is in meters so we need to convert it to cm
-    cols_to_convert=["X","Y",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"BaitX","BaitY"]
+    cols_to_convert=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]
     df[cols_to_convert] = df[cols_to_convert]* 100
-    #df_bait=df[["BaitX","BaitY", "state_type",'trial_id',"ts"]]
+    #df_preChoice=df[["preChoice_relativeX","preChoice_relativeY", "state_type",'trial_id',"ts"]]
     #df_choices=df[['AgentX1', 'AgentY1', 'AgentX2', 'AgentY2', 'trial_id', 'state_type']]
     #df_XY=df[["x","y",'trial_id', 'state_type',"ts"]]
-    #df_agent = pd.concat((pd.concat((df["BaitX"],df['AgentX1'], df['AgentX2']), ignore_index=True),pd.concat((df["BaitY"],df['AgentY1'], df['AgentY2']), ignore_index=True),pd.concat((df['trial_id'],df['trial_id'], df['trial_id']), ignore_index=True)),axis=1)
+    #df_agent = pd.concat((pd.concat((df["preChoice_relativeX"],df['AgentX1'], df['AgentX2']), ignore_index=True),pd.concat((df["preChoice_relativeY"],df['AgentY1'], df['AgentY2']), ignore_index=True),pd.concat((df['trial_id'],df['trial_id'], df['trial_id']), ignore_index=True)),axis=1)
     #df_agent.columns=['X','Y',"state_type",'trial_id',"ts"]
     # df_summary["radial_distance"]
     trial_list=[]
@@ -65,11 +76,14 @@ def process_file(this_file, analysis_methods,count):
         ax4.set_title("Choice state2")
     for this_trial in df['trial_id'].unique():
         pd_this_trial=df[df['trial_id'] == this_trial]
-        X=np.cumsum(pd_this_trial['X'].to_numpy())
-        Y=np.cumsum(pd_this_trial['Y'].to_numpy())        
+        X=np.cumsum(pd_this_trial['dX'].to_numpy())
+        Y=np.cumsum(pd_this_trial['dY'].to_numpy())        
         heading=pd_this_trial['heading_direction'].to_numpy()
         elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
-        df_bait = pd_this_trial[['BaitX','BaitY','trial_id']]
+        pd_this_trial['preChoice_relativeX']=pd_this_trial['preChoice_relativeX']+X
+        pd_this_trial['preChoice_relativeY']=pd_this_trial['preChoice_relativeY']+Y
+        df_preChoice = pd_this_trial[['preChoice_relativeX','preChoice_relativeY','trial_id']]
+        df_preChoice.columns=['X','Y','trial_id']
         agent1=pd_this_trial[['AgentX1','AgentY1','trial_id']]
         agent1.columns=['X','Y','trial_id']
         agent1.loc[:,'agent_id']=list(np.ones(agent1.shape[0], dtype=int))
@@ -83,7 +97,7 @@ def process_file(this_file, analysis_methods,count):
             if analysis_methods.get("filtering_method") == "sg_filter":
                 X = savgol_filter(X, 59, 3, axis=0)
                 Y = savgol_filter(Y, 59, 3, axis=0)
-            loss, dX, dY,mask= remove_unreliable_tracking(X, Y,analysis_methods)
+            loss, curated_X, curated_Y,mask= remove_unreliable_tracking(X, Y,analysis_methods)
             loss = 1 - loss
             if mask.shape[1]>0:
                 heading.iloc[mask]=np.nan
@@ -93,7 +107,7 @@ def process_file(this_file, analysis_methods,count):
         else:
             loss, X, Y,mask = remove_unreliable_tracking(X, Y,analysis_methods)
             elapsed_time=elapsed_time[1:][mask]
-            df_bait=df_bait.iloc[1:,:][mask]
+            df_preChoice=df_preChoice.iloc[1:,:][mask]
             agent1=agent1.iloc[1:,:][mask]
             agent2=agent2.iloc[1:,:][mask]
             loss = 1 - loss
@@ -101,12 +115,12 @@ def process_file(this_file, analysis_methods,count):
                 continue
             rXY = np.vstack((X, Y))
             newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
-            dX = rXY[0][newindex]
-            dY = rXY[1][newindex]
-            angles = np.arctan2(np.diff(dY), np.diff(dX)) ## in time series analysis, the angles should come from locustVR directly.
+            curated_X = rXY[0][newindex]
+            curated_Y = rXY[1][newindex]
+            angles = np.arctan2(np.diff(curated_Y), np.diff(curated_X)) ## in time series analysis, the angles should come from locustVR directly.
             angles = np.insert(angles, 0, np.nan)
             dts = elapsed_time[newindex]
-            df_bait=df_bait.iloc[newindex,:]
+            df_preChoice=df_preChoice.iloc[newindex,:]
             agent1=agent1.iloc[newindex,:]
             agent2=agent2.iloc[newindex,:]
             this_state_type=this_state_type[newindex]
@@ -133,13 +147,13 @@ def process_file(this_file, analysis_methods,count):
         tdist = (
             np.sum(euclidean_distance(X,Y))
             if time_series_analysis
-            else len(dX) * BODY_LENGTH3
+            else len(curated_X) * BODY_LENGTH3
         )
         chop = str(this_file.parent).split('\\')[-1].split('_')[:2]
         fchop = '_'.join(chop)
         df_xy = pd.DataFrame({
-            'X': dX,
-            'Y': dY,
+            'X': curated_X,
+            'Y': curated_Y,
             'heading':angles,
             'ts':dts,
             'trial_id': this_trial,
@@ -155,7 +169,7 @@ def process_file(this_file, analysis_methods,count):
             'score': meanAngle,
             'vector': meanVector,
             'variance': std,
-            'distX': dX[-1],
+            'distX': curated_X[-1],
             'distTotal': tdist,
             'sin': VecSin,
             'cos': VecCos,
@@ -164,31 +178,31 @@ def process_file(this_file, analysis_methods,count):
             if state_type_summary==1:
                     ## if using plot instead of scatter plot
                 ax1.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
-                ax1.scatter(df_bait['BaitX'][df_bait['BaitX']<10000].values, df_bait['BaitY'][df_bait['BaitY']<10000].values,c='k',s=1)
+                ax1.scatter(df_preChoice['X'][df_preChoice['X']<10000].values, df_preChoice['Y'][df_preChoice['Y']<10000].values,c='k',s=1)
                 ax2.plot(df_xy['X'][df_xy['state_type']==1].values, df_xy['Y'][df_xy['state_type']==1].values)
                 ax2.scatter(df_agent['X'][df_agent['X']<10000].values, df_agent['Y'][df_agent['Y']<10000].values,c='k',s=1)
             else:
             ##blue is earlier colour and yellow is later colour
                 ax3.plot(df_xy['X'][df_xy['state_type']==0].values, df_xy['Y'][df_xy['state_type']==0].values)
-                ax3.scatter(df_bait['BaitX'][df_bait['BaitX']<10000].values, df_bait['BaitY'][df_bait['BaitY']<10000].values,c='k',s=1)
+                ax3.scatter(df_preChoice['X'][df_preChoice['X']<10000].values, df_preChoice['Y'][df_preChoice['Y']<10000].values,c='k',s=1)
                 ax4.plot(df_xy['X'][df_xy['state_type']==2].values, df_xy['Y'][df_xy['state_type']==2].values)
                 ax4.scatter(df_agent['X'][df_agent['X']<10000].values, df_agent['Y'][df_agent['Y']<10000].values,c='k',s=1)
 
         trial_list.append(df_trial)
         XY_list.append(df_xy)
-        bait_list.append(df_bait)
+        bait_list.append(df_preChoice)
         agent_list.append(df_agent)
     df_summary=pd.concat(trial_list, ignore_index=True)
     df_curated=pd.concat(XY_list, ignore_index=True)
-    df_bait=pd.concat(bait_list, ignore_index=True)
+    df_preChoice=pd.concat(bait_list, ignore_index=True)
     df_agent=pd.concat(agent_list, ignore_index=True)
     # Use lock to prevent concurrent writes
     if save_output == True:
         with lock:
             file_list=[summary_file_path,curated_file_path,agent_file_path]
             data_frame_list=[df_summary,df_curated]
-            df_agent_list=[df_bait,df_agent]
-            agent_key_list=['bait','choices']            
+            df_agent_list=[df_preChoice,df_agent]
+            agent_key_list=['preChoice','Choices']            
             for i,this_file in enumerate(file_list):
                 if this_file==agent_file_path:
                     store = pd.HDFStore(agent_file_path)

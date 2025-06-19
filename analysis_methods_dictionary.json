@@ -1,9 +1,9 @@
 {
     "experiment_name": "locustvr",
     "overwrite_curated_dataset": true,
-    "export_fictrac_data_only": false,
+    "export_fictrac_data_only": true,
     "save_output": true,
-    "time_series_analysis": true,
+    "time_series_analysis": false,
     "filtering_method": "sg_filter",
     "plotting_trajectory": true,
     "plotting_event_distribution": true,
