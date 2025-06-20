@@ -2,6 +2,71 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import linalg as LA
+import seaborn as sns
+import math
+import pandas as pd
+def adjacent_values(vals, q1, q3):
+    upper_adjacent_value = q3 + (q3 - q1) * 1.5
+    upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
+
+    lower_adjacent_value = q1 - (q3 - q1) * 1.5
+    lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
+    return lower_adjacent_value, upper_adjacent_value
+
+
+def set_axis_style(ax, labels):
+    ax.set_xticks(np.arange(1, len(labels) + 1), labels=labels)
+    ax.set_xlim(0.25, len(labels) + 0.75)
+    ax.set_xlabel('Sample name')
+def plot_violin_across_parameters(ax,raw_data,data_color='k'):
+    means= np.nanmean(raw_data, axis=1)
+    nested_list=raw_data.tolist()
+    data = [sorted([x for x in sublist if not math.isnan(x)]) for sublist in nested_list]
+    parts = ax.violinplot(
+    data, np.arange(4, len(means) + 4), showmeans=False, showmedians=False,
+    showextrema=False)
+    for pc in parts['bodies']:
+        pc.set_facecolor(data_color)
+        pc.set_edgecolor(data_color)
+        pc.set_alpha(0.3)
+    quartile1 = [np.percentile(d, 25) for d in data]
+    medians   = [np.percentile(d, 50) for d in data]
+    quartile3 = [np.percentile(d, 75) for d in data]
+    whiskers = np.array([
+        adjacent_values(sorted_array, q1, q3)
+        for sorted_array, q1, q3 in zip(data, quartile1, quartile3)])
+    inds = np.arange(4, len(medians) + 4)
+    whiskers_min, whiskers_max = whiskers[:, 0], whiskers[:, 1]
+    ax.scatter(inds, medians, marker='o', color='white', s=20, zorder=3)
+    ax.scatter(inds, means, marker='o', color='grey', s=20, zorder=3)
+    ax.vlines(inds, quartile1, quartile3, color=data_color, linestyle='-', lw=5)
+    ax.vlines(inds, whiskers_min, whiskers_max, color=data_color, linestyle='-', lw=1)
+    return ax
+def plot_scatter_across_parameters(ax,raw_data,thresholds,data_color='k'):
+    xaxis_points=np.repeat(thresholds,raw_data.shape[1]).reshape(len(thresholds),raw_data.shape[1])
+    ax.scatter(xaxis_points,raw_data,alpha=0.2,c=data_color)
+    mean_index=np.mean(xaxis_points,axis=1)
+    mean_response=np.nanmean(raw_data,axis=1)
+    _, median_response, _ = np.nanpercentile(raw_data, [25, 50, 75], axis=1)
+    sem_response=np.nanstd(raw_data, axis=1, ddof=1) / np.sqrt(raw_data.shape[1])
+    ax.errorbar(
+        mean_index,
+        mean_response,
+        yerr=sem_response,
+        c=data_color,
+        fmt="o",
+        elinewidth=1,
+        capsize=2,
+    )
+    ax.scatter(mean_index,median_response,s=200,marker='x',c=data_color)
+    return ax
+def plot_jitter_across_parameters(ax,raw_data,thresholds,data_color='k'):
+    xaxis_points=np.repeat(thresholds,raw_data.shape[1])
+    test=np.column_stack((np.transpose(np.hstack(raw_data)),np.transpose(xaxis_points)))
+    data = pd.DataFrame(test,columns=['value','ROI size'])
+    sns.stripplot(data=data,x='ROI size',y='value',ax=ax,jitter=True, color=data_color, alpha=0.2)
+    return ax
+
 def plot_relative_pos_distribution(relative_pos_of_interest,trial_type_of_interest,distance_threshold_for_plotting,analysis_methods,this_vr='all'):
     save_output= analysis_methods.get("save_output")
     xlimit=(0,distance_threshold_for_plotting)
@@ -26,6 +91,8 @@ def plot_relative_pos_distribution(relative_pos_of_interest,trial_type_of_intere
     plt.show()
 def plot_preference_index(left_right_preference_across_animals,exp_con_preference_across_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all'):
     save_output= analysis_methods.get("save_output")
+    violin_plot=False
+    jitter_plot=False
     object_of_interest=trial_type_of_interest[0].split("_x_")
     if len(object_of_interest)==1 and len(trial_type_of_interest)==2:
         fig_name=f"preference_index_VR{this_vr}_homegenous_trials_multiple_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
@@ -44,49 +111,33 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
     preference_plot, (ax1,ax2) = plt.subplots(
         nrows=1, ncols=2, figsize=(8, 4), tight_layout=True
     )
-    xaxis_points=np.repeat(thresholds,left_right_preference_across_animals.shape[1]).reshape(len(thresholds),left_right_preference_across_animals.shape[1])
-    ax1.scatter(xaxis_points,left_right_preference_across_animals,alpha=0.2,c=data_color)
-    mean_index=np.mean(xaxis_points,axis=1)
-    mean_response=np.nanmean(left_right_preference_across_animals,axis=1)
-    sem_response=np.nanstd(left_right_preference_across_animals, axis=1, ddof=1) / np.sqrt(left_right_preference_across_animals.shape[1])
-    ax1.errorbar(
-        mean_index,
-        mean_response,
-        yerr=sem_response,
-        c=data_color,
-        fmt="o",
-        elinewidth=2,
-        capsize=3,
-    )
-    ax1.set(
-        ylabel="(postive means prefer left)",
-        yticks=[-1,0,1],
-        xticks=thresholds,
-        xlabel="ROI size (cm)",
-        title="spatial preference",
-        xlim=(min(thresholds)-1,max(thresholds)+1)
-    )
-    ax2.scatter(xaxis_points,exp_con_preference_across_animals,alpha=0.2,c="r")
-    mean_index=np.mean(xaxis_points,axis=1)
-    mean_response=np.nanmean(exp_con_preference_across_animals,axis=1)
-    sem_response=np.nanstd(exp_con_preference_across_animals, axis=1, ddof=1) / np.sqrt(exp_con_preference_across_animals.shape[1])
-    ax2.errorbar(
-        mean_index,
-        mean_response,
-        yerr=sem_response,
-        c="r",
-        fmt="o",
-        elinewidth=2,
-        capsize=3,
-    )
-    ax2.set(
-        #ylabel="(positive means prefer exp)",
-        yticks=[-1,0,1],
-        xticks=thresholds,
-        xlabel="ROI size (cm)",
-        title="visual preference",
-        xlim=(min(thresholds)-1,max(thresholds)+1)
-    )
+
+    if violin_plot:
+        ax1=plot_violin_across_parameters(ax1,left_right_preference_across_animals,data_color=data_color)
+        ax2=plot_violin_across_parameters(ax2,exp_con_preference_across_animals,data_color='r')
+    elif jitter_plot:
+        ax1=plot_jitter_across_parameters(ax1,left_right_preference_across_animals,thresholds,data_color=data_color)
+        ax2=plot_jitter_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='r')
+    else:
+        ax1=plot_scatter_across_parameters(ax1,left_right_preference_across_animals,thresholds,data_color=data_color)
+        ax2=plot_scatter_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='r')
+    if jitter_plot ==False:
+        ax1.set(
+            ylabel="(postive means prefer left)",
+            yticks=[-1,0,1],
+            xticks=thresholds,
+            xlabel="ROI size (cm)",
+            title="spatial preference",
+            xlim=(min(thresholds)-1,max(thresholds)+1)
+        )
+        ax2.set(
+            #ylabel="(positive means prefer exp)",
+            yticks=[-1,0,1],
+            xticks=thresholds,
+            xlabel="ROI size (cm)",
+            title="visual preference",
+            xlim=(min(thresholds)-1,max(thresholds)+1)
+        )
     if save_output==True:
         preference_plot.savefig(f"{fig_name}.png")
         preference_plot.savefig(f"{fig_name}.svg")
