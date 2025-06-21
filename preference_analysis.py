@@ -5,6 +5,8 @@ from numpy import linalg as LA
 import seaborn as sns
 import math
 import pandas as pd
+import json,pickle
+
 def adjacent_values(vals, q1, q3):
     upper_adjacent_value = q3 + (q3 - q1) * 1.5
     upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
@@ -18,12 +20,12 @@ def set_axis_style(ax, labels):
     ax.set_xticks(np.arange(1, len(labels) + 1), labels=labels)
     ax.set_xlim(0.25, len(labels) + 0.75)
     ax.set_xlabel('Sample name')
-def plot_violin_across_parameters(ax,raw_data,data_color='k'):
+def plot_violin_across_parameters(ax,raw_data,thresholds,data_color='k'):
     means= np.nanmean(raw_data, axis=1)
     nested_list=raw_data.tolist()
     data = [sorted([x for x in sublist if not math.isnan(x)]) for sublist in nested_list]
     parts = ax.violinplot(
-    data, np.arange(4, len(means) + 4), showmeans=False, showmedians=False,
+    data, thresholds, showmeans=False, showmedians=False,
     showextrema=False)
     for pc in parts['bodies']:
         pc.set_facecolor(data_color)
@@ -35,12 +37,12 @@ def plot_violin_across_parameters(ax,raw_data,data_color='k'):
     whiskers = np.array([
         adjacent_values(sorted_array, q1, q3)
         for sorted_array, q1, q3 in zip(data, quartile1, quartile3)])
-    inds = np.arange(4, len(medians) + 4)
+    #inds = thresholds
     whiskers_min, whiskers_max = whiskers[:, 0], whiskers[:, 1]
-    ax.scatter(inds, medians, marker='o', color='white', s=20, zorder=3)
-    ax.scatter(inds, means, marker='o', color='grey', s=20, zorder=3)
-    ax.vlines(inds, quartile1, quartile3, color=data_color, linestyle='-', lw=5)
-    ax.vlines(inds, whiskers_min, whiskers_max, color=data_color, linestyle='-', lw=1)
+    ax.scatter(thresholds, medians, marker='o', color='white', s=20, zorder=3)
+    ax.scatter(thresholds, means, marker='o', color='grey', s=20, zorder=3)
+    ax.vlines(thresholds, quartile1, quartile3, color=data_color, linestyle='-', lw=5)
+    ax.vlines(thresholds, whiskers_min, whiskers_max, color=data_color, linestyle='-', lw=1)
     return ax
 def plot_scatter_across_parameters(ax,raw_data,thresholds,data_color='k'):
     xaxis_points=np.repeat(thresholds,raw_data.shape[1]).reshape(len(thresholds),raw_data.shape[1])
@@ -91,17 +93,27 @@ def plot_relative_pos_distribution(relative_pos_of_interest,trial_type_of_intere
     plt.show()
 def plot_preference_index(left_right_preference_across_animals,exp_con_preference_across_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all'):
     save_output= analysis_methods.get("save_output")
+    frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
+    if analysis_methods.get("exclude_extreme_index"):
+        annotation="_no_extreme"
+    else:
+        annotation=""
+    if frequency_based_preference_index:
+        preference_index_type='_frequency_based'
+    else:
+        preference_index_type='_time_based'
     violin_plot=False
     jitter_plot=False
     object_of_interest=trial_type_of_interest[0].split("_x_")
+    
     if len(object_of_interest)==1 and len(trial_type_of_interest)==2:
-        fig_name=f"preference_index_VR{this_vr}_homegenous_trials_multiple_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
+        fig_name=f"preference_index_VR{this_vr}_homogenous_trials_multiple_condition_top_{trial_type_of_interest[1]}_bottom_{trial_type_of_interest[0]}"
         data_color='k'
     elif len(object_of_interest)==2 and len(trial_type_of_interest)==2:
         fig_name=f"preference_index_VR{this_vr}_heterogenous_trials_multiple_condition_top_{object_of_interest[1]}_bottom_{object_of_interest[0]}"
         data_color='b'
     elif len(object_of_interest)==1 and len(trial_type_of_interest)==1:
-        fig_name=f"preference_index_VR{this_vr}_homegenous_trials_single_condition_object_type_{object_of_interest[0]}"
+        fig_name=f"preference_index_VR{this_vr}_homogenous_trials_single_condition_object_type_{object_of_interest[0]}"
         data_color='k'
     elif len(object_of_interest)==2 and len(trial_type_of_interest)==1:
         fig_name=f"preference_index_VR{this_vr}_heterogenous_trials_single_condition_top_{object_of_interest[1]}_bottom_{object_of_interest[0]}"
@@ -113,14 +125,20 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
     )
 
     if violin_plot:
-        ax1=plot_violin_across_parameters(ax1,left_right_preference_across_animals,data_color=data_color)
-        ax2=plot_violin_across_parameters(ax2,exp_con_preference_across_animals,data_color='r')
+        ax1=plot_violin_across_parameters(ax1,left_right_preference_across_animals,thresholds,data_color=data_color)
+        ax2=plot_violin_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='r')
+        fig_type=f"_violin"
     elif jitter_plot:
         ax1=plot_jitter_across_parameters(ax1,left_right_preference_across_animals,thresholds,data_color=data_color)
         ax2=plot_jitter_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='r')
+        fig_type=f"_jitter"
     else:
         ax1=plot_scatter_across_parameters(ax1,left_right_preference_across_animals,thresholds,data_color=data_color)
-        ax2=plot_scatter_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='r')
+        if 'homogenous_trials' in fig_name:
+            ax2=plot_scatter_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='k')
+        else:
+            ax2=plot_scatter_across_parameters(ax2,exp_con_preference_across_animals,thresholds,data_color='r')
+        fig_type=f"_scatter"
     if jitter_plot ==False:
         ax1.set(
             ylabel="(postive means prefer left)",
@@ -139,30 +157,40 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
             xlim=(min(thresholds)-1,max(thresholds)+1)
         )
     if save_output==True:
-        preference_plot.savefig(f"{fig_name}.png")
-        preference_plot.savefig(f"{fig_name}.svg")
+        preference_plot.savefig(f"{fig_name}{fig_type}{preference_index_type}{annotation}.png")
+        preference_plot.savefig(f"{fig_name}{fig_type}{preference_index_type}{annotation}.svg")
     plt.show()
 def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fig_name,data_color,thresholds=[4,5,6,7,8],this_vr='all'):
     ##try using seaborn to plot the data next time
     save_output=analysis_methods.get("save_output")
     camera_fps=analysis_methods.get("camera_fps")
     frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
+    if analysis_methods.get("exclude_extreme_index"):
+        annotation="_no_extreme"
+    else:
+        annotation=""
     if frequency_based_preference_index:
         unit='(count)'
         camera_fps=1
         limits=[35,40,45,50,55]
+        fig_type='_frequency_based'
     else:
         unit='(sec)'
         limits=[25,30,35,40,45]
+        fig_type='_time_based'
     num_subplots=len(thresholds)
     scatterplots, axes = plt.subplots(
         nrows=1, ncols=num_subplots*2, figsize=(40, 4), tight_layout=True
     )
+    if 'homogenous_trials' in fig_name:
+        fig_color='k'
+    else:
+        fig_color='b'
 
     #limits=[15,20,25,30,35]
     
     for i in range(epochs_exp.shape[0]):
-        axes[i].scatter(epochs_con[i,:]/camera_fps,epochs_exp[i,:]/camera_fps,c='r')
+        axes[i].scatter(epochs_con[i,:]/camera_fps,epochs_exp[i,:]/camera_fps,c=fig_color)
         axes[i].set(
             xlabel=f"con {unit}",
             ylabel=f"exp {unit}",
@@ -181,21 +209,26 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
         )
         axes[i+num_subplots].plot([0, 1], [0, 1], transform=axes[i+num_subplots].transAxes, color='gray', linestyle='--')
     if save_output==True:
-        scatterplots.savefig(f"{fig_name}.png")
-        scatterplots.savefig(f"{fig_name}.svg")
+        scatterplots.savefig(f"{fig_name}{fig_type}{annotation}.png")
+        scatterplots.savefig(f"{fig_name}{fig_type}{annotation}.svg")
 
 def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all'):
-    # frequency_based_preference_index=False
-    # analysis_methods['frequency_based_preference_index'] = frequency_based_preference_index
     frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
+    exclude_extreme_index=analysis_methods.get("exclude_extreme_index",False)
     spatial_preference_animals=np.zeros((len(thresholds),len(relative_pos_all_animals),relative_pos_all_animals[0]['type'].unique().shape[0]))
     spatial_preference_animals[:]=np.nan
     epochs_forL_all_animals_homo=np.zeros((len(thresholds),len(relative_pos_all_animals)))
+    epochs_forL_all_animals_homo[:]=np.nan
     epochs_forR_all_animals_homo=np.zeros((len(thresholds),len(relative_pos_all_animals)))
+    epochs_forR_all_animals_homo[:]=np.nan
     epochs_forL_all_animals_hetero=np.zeros((len(thresholds),len(relative_pos_all_animals)))
+    epochs_forL_all_animals_hetero[:]=np.nan
     epochs_forR_all_animals_hetero=np.zeros((len(thresholds),len(relative_pos_all_animals)))
+    epochs_forR_all_animals_hetero[:]=np.nan
     epochs_exp_all_animals_hetero=np.zeros((len(thresholds),len(relative_pos_all_animals)))
+    epochs_exp_all_animals_hetero[:]=np.nan
     epochs_con_all_animals_hetero=np.zeros((len(thresholds),len(relative_pos_all_animals)))
+    epochs_con_all_animals_hetero[:]=np.nan
     object_of_interest=trial_type_of_interest[0].split("_x_")
     if len(object_of_interest)==1 and len(trial_type_of_interest)==2:
         fig_name=f"epochs_VR{this_vr}_homegenous_trials_multiple_condition_{trial_type_of_interest[0]}_and_{trial_type_of_interest[1]}"
@@ -216,6 +249,7 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         trial_type_list=sorted(relative_pos_this_animal['type'].unique(), key=len)
         if len(trial_type_list)<4:
             print(f"animal {i} only three follow epochs from {len(trial_type_list)} trial types")
+            continue
         homo_no=0
         hetero_no=0
         epochs_forL_this_animal_homo=np.zeros((len(thresholds),2))
@@ -225,19 +259,27 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         epochs_exp_this_animal_hetero=np.zeros((len(thresholds),2))
         epochs_con_this_animal_hetero=np.zeros((len(thresholds),2))
         relative_pos_this_animal['distance']=LA.norm(np.vstack((relative_pos_this_animal["x"].values,relative_pos_this_animal["y"].values)),axis=0)
-        for key,grp in relative_pos_this_animal.groupby('type'):
+        #for key,grp in relative_pos_this_animal.groupby('type'):
+        for key in trial_type_list:
+            grp=relative_pos_this_animal[relative_pos_this_animal['type']==key]
             #Note1: start to do analysis based on the functionality of groupby and sorted
             #The first trial type to analyse is based on alphabetical order, and then based on length of the string
-            relative_distance=LA.norm(np.vstack((grp["x"].values,grp["y"].values)),axis=0)
+            #relative_distance=grp['distance'].values
             epochs_forL_array=np.zeros((len(thresholds)))
             epochs_forR_array=np.zeros((len(thresholds)))
             epochs_exp_array=np.zeros((len(thresholds)))
             epochs_con_array=np.zeros((len(thresholds)))
             for j,this_threshold in enumerate(thresholds):
-                ##return agent ID when relative distance is within the threshold
-
-                grp['enter_roi']=grp['distance']<this_threshold
                 ## when entering ROI happens, based on the agent_id to know whether it is enter L or R
+                ##return agent ID when relative distance is within the threshold
+                
+                ### try using numpy mask in the future
+                # enter_roi=(grp.loc[:,'distance']<this_threshold).to_numpy()
+                # agent_id=grp.loc[1:,'agent_id'].to_numpy()
+                # agent_id[1:][enter_roi[1:] & (~enter_roi[:-1])]
+                
+                ### now use this for readability of the code. The warning comes from the fact that grp is a truncated dataframe
+                grp.loc[:,'enter_roi']=grp.loc[:,'distance']<this_threshold
                 transitions_toL = (grp['enter_roi'].shift(1) == False) & (grp['enter_roi'] == True) & (grp['agent_id'] == 1)
                 visit_frequency_L=transitions_toL.sum()
                 transitions_toR = (grp['enter_roi'].shift(1) == False) & (grp['enter_roi'] == True) & (grp['agent_id'] == 0)
@@ -247,9 +289,10 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
                     epochs_forR=visit_frequency_R
                 else:
                     ##sum agent ID to get epochs for the left object because agent ID is 0 for the right object and 1 for the left object
-                    epochs_forL=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)
+                    #epochs_forL=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)### try using .loc[row_index, column_name]=value instead
+                    epochs_forL=grp.loc[grp['enter_roi']==True,'agent_id'].sum()
                     ##epochs for the R object comes from the rest of element in the array
-                    epochs_forR=grp[relative_distance<this_threshold]["agent_id"].values.shape[0]-epochs_forL
+                    epochs_forR=grp.loc[grp['enter_roi']==True].shape[0]-epochs_forL
 
                 ##assign epochs_exp or epochs_con based on the trial type, if the trial type is not of interest, assign NaN
                 if len(trial_type_of_interest)==2:
@@ -332,7 +375,31 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         Warning("unknown trial naming")
         left_right_preference_across_animals,exp_con_preference_across_animals=(np.nan,np.nan)
 
+
+    if exclude_extreme_index==True:
+        animal_no_extreme=(epochs_exp_all_animals==0) | (epochs_con_all_animals==0)
+        epochs_exp_all_animals[animal_no_extreme]=np.nan
+        epochs_con_all_animals[animal_no_extreme]=np.nan
+        animal_no_extreme=(epochs_forL_all_animals==0) | (epochs_forR_all_animals==0)
+        epochs_forL_all_animals[animal_no_extreme]=np.nan
+        epochs_forR_all_animals[animal_no_extreme]=np.nan
+
     exp_con_preference_across_animals=(epochs_exp_all_animals-epochs_con_all_animals)/(epochs_exp_all_animals+epochs_con_all_animals)
     left_right_preference_across_animals=(epochs_forL_all_animals-epochs_forR_all_animals)/(epochs_forL_all_animals+epochs_forR_all_animals)
     plot_epochs_time(epochs_exp_all_animals,epochs_con_all_animals,epochs_forL_all_animals,epochs_forR_all_animals,analysis_methods,fig_name,data_color,thresholds)
-    return left_right_preference_across_animals,exp_con_preference_across_animals,epochs_exp_all_animals_hetero,epochs_con_all_animals_hetero
+    return left_right_preference_across_animals,exp_con_preference_across_animals,epochs_exp_all_animals_hetero,epochs_con_all_animals_hetero,epochs_forL_all_animals,epochs_forR_all_animals
+
+if __name__ == "__main__":
+    file_path='dataframes_list.pkl'
+    with open(file_path, 'rb') as f:
+        relative_pos_all_animals = pickle.load(f)
+    json_file = "./analysis_methods_dictionary.json"
+    if isinstance(json_file, dict):
+        analysis_methods = json_file
+    else:
+        with open(json_file, "r") as f:
+            print(f"load analysis methods from file {json_file}")
+            analysis_methods = json.loads(f.read())
+    trial_type_of_interest=['LeaderLocust']
+    analysis_methods.update({"frequency_based_preference_index":False})
+    calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all')
