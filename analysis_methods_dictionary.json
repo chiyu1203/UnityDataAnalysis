@@ -1,7 +1,7 @@
 {
-    "experiment_name": "locustvr",
+    "experiment_name": "choice",
     "overwrite_curated_dataset": true,
-    "export_fictrac_data_only": true,
+    "export_fictrac_data_only": false,
     "save_output": true,
     "time_series_analysis": false,
     "filtering_method": "sg_filter",
@@ -19,6 +19,7 @@
     "frequency_based_preference_index": true,
     "analyse_first_half_only": false,
     "analyse_second_half_only": false,
+    "exclude_extreme_index": true,
     "graph_colour_code": [
         "r",
         "b",

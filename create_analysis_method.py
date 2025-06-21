@@ -22,6 +22,7 @@ analysis_methods = {
     "frequency_based_preference_index":True,
     "analyse_first_half_only":False,
     "analyse_second_half_only":False,
+    "exclude_extreme_index":False,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],
     "follow_within_distance": 50,
     "camera_fps": 100,
