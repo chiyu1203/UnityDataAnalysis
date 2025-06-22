@@ -128,8 +128,8 @@ def plot_visual_evoked_behaviour(these_metrics,these_metrics2,after_movement_ith
         nrows=4, ncols=2, figsize=(18,20), tight_layout=True
     )
     ax1, ax2, ax3, ax4,ax5,ax6,ax7,ax8 = axes.flatten()
+    p3_all,p4_all,p5_all,p6_all=(np.array([]),np.array([]),np.array([]),np.array([]))
     if metrics_name=='xy':
-
         agent_speed=2
         agent_distance=8
         agent1_loc=(agent_distance*np.cos((np.pi/4)),agent_distance*np.sin((np.pi/4)))
@@ -144,40 +144,55 @@ def plot_visual_evoked_behaviour(these_metrics,these_metrics2,after_movement_ith
         ax4.plot([agent2_loc[0],agent2_loc[0]+agent_speed*analysis_window[1]],[agent2_loc[1],agent2_loc[1]],'k--')
         for i in range(p3.shape[0]):
             #ax1.plot(p3[i,:],p5[i,:])
-            ax1.hist2d(p3[i,:],p5[i,:],bins=10)
             ax3.plot(p3[i,:],p5[i,:])
-            ax5.hist2d(p3[i,:],p5[i,:],bins=10)
-            #ax5.scatter(p3[i,:],p5[i,:],c=np.arange(p3.shape[1]),marker=".")
-            ax7.scatter(p3[i,:],p5[i,:],c=np.arange(p3.shape[1]),marker=".")       
+            ax7.scatter(p3[i,:],p5[i,:],c=np.arange(p3.shape[1]),marker=".")# This plot shows the trajectory of animals and colour coded by time
         for i in range(p4.shape[0]):
-            #ax2.plot(p4[i,:],p6[i,:])
-            ax2.hist2d(p4[i,:],p6[i,:],bins=10)
             ax4.plot(p4[i,:],p6[i,:])
-            ax6.hist2d(p4[i,:],p6[i,:],bins=10)
-            #ax6.scatter(p4[i,:],p6[i,:],c=np.arange(p4.shape[1]),marker=".")
-            ax8.scatter(p4[i,:],p6[i,:],c=np.arange(p4.shape[1]),marker=".")
-        #ax3.set_ylim([-10,10])
-        #ax4.set_ylim([-10,10])
+            ax8.scatter(p4[i,:],p6[i,:],c=np.arange(p4.shape[1]),marker=".")# This plot shows the trajectory of animals and colour coded by time
+        if p3.shape[0]>0:
+            p3_all=np.hstack(p3)
+        if p5.shape[0]>0:
+            p5_all=np.hstack(p5)
+        if p3.shape[0]>0 and p5.shape[0]>0:
+            animal_at0=(abs(p3_all)<2) & (abs(p5_all)<2)
+            p3_all[animal_at0]=np.nan
+            p5_all[animal_at0]=np.nan
+            ax5.hist2d(p3_all[~np.isnan(p3_all)],p5_all[~np.isnan(p5_all)],bins=50)
+        if p4.shape[0]>0:
+            p4_all=np.hstack(p4)
+        if p6.shape[0]>0:
+            p6_all=np.hstack(p6)
+        if p4.shape[0]>0 and p6.shape[0]>0:
+            animal_at0=(abs(p4_all)<2) & (abs(p6_all)<2)
+            p4_all[animal_at0]=np.nan
+            p6_all[animal_at0]=np.nan
+            ax6.hist2d(p4_all[~np.isnan(p4_all)],p6_all[~np.isnan(p6_all)],bins=50)
         ax3.set_ylim([-15,15])
         ax4.set_ylim([-15,15])
-        ax3.set_xlim([-5,30])
-        ax4.set_xlim([-5,30])
+        #ax3.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
+        #ax4.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
+        ax3.set_xlim([-5,50])
+        ax4.set_xlim([-5,50])
+        ax1.set_xlim([-5,50])
+        ax2.set_xlim([-5,50])
+        ax5.set_xlim([-5,50])
+        ax6.set_xlim([-5,50])
+        ax7.set_xlim([-5,50])
+        ax8.set_xlim([-5,50])
         ax5.set_ylim([-15,15])
         ax6.set_ylim([-15,15])
-        #ax5.set_xlim([-5,120])
-        #ax6.set_xlim([-5,120])
+        # ax5.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
+        # ax6.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
         # ax7.set_ylim([-10,10])
         # ax8.set_ylim([-10,10])
         ax7.set_ylim([-15,15])
         ax8.set_ylim([-15,15])
-        ax7.set_xlim([-5,30])
-        ax8.set_xlim([-5,30])
+        # ax7.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
+        # ax8.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
         ax1.set_ylim([-15,15])
         ax2.set_ylim([-15,15])
-        #ax1.set_xlim([-5,120])
-        #ax2.set_xlim([-5,120])
-
-        #plt.hist2d(p4,p6),bins=50)
+        # ax1.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
+        # ax2.set_xlim([-5,agent1_loc[0]+agent_speed*analysis_window[1]])
     else:
         x=np.arange(0,p3.shape[1])
         p1=np.nancumsum(p3, axis=1)/camera_fps
@@ -305,3 +320,4 @@ def plot_visual_evoked_behaviour(these_metrics,these_metrics2,after_movement_ith
             fig_name=f"ts_plot_{exp_name}_{variable_values}_{metrics_name}_{type_key}.png"
             fig.savefig(fig_name)
     plt.show()
+    return p3_all,p5_all,p4_all,p6_all
