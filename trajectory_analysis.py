@@ -15,6 +15,58 @@ class MplColorHelper:
         return self.scalarMap.to_rgba(val)
 # colormap_name = "viridis"
 
+def adjacent_values(vals, q1, q3):
+    upper_adjacent_value = q3 + (q3 - q1) * 1.5
+    upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
+
+    lower_adjacent_value = q1 - (q3 - q1) * 1.5
+    lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
+    return lower_adjacent_value, upper_adjacent_value
+
+
+def set_axis_style(ax, labels):
+    ax.set_xticks(np.arange(1, len(labels) + 1), labels=labels)
+    ax.set_xlim(0.25, len(labels) + 0.75)
+    ax.set_xlabel('Sample name')
+
+def plot_scatter_violin(data,sequence_config_this_condition):
+    data = data[~np.isnan(data)]
+    fig, (ax,ax2) = plt.subplots(nrows=1, ncols=2,figsize=(2,4), dpi=300,sharey=True)
+    ax.scatter([0] * data.shape[0],data,s=1)
+    #ax.violinplot(this_data[0,:],showmedians=True,showmeans=True)
+    ## customised violin plot is adapted from https://matplotlib.org/stable/gallery/statistics/customized_violin.html#sphx-glr-gallery-statistics-customized-violin-py
+    if 'agent' in sequence_config_this_condition:
+        agent_name=sequence_config_this_condition.split('_x_')[1]
+        this_ylabel=f"agent preference (+ means for {agent_name})"    
+    else:
+        this_ylabel="left/right preference (+ means for left)"
+    ax.set(
+        ylabel=this_ylabel,
+        ylim=(-1.2,1.2),
+        yticks=([-1, 0, 1]),
+        xticks=([]),
+    )
+    ax.yaxis.label.set(fontsize=6)
+    parts = ax2.violinplot(
+            data, showmeans=False, showmedians=False,
+            showextrema=False)
+
+    for pc in parts['bodies']:
+        pc.set_facecolor("#000000")
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.3)
+    quartile1, medians, quartile3 = np.percentile(data, [25, 50, 75], axis=0)
+    means = np.mean(data, axis=0)
+    whiskers=np.array([adjacent_values(data, quartile1, quartile3)])
+    whiskers_min, whiskers_max = whiskers[:, 0], whiskers[:, 1]
+    ax2.scatter(1, medians, marker='o', color='white', s=30, zorder=3)
+    ax2.scatter(1, means, marker='o', color='grey', s=30, zorder=3)
+    ax2.vlines(1, quartile1, quartile3, color='k', linestyle='-', lw=5)
+    ax2.vlines(1, whiskers_min, whiskers_max, color='k', linestyle='-', lw=1)
+    this_sequence_config=sequence_config_this_condition.split(".")[0]
+    fig_name = f"{this_sequence_config}_preference_analysis.svg"
+    fig.savefig(fig_name)
+
 def plot_sercansincos(df,analysis_methods,parameters,variable_name,vr_num='all'):
     save_output= analysis_methods.get("save_output")
     scene_name=analysis_methods.get("experiment_name")
@@ -132,7 +184,7 @@ def plot_sercantrajec(dfXY,analysis_methods,parameters,parameter_name,trajec_lim
     plt.show()
 
 def plot_travel_distance_set(df_all,analysis_methods,variable_name,y_axis_lim=[0.1,1000]):
-    colormap_name = "nipy_spectral"
+    colormap_name = "viridis"
     COL = MplColorHelper(colormap_name, 0, 10)
     
     fig, (ax1, ax2,ax3) = plt.subplots(
