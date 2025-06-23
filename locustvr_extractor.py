@@ -38,7 +38,7 @@ def process_file(this_file, analysis_methods,count):
     ### trial_id is the trial number
     ### state_type is the state of the animal, 0 is pre-choice phase, 1 is choices type 1 , 2 is choices type 2
     ### trial_label indicates which type of stimuli is in choice type 1 and type 2
-    ### baitX and baitY means the relative position of the bait to the focal animal
+    ### baitX and baitY means the relative position of the bait to the focal animal during the prechoice phase
     ### AgentX1,X2 and AgentY1,Y2 means the position of the two agents in the trial
 
     default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label","preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']    
@@ -49,15 +49,16 @@ def process_file(this_file, analysis_methods,count):
     ##The unit of raw data is in meters so we need to convert it to cm
     cols_to_convert=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]
     df[cols_to_convert] = df[cols_to_convert]* 100
-    #df_preChoice=df[["preChoice_relativeX","preChoice_relativeY", "state_type",'trial_id',"ts"]]
-    #df_choices=df[['AgentX1', 'AgentY1', 'AgentX2', 'AgentY2', 'trial_id', 'state_type']]
-    #df_XY=df[["x","y",'trial_id', 'state_type',"ts"]]
-    #df_agent = pd.concat((pd.concat((df["preChoice_relativeX"],df['AgentX1'], df['AgentX2']), ignore_index=True),pd.concat((df["preChoice_relativeY"],df['AgentY1'], df['AgentY2']), ignore_index=True),pd.concat((df['trial_id'],df['trial_id'], df['trial_id']), ignore_index=True)),axis=1)
-    #df_agent.columns=['X','Y',"state_type",'trial_id',"ts"]
-    # df_summary["radial_distance"]
+    
+    ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
+    # df['X']=df["dX"].cumsum()
+    # df['Y']=df["dY"].cumsum()
+    # df["preChoice_X"]=df["preChoice_relativeX"]+ df['X']
+    # df["preChoice_Y"]=df["preChoice_relativeY"]+ df['Y']
+
     trial_list=[]
     XY_list=[]
-    bait_list=[]
+    preChoice_list=[]
     agent_list=[]
     file_suffix = "_full" if time_series_analysis else ""
     curated_file_path = this_file.parent / f"XY{file_suffix}.h5"
@@ -70,19 +71,41 @@ def process_file(this_file, analysis_methods,count):
         agent_file_path.unlink(missing_ok=True)
     if plotting_trajectory:
         fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(18, 7), tight_layout=True)
-        ax1.set_title("Bait state1")
+        ax1.set_title("preChoice state1")
         ax2.set_title("Choice state1")
-        ax3.set_title("Bait state2")
+        ax3.set_title("preChoice state2")
         ax4.set_title("Choice state2")
     for this_trial in df['trial_id'].unique():
         pd_this_trial=df[df['trial_id'] == this_trial]
         X=np.cumsum(pd_this_trial['dX'].to_numpy())
-        Y=np.cumsum(pd_this_trial['dY'].to_numpy())        
-        heading=pd_this_trial['heading_direction'].to_numpy()
-        elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
+        Y=np.cumsum(pd_this_trial['dY'].to_numpy())
         pd_this_trial['preChoice_relativeX']=pd_this_trial['preChoice_relativeX']+X
         pd_this_trial['preChoice_relativeY']=pd_this_trial['preChoice_relativeY']+Y
         df_preChoice = pd_this_trial[['preChoice_relativeX','preChoice_relativeY','trial_id']]
+        
+        fig, ((ax1,ax2),(ax3,ax4),(ax5,ax6),(ax7,ax8)) = plt.subplots(
+            nrows=4, ncols=2, figsize=(9,10), tight_layout=True
+        )
+        ax1.plot(np.arange(pd_this_trial.shape[0]),X)
+        ax2.plot(np.arange(pd_this_trial.shape[0]),Y)
+        ax3.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeX'])
+        ax4.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeY'])
+        ax5.scatter(pd_this_trial['preChoice_relativeX'],pd_this_trial['preChoice_relativeY'],c=np.arange(pd_this_trial.shape[0]),marker=".")
+        ax6.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['heading_direction'])
+        ax7.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentX2'])## In the first trial, Agent2 is the constant speed one
+        ax8.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentY2'])
+        # ax1.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_X)
+        # ax2.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_Y)
+        # ax3.scatter(this_trajectory_X,this_trajectory_Y,c=np.arange(pd_this_trial.shape[0]),marker=".")
+
+        
+        plt.show()
+        
+        
+        ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
+        #X=pd_this_trial['X'].to_numpy()
+        #Y=pd_this_trial['Y'].to_numpy()
+        #df_preChoice = pd_this_trial[['preChoice_X','preChoice_Y','trial_id']]
         df_preChoice.columns=['X','Y','trial_id']
         agent1=pd_this_trial[['AgentX1','AgentY1','trial_id']]
         agent1.columns=['X','Y','trial_id']
@@ -90,6 +113,8 @@ def process_file(this_file, analysis_methods,count):
         agent2=pd_this_trial[['AgentX2','AgentY2','trial_id']]
         agent2.columns=['X','Y','trial_id']
         agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
+        heading=pd_this_trial['heading_direction'].to_numpy()
+        elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
         state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
         trial_label=df[df['trial_id'] == this_trial]['trial_label'].values[-1]##get trial label this way because in the first version, trial label is updated one row later 
         this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
@@ -190,11 +215,11 @@ def process_file(this_file, analysis_methods,count):
 
         trial_list.append(df_trial)
         XY_list.append(df_xy)
-        bait_list.append(df_preChoice)
+        preChoice_list.append(df_preChoice)
         agent_list.append(df_agent)
     df_summary=pd.concat(trial_list, ignore_index=True)
     df_curated=pd.concat(XY_list, ignore_index=True)
-    df_preChoice=pd.concat(bait_list, ignore_index=True)
+    df_preChoice=pd.concat(preChoice_list, ignore_index=True)
     df_agent=pd.concat(agent_list, ignore_index=True)
     # Use lock to prevent concurrent writes
     if save_output == True:
