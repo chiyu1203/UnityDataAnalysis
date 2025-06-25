@@ -281,7 +281,6 @@ def prepare_data(df,x_title,y_title,rot_title,this_range=None):
     step_id = df["CurrentStep"][this_range]
     session_id= df["CurrentTrial"][this_range]
     xy = np.vstack((x.to_numpy(), y.to_numpy()))
-    xy = bfill(xy)  # Fill missing values for smoother analysis
     return ts,xy,rot_y,step_id,session_id
 
 
@@ -463,7 +462,7 @@ def analyse_focal_animal(
     curated_file_path = this_file.parent / f"{experiment_id}_XY{file_suffix}.h5"
     summary_file_path = this_file.parent / f"{experiment_id}_score{file_suffix}.h5"
     agent_file_path = this_file.parent / f"{experiment_id}_agent{file_suffix}.h5"
-    pa_file_path = this_file.parent / f"{experiment_id}_motion.parquet"
+    pa_file_path = this_file.parent / f"{experiment_id}_motion{file_suffix}.parquet"
     # need to think about whether to name them the same regardless analysis methods
 
     ts,xy,rot_y,step_id,session_id =prepare_data(df,"SensPosX","SensPosY","SensRotY")
@@ -471,19 +470,20 @@ def analyse_focal_animal(
         print("empty file")
         return None,None,None,None
     xy=xy*analysis_methods.get("trackball_radius_cm")
-    if analysis_methods.get("filtering_method") == "sg_filter":
-        X = savgol_filter(xy[0], 59, 3, axis=0)
-        Y = savgol_filter(xy[1], 59, 3, axis=0)
-    else:
-        X = xy[0]
-        Y = xy[1]
-    #xy = interp_fill(xy)
-    remains, X, Y,_ = remove_unreliable_tracking(X, Y, analysis_methods)
+    remains, X, Y,mask = remove_unreliable_tracking(xy[0], xy[1], analysis_methods)
     loss = 1 - remains
     elapsed_time = (ts - ts.min()).dt.total_seconds().values
-    if time_series_analysis==True:
-        if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
-            pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"step_id": step_id}), pa_file_path)
+    if time_series_analysis and analysis_methods.get("filtering_method") == "sg_filter":
+        X = bfill(X)
+        Y = bfill(Y)
+        X = savgol_filter(X, 59, 3, axis=0)
+        Y = savgol_filter(Y, 59, 3, axis=0)
+    else:
+        elapsed_time=elapsed_time[:-1][mask]
+        step_id=step_id.values[:-1][mask]
+        rot_y=rot_y.values[:-1][mask]
+    if overwrite_curated_dataset ==True or pa_file_path.is_file()==False:
+        pq.write_table(pa.table({"X": X,"Y":Y,"heading_angle":rot_y,"elapsed_time":elapsed_time,"step_id": step_id}), pa_file_path)
     print(f"export {pa_file_path}")
     if export_fictrac_data_only:
         return None,None,None,None
@@ -518,12 +518,34 @@ def analyse_focal_animal(
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
         ts,xy,rot_y,_,session_id = prepare_data(df,"GameObjectPosX","GameObjectPosZ","GameObjectRotY",this_range)
-
         if len(ts) == 0:
             break
         elif len(session_id.value_counts()) > 1 & analyze_one_session_only == True:
             break
         fchop = ts.iloc[0].strftime("%Y-%m-%d_%H%M%S")
+        ## clean up bad tracking of fictrac
+        remains, X, Y,mask = remove_unreliable_tracking(xy[0], xy[1], analysis_methods)
+        if len(X) == 0:
+            print("all is noise")
+            continue
+        loss = 1 - remains
+        elapsed_time = (ts - ts.min()).dt.total_seconds().values
+        if time_series_analysis and analysis_methods.get("filtering_method") == "sg_filter":
+            X = bfill(X)
+            Y = bfill(Y)
+            X = savgol_filter(X, 59, 3, axis=0)
+            Y = savgol_filter(Y, 59, 3, axis=0)
+            angles_rad = np.radians(-rot_y.values)
+        else:
+            if remains<1.0:
+                print("hi, an unreliable tracking was found")
+            ts=ts[:-1][mask]
+            elapsed_time=elapsed_time[:-1][mask]
+            rot_y=rot_y.values[:-1][mask]
+            angles_rad = np.radians(
+                -rot_y)  # turn negative to acount for Unity's axis and turn radian
+
+        ## align focal animal's timestamp with agents' timestamp
         list_depth=get_list_depth(df_simulated_animal)
         if scene_name == "choice" and id % 2 > 0:
             if type(df_simulated_animal[id]) == list:
@@ -557,27 +579,6 @@ def analyse_focal_animal(
                 #plus1 = df_simulated_animal[id][1].reindex(ts.index, method="nearest")
                 these_simulated_agents=pd.concat(reindex_temp_list,axis=1)
                 #these_simulated_agents=these_simulated_agents.join(plus1)
-        if time_series_analysis:
-            elapsed_time = (ts - ts.min()).dt.total_seconds().values
-            if analysis_methods.get("filtering_method") == "sg_filter":
-                X = savgol_filter(xy[0], 59, 3, axis=0)
-                Y = savgol_filter(xy[1], 59, 3, axis=0)
-            else:
-                X = xy[0]
-                Y = xy[1]
-            angles_rad = np.radians(
-                -rot_y.values
-            )  # turn negative to acount for Unity's axis and turn radian
-            remains, X, Y,_ = remove_unreliable_tracking(X, Y, analysis_methods)
-            loss = 1 - remains
-        else:
-            ##need to think about whether applying removeNoiseVR only to spatial discretisation or general
-            elapsed_time = None
-            remains, X, Y,_ = remove_unreliable_tracking(xy[0], xy[1], analysis_methods)
-            loss = 1 - remains
-            if len(X) == 0:
-                print("all is noise")
-                continue
 
         theta = np.radians(-90)  # applying rotation matrix to rotate the coordinates
         # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
@@ -599,6 +600,9 @@ def analyse_focal_animal(
             dY = rXY[1][newindex]
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values
             humidity = df.iloc[newindex]["Relative Humidity (%)"].values
+            elapsed_time=elapsed_time[newindex]
+            if "these_simulated_agents" in locals() and scene_name.lower() != "choice":
+                these_simulated_agents=these_simulated_agents.iloc[newindex,:]
             angles = np.arctan2(np.diff(dY), np.diff(dX))
             angles = np.insert(
                 angles, 0, np.nan
@@ -720,7 +724,7 @@ def analyse_focal_animal(
             # ):
             elif "these_simulated_agents" in locals():
                 pivot_table_column=int(len(these_simulated_agents.columns)/len(these_simulated_agents.columns.get_level_values(0).unique()))
-                num_agent_per_object = int(these_simulated_agents.shape[1] / pivot_table_column/2)
+                num_agent_per_object = int(these_simulated_agents.shape[1] / pivot_table_column/num_agent_game_object)
                 agent_dXY_list = []
                 if isinstance(df_simulated_animal[id], pd.DataFrame) == True or isinstance(df_simulated_animal[id][0], pd.DataFrame) == True:
                     for j in range(num_agent_game_object):
@@ -732,11 +736,12 @@ def analyse_focal_animal(
                                 )
                             )
                             agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
-                            if time_series_analysis:
-                                (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
-                            else:
-                                agent_dX = agent_rXY[0][newindex]
-                                agent_dY = agent_rXY[1][newindex]
+                            # if time_series_analysis:
+                            #     (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
+                            # else:
+                            #     agent_dX = agent_rXY[0][newindex]
+                            #     agent_dY = agent_rXY[1][newindex]
+                            (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
                             agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
                 del these_simulated_agents
                 
@@ -1234,7 +1239,10 @@ def preprocess_matrex_data(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250522_170534"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250514_134255"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250605_120838"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     preprocess_matrex_data(thisDir, json_file)
