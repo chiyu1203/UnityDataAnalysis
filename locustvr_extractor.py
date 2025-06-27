@@ -11,6 +11,7 @@ parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance
+from utils import detect_flaws
 
 lock = Lock()
 def process_file(this_file, analysis_methods,count):
@@ -49,6 +50,7 @@ def process_file(this_file, analysis_methods,count):
     ##The unit of raw data is in meters so we need to convert it to cm
     cols_to_convert=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]
     df[cols_to_convert] = df[cols_to_convert]* 100
+    df = detect_flaws(df, angle_col='heading_direction', threshold_lower=3, threshold_upper=5.5, threshold_range=200)
     
     ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
     # df['X']=df["dX"].cumsum()
