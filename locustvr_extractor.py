@@ -10,8 +10,7 @@ current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
 from useful_tools import find_file
-from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance
-from utils import detect_flaws
+from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,detect_flaws 
 
 lock = Lock()
 def process_file(this_file, analysis_methods,count):
