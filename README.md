@@ -109,6 +109,8 @@ Therefore, each project has its own json file. Below explains what those analysi
 
     "overwrite_curated_dataset": boolean, whether to delete the existing HDF file or not. If True, **locustvr_converter.py** or **locustvr_extractor.py** will delete the old curated dataset before processing raw data.
 
+    "export_fictrac_data_only": this is used in locustVR_converter and data_exploration notebook. This option will skip the rest of processing in locustVR_converter after exporting the fictrac raw data into a parquet file format. 
+
     "save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then save any output
 
     "time_series_analysis": boolean, analyse where animals move at every time points in the experiment. If True, select a filter method to remove tracking noise, If false, spatial discretisation based on nymph's body size. will be applied to quantify animal's trajectory.
@@ -136,6 +138,8 @@ Therefore, each project has its own json file. Below explains what those analysi
     "frequency_based_preference_index": boolean, this is used in the preference assay. Instead of calculating the time of follow epochs, use the frequency of entering a follow epoch.
 
     "analyse_first_half_only" and "analyse_second_half_only": boolean. This is used in the sorting_time_series_analysis.py. Default settings: both of them is false to analyse the entire experiment. There is no definition for both of them is true.
+
+    "exclude_extreme_index": boolean. This is used when calculating preference index. This will include animals that only choose one type of option in the experiment, which results in 1 or -1, a rather extreme preference.
     
     "graph_colour_code": array of string, just a helper array to know which colour is used when plotting the data.
 
