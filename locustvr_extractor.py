@@ -9,11 +9,11 @@ from threading import Lock
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(0, str(parent_dir) + "\\utilities")
-from useful_tools import find_file
-from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,detect_flaws 
+from useful_tools import find_file,find_nearest
+from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 
 lock = Lock()
-def process_file(this_file, analysis_methods,count):
+def extract_locustvr_dat(this_file, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
@@ -41,7 +41,7 @@ def process_file(this_file, analysis_methods,count):
     ### baitX and baitY means the relative position of the bait to the focal animal during the prechoice phase
     ### AgentX1,X2 and AgentY1,Y2 means the position of the two agents in the trial
 
-    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label","preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']    
+    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]    
     #default_column_names = ["preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
     #df.iloc[:,-5:].columns=default_column_names[-7:-2]
     df.columns=default_column_names[:df.shape[1]]
@@ -49,13 +49,71 @@ def process_file(this_file, analysis_methods,count):
     ##The unit of raw data is in meters so we need to convert it to cm
     cols_to_convert=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]
     df[cols_to_convert] = df[cols_to_convert]* 100
-    df = detect_flaws(df, angle_col='heading_direction', threshold_lower=3, threshold_upper=5.5, threshold_range=200)
+    df = remove_false_detection_heading(df, angle_col='heading_direction', threshold_lower=3, threshold_upper=5.5, threshold_range=200)
     
     ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
     # df['X']=df["dX"].cumsum()
     # df['Y']=df["dY"].cumsum()
     # df["preChoice_X"]=df["preChoice_relativeX"]+ df['X']
     # df["preChoice_Y"]=df["preChoice_relativeY"]+ df['Y']
+
+        #[_, exp_time] = this_file.stem.split('_')[2]
+
+
+    '''align temperature data with df'''
+    [_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
+    exp_time=f"{exp_date}_{exp_hour}"
+    exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M")
+
+    found_result = find_file(this_file.parent, "locustVR*.txt", "DL220THP*.csv")
+    ## here to load temperature data
+    if found_result is None:
+        temperature_df = None
+        print(f"temperature file not found")
+    else:
+        if isinstance(found_result, list):
+            print(
+                f"Multiple temperature files are detected. Have not figured out how to deal with this."
+            )
+            for this_file in found_result:
+                temperature_df = load_temperature_data(this_file)
+        else:
+            temperature_df = load_temperature_data(found_result)
+        if (
+            "Celsius(°C)" in temperature_df.columns
+        ):  # make the column name consistent with data from DL220 logger
+            temperature_df.rename(
+                columns={
+                    "Celsius(°C)": "Temperature ˚C (ºC)",
+                    "Humidity(%rh)": "Relative Humidity (%)",
+                },
+                inplace=True,
+            )
+
+
+    if temperature_df is None:
+        df["Temperature ˚C (ºC)"] = np.nan
+        df["Relative Humidity (%)"] = np.nan
+    else:
+        start_time_tem = find_nearest(temperature_df.index, exp_time_dt)
+        print(
+            temperature_df[temperature_df.index == start_time_tem]
+        )  # find the start of EL-USB data that might be used for further data analysis. For example, oversampling to align with existing data size
+        tem_df_after_exp = temperature_df[temperature_df.index > start_time_tem]
+        if len(tem_df_after_exp) > 0:
+            frequency_milisecond = int(1000 / monitor_fps)
+            tem_df_after_exp = tem_df_after_exp.resample(
+                f"{frequency_milisecond}ms"
+            ).interpolate()
+            df["Temperature ˚C (ºC)"]=tem_df_after_exp["Temperature ˚C (ºC)"][:df.shape[0]].values
+            df["Relative Humidity (%)"]=tem_df_after_exp["Relative Humidity (%)"][:df.shape[0]].values
+        else:
+            print("Unable to find the corresponding time stamp")
+            df["Temperature ˚C (ºC)"] = np.nan
+            df["Relative Humidity (%)"] = np.nan
+        del temperature_df
+
+
 
     trial_list=[]
     XY_list=[]
@@ -77,30 +135,31 @@ def process_file(this_file, analysis_methods,count):
         ax3.set_title("preChoice state2")
         ax4.set_title("Choice state2")
     for this_trial in df['trial_id'].unique():
+
         pd_this_trial=df[df['trial_id'] == this_trial]
+        temperature_this_trial=pd_this_trial["Temperature ˚C (ºC)"].to_numpy()
+        humidity_this_trial=pd_this_trial["Relative Humidity (%)"].to_numpy()
         X=np.cumsum(pd_this_trial['dX'].to_numpy())
         Y=np.cumsum(pd_this_trial['dY'].to_numpy())
         pd_this_trial['preChoice_relativeX']=pd_this_trial['preChoice_relativeX']+X
         pd_this_trial['preChoice_relativeY']=pd_this_trial['preChoice_relativeY']+Y
         df_preChoice = pd_this_trial[['preChoice_relativeX','preChoice_relativeY','trial_id']]
         
-        fig, ((ax1,ax2),(ax3,ax4),(ax5,ax6),(ax7,ax8)) = plt.subplots(
-            nrows=4, ncols=2, figsize=(9,10), tight_layout=True
-        )
-        ax1.plot(np.arange(pd_this_trial.shape[0]),X)
-        ax2.plot(np.arange(pd_this_trial.shape[0]),Y)
-        ax3.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeX'])
-        ax4.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeY'])
-        ax5.scatter(pd_this_trial['preChoice_relativeX'],pd_this_trial['preChoice_relativeY'],c=np.arange(pd_this_trial.shape[0]),marker=".")
-        ax6.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['heading_direction'])
-        ax7.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentX2'])## In the first trial, Agent2 is the constant speed one
-        ax8.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentY2'])
-        # ax1.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_X)
-        # ax2.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_Y)
-        # ax3.scatter(this_trajectory_X,this_trajectory_Y,c=np.arange(pd_this_trial.shape[0]),marker=".")
-
-        
-        plt.show()
+        # fig, ((ax1,ax2),(ax3,ax4),(ax5,ax6),(ax7,ax8)) = plt.subplots(
+        #     nrows=4, ncols=2, figsize=(9,10), tight_layout=True
+        # )
+        # ax1.plot(np.arange(pd_this_trial.shape[0]),X)
+        # ax2.plot(np.arange(pd_this_trial.shape[0]),Y)
+        # ax3.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeX'])
+        # ax4.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeY'])
+        # ax5.scatter(pd_this_trial['preChoice_relativeX'],pd_this_trial['preChoice_relativeY'],c=np.arange(pd_this_trial.shape[0]),marker=".")
+        # ax6.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['heading_direction'])
+        # ax7.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentX2'])## In the first trial, Agent2 is the constant speed one
+        # ax8.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentY2'])
+        # # ax1.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_X)
+        # # ax2.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_Y)
+        # # ax3.scatter(this_trajectory_X,this_trajectory_Y,c=np.arange(pd_this_trial.shape[0]),marker=".")        
+        # plt.show()
         
         
         ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
@@ -126,7 +185,7 @@ def process_file(this_file, analysis_methods,count):
             loss, curated_X, curated_Y,mask= remove_unreliable_tracking(X, Y,analysis_methods)
             loss = 1 - loss
             if mask.shape[1]>0:
-                heading.iloc[mask]=np.nan
+                heading[mask]=np.nan
             angles=heading
             dts =elapsed_time
             num_spatial_decision = len(angles)
@@ -199,6 +258,8 @@ def process_file(this_file, analysis_methods,count):
             'distTotal': tdist,
             'sin': VecSin,
             'cos': VecCos,
+            "temperature":temperature_this_trial[0],
+            "humidity":humidity_this_trial[0]
         })
         if plotting_trajectory == True:
             if state_type_summary==1:
@@ -248,17 +309,18 @@ def load_files(thisDir, json_file):
     else:
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
-            analysis_methods = json.loads(f.read())
+            analysis_methods = json.loads(f.read())    
     found_result = find_file(thisDir, "*.dat")
     if isinstance(found_result, list):
         for count, f in enumerate(found_result):
-            process_file(f,analysis_methods,count)
+            extract_locustvr_dat(f,analysis_methods)
     elif len(found_result.stem) > 0:
-        process_file(found_result,analysis_methods,"")
+        extract_locustvr_dat(found_result,analysis_methods)
 
 
 if __name__ == "__main__":
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25007\250624\choices\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)

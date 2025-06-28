@@ -413,7 +413,7 @@ def analyse_focal_animal(
     analysis_methods,
     df_simulated_animal,
     conditions,
-    tem_df=None,
+    temperature_df=None,
 ):
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
@@ -487,17 +487,17 @@ def analyse_focal_animal(
     print(f"export {pa_file_path}")
     if export_fictrac_data_only:
         return None,None,None,None
-    if tem_df is None:
+    if temperature_df is None:
         df["Temperature ˚C (ºC)"] = np.nan
         df["Relative Humidity (%)"] = np.nan
     else:
         frequency_milisecond = int(1000 / monitor_fps)
-        tem_df = tem_df.resample(
+        temperature_df = temperature_df.resample(
             f"{frequency_milisecond}L"
         ).interpolate()  # FutureWarning: 'L' is deprecated and will be removed in a future version, please use 'ms' instead.
         df.set_index("Current Time", drop=False, inplace=True)
-        df = df.join(tem_df.reindex(df.index, method="nearest"))
-        del tem_df
+        df = df.join(temperature_df.reindex(df.index, method="nearest"))
+        del temperature_df
 
     if overwrite_curated_dataset and summary_file_path.is_file():
         summary_file_path.unlink(missing_ok=True)
@@ -950,7 +950,7 @@ def preprocess_matrex_data(thisDir, json_file):
     found_result = find_file(thisDir, "matrexVR*.txt", "DL220THP*.csv")
     ## here to load temperature data
     if found_result is None:
-        tem_df = None
+        temperature_df = None
         print(f"temperature file not found")
 
     else:
@@ -959,13 +959,13 @@ def preprocess_matrex_data(thisDir, json_file):
                 f"Multiple temperature files are detected. Have not figured out how to deal with this."
             )
             for this_file in found_result:
-                tem_df = load_temperature_data(this_file)
+                temperature_df = load_temperature_data(this_file)
         else:
-            tem_df = load_temperature_data(found_result)
+            temperature_df = load_temperature_data(found_result)
         if (
-            "Celsius(°C)" in tem_df.columns
+            "Celsius(°C)" in temperature_df.columns
         ):  # make the column name consistent with data from DL220 logger
-            tem_df.rename(
+            temperature_df.rename(
                 columns={
                     "Celsius(°C)": "Temperature ˚C (ºC)",
                     "Humidity(%rh)": "Relative Humidity (%)",
@@ -1221,7 +1221,7 @@ def preprocess_matrex_data(thisDir, json_file):
                         analysis_methods,
                         df_simulated_animal,
                         conditions,
-                        tem_df,
+                        temperature_df,
                     )
             elif len(found_result.stem) > 0:
                 (
@@ -1234,7 +1234,7 @@ def preprocess_matrex_data(thisDir, json_file):
                     analysis_methods,
                     df_simulated_animal,
                     conditions,
-                    tem_df,
+                    temperature_df,
                 )
 
 
