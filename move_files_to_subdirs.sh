@@ -43,7 +43,18 @@ for SUBDIR in "$BASE_DIR"/*; do
             # Move all files into new GN folder
             for FILE in "${FILES[@]}"; do
                 if [ -f "$FILE" ]; then
-                    mv "$FILE" "$TARGET_DIR/"
+                    BASENAME=$(basename "$FILE")
+                    FILENAME="${BASENAME%.*}"
+                    EXT="${BASENAME##*.}"
+
+                    # If no extension, skip dot
+                    if [ "$FILENAME" == "$EXT" ]; then
+                        NEW_FILENAME="${FILENAME}_${OLD_FOLDER_NAME}"
+                    else
+                        NEW_FILENAME="${FILENAME}_${OLD_FOLDER_NAME}.${EXT}"
+                    fi
+
+                    mv "$FILE" "$TARGET_DIR/$NEW_FILENAME"
                 fi
             done
 
