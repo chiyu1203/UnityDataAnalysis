@@ -29,16 +29,25 @@ foreach ($Subdir in $Subdirs) {
 
         # Create the directory structure
         New-Item -Path $TargetPath -ItemType Directory -Force | Out-Null
+        $OldFolderName = $Subdir.Name
 
         # Move all files to the new folder
         foreach ($File in $Files) {
-            Move-Item -Path $File.FullName -Destination $TargetPath
+            $OriginalName = [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+            $Extension = [System.IO.Path]::GetExtension($File.Name)
+
+            # Build new filename with old folder name appended
+            if ([string]::IsNullOrWhiteSpace($Extension)) {
+                $NewFileName = "${OriginalName}_$OldFolderName"
+            } else {
+                $NewFileName = "${OriginalName}_$OldFolderName$Extension"
+            }
+
+            $DestinationPath = Join-Path -Path $TargetPath -ChildPath $NewFileName
+            Move-Item -Path $File.FullName -Destination $DestinationPath
         }
 
-        # Optionally, remove the original folder if it's now empty
-        # Remove-Item -Path $Subdir.FullName -Force -Recurse
-
-        # Increment GN ID for the next folder
+        Write-Host "Moved files from '$OldFolderName' to '$ANIMAL_FOLDER'"
         $CurrentID++
     }
 }
