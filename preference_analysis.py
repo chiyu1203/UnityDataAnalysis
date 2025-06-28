@@ -247,7 +247,7 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         print("error. trial type or object type used in the analysis should be no more than 2")
     for i,relative_pos_this_animal in enumerate(relative_pos_all_animals):
         trial_type_list=sorted(relative_pos_this_animal['type'].unique(), key=len)
-        if len(trial_type_list)<4:
+        if len(trial_type_list)<len(pd.concat(relative_pos_all_animals,ignore_index=True)['type'].unique()):
             print(f"animal {i} only three follow epochs from {len(trial_type_list)} trial types")
             continue
         homo_no=0
@@ -400,6 +400,7 @@ if __name__ == "__main__":
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
-    trial_type_of_interest=['LeaderLocust']
+    #trial_type_of_interest=['LeaderLocust']
+    trial_type_of_interest=['LocustBand']
     analysis_methods.update({"frequency_based_preference_index":False})
     calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all')

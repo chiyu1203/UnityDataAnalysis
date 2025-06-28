@@ -82,10 +82,10 @@ def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_inter
             pd_to_extract.insert(0, 'frame_count', np.arange(n_datapoints))
             if 'step_id' in this_evaluation.columns:
                 pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['step_id']==int(this_step)][var1].to_numpy(),n_datapoints))
-            elif 'trial_id' in this_evaluation.columns:
-                pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var1].to_numpy(),n_datapoints))
-            if var2 != None:
-                pd_to_extract.insert(0, var2, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var2].to_numpy(),n_datapoints))
+            # elif 'trial_id' in this_evaluation.columns:
+            #     pd_to_extract.insert(0, var1, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var1].to_numpy(),n_datapoints))
+            # if var2 != None:
+            #     pd_to_extract.insert(0, var2, np.repeat(this_evaluation[this_evaluation['trial_id']==int((this_step-1)/2)][var2].to_numpy(),n_datapoints))
             pd_to_extract.insert(0,'animal_id',np.repeat(this_animal,n_datapoints))
             #pd_to_extract = pd_to_extract.set_index([var1, var2]) 
             raster_interest.append(pd_to_extract)
@@ -408,13 +408,10 @@ def follow_behaviour_analysis(
         dif_y = np.diff(focal_xy[1])
         ts = df_focal_animal[df_focal_animal["fname"] == key]["ts"].to_numpy()
         instant_speed = calculate_speed(dif_x, dif_y, ts)
+
         heading_direction = df_focal_animal[df_focal_animal["fname"] == key][
             "heading"
         ].to_numpy()
-        # distance_from_centre = np.sqrt(
-        #     np.sum([focal_xy[0] ** 2, focal_xy[1] ** 2], axis=0)
-        # )
-        # angle_rad = df_focal_animal[df_focal_animal["fname"]==key]["heading"].to_numpy()
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
         if "density" in df_summary.columns:
@@ -553,7 +550,6 @@ def follow_behaviour_analysis(
                 np.repeat(grp["mu"][0], v_of_interest.shape[0]),
                 np.repeat(grp["type"][0], v_of_interest.shape[0]),
             )
-        # raw_data=np.vstack(con_matrex)
         raster_list.append(pd.DataFrame(np.transpose(np.vstack(con_matrex))))
         iteration_count += 1
         if "density" in grp.columns and grp["density"][0] == 0:
@@ -607,7 +603,7 @@ def follow_behaviour_analysis(
             for i in range(num_agent):
                 this_agent_xy=agent_split[i]
                 if np.isnan(np.min(agent_xy)) == True:
-                        ##remove nan from agent's xy with interpolation
+                    ##remove nan from agent's xy with interpolation
                     tmp_arr_x = this_agent_xy[0]
                     tmp_arr_y = this_agent_xy[1]
                     nans, x = nan_helper(tmp_arr_x)
@@ -618,7 +614,18 @@ def follow_behaviour_analysis(
                 epochs_of_interest, vector_dif, angles_in_degree,walk_epochs = (
                 classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy, analysis_methods))
                 vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
-                follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i)
+                ### Here is a quick fix to analyse agents in a marching band.
+                ### instead of assigning agents ID based on which agent is analysed first (like in the 2-choice assay)
+                ### this one assign agents ID or more precisely band ID, based on whether the agents is in the left or right side from the allocentric view
+                ### this means if the agent's coordinate is negative, we assume this agent is on the right. Otherwise, on the left side, and given then ID accordingly.
+                ### However, if experiment are more advanced, for example, a locust navigate in a marching band mixed with different type of agent. This analysis will fail
+                ### Then we basically needs to change the code in locustvr_converter.py and assign ID for each type of agents explicitly.
+                if num_agent>2 and this_agent_xy[1,:].mean()>0:
+                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, 1)
+                elif num_agent>2 and this_agent_xy[1,:].mean()<0:
+                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, 0)
+                else:
+                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i)
                 follow_pd.insert(follow_pd.shape[1],"type",
                         np.repeat(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
@@ -651,9 +658,15 @@ def follow_behaviour_analysis(
                     this_agent_xy_rotated = rot_matrix @ this_agent_xy
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
                     vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
-                    simulated_pd= conclude_as_pd(
-                            df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
-                    )
+                    ## same situation as line 617
+                    if num_agent>2 and this_agent_xy_rotated[1,:].mean()>0:
+                        simulated_pd = conclude_as_pd(df_focal_animal, vector_dif_simulated, epochs_by_chance, key, 1)
+                    elif num_agent>2 and this_agent_xy_rotated[1,:].mean()<0:
+                        simulated_pd = conclude_as_pd(df_focal_animal, vector_dif_simulated, epochs_by_chance, key, 0)
+                    else:
+                        simulated_pd= conclude_as_pd(
+                                df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
+                        )
 
                     simulated_pd.insert(
                             simulated_pd.shape[1],
@@ -911,7 +924,8 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
