@@ -39,6 +39,7 @@ for SUBDIR in "$BASE_DIR"/*; do
             ANIMAL_FOLDER="GN$ID"
             TARGET_DIR="$BASE_DIR/$ANIMAL_FOLDER/$EXPERIMENT_DATE/$EXPERIMENT_NAME/$SESSION_NUM"
             mkdir -p "$TARGET_DIR"
+            OLD_FOLDER_NAME=$(basename "$SUBDIR")
 
             # Move all files into new GN folder
             for FILE in "${FILES[@]}"; do
