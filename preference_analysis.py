@@ -163,6 +163,7 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
 def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fig_name,data_color,thresholds=[4,5,6,7,8],this_vr='all'):
     ##try using seaborn to plot the data next time
     save_output=analysis_methods.get("save_output")
+    experiment_name=analysis_methods.get("experiment_name")
     camera_fps=analysis_methods.get("camera_fps")
     frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
     if analysis_methods.get("exclude_extreme_index"):
@@ -174,6 +175,10 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
         camera_fps=1
         limits=[35,40,45,50,55]
         fig_type='_frequency_based'
+    elif experiment_name=='band':
+        unit='(sec)'
+        limits=[100,200,300,400,500]
+        fig_type='_time_based'
     else:
         unit='(sec)'
         limits=[25,30,35,40,45]
