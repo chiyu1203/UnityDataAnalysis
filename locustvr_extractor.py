@@ -179,7 +179,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             continue # if a trial only has 1 state type, that means that trial never enter the actual choice phase, skip this trial
         else:
             state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
-        trial_label=df[df['trial_id'] == this_trial]['trial_label'].values[-1]##get trial label this way because in the first version, trial label is updated one row later 
+        label_split=df[df['trial_id'] == this_trial]['trial_label'].values[-1].split("_")##get trial label this way because in the first version, trial label is updated one row later 
+        trial_label=f"{label_split[1]}_{label_split[2]}_{label_split[3]}"##remove T information because that is redundant 
         this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         if time_series_analysis:
             if analysis_methods.get("filtering_method") == "sg_filter":
@@ -233,7 +234,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             VecCos = meanVector * np.cos(meanAngle)
         std = np.sqrt(2 * (1 - meanVector))
         tdist = (
-            np.sum(euclidean_distance(X,Y))
+            np.nansum(euclidean_distance(X,Y))
             if time_series_analysis
             else len(curated_X) * BODY_LENGTH3
         )
@@ -248,7 +249,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             'state_type': this_state_type,
         })
         df_trial = pd.DataFrame({
-            'fname': [fchop],
+            'fname': [thisDir],
             'loss': loss,
             'trial_id': this_trial,
             'state_type':state_type_summary,
@@ -320,7 +321,7 @@ def load_files(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25011\250624\choices\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25007\250624\choices\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
