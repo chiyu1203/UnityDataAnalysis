@@ -4,7 +4,8 @@ file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experiment_name": "locustvr",
     "overwrite_curated_dataset": True,
-    "export_fictrac_data_only":True,
+    "export_fictrac_data_only":False,
+    "read_fictrac_data_only":False,
     "save_output": True,
     "time_series_analysis": True,
     "filtering_method": "sg_filter",
@@ -17,9 +18,9 @@ analysis_methods = {
     "split_stationary_moving_ISI":True,
     "align_with_isi_onset": False,
     "extract_follow_epoches": True,
-    "follow_locustVR_criteria": False,
+    "follow_locustVR_criteria": True,
     "calculate_follow_chance_level": True,
-    "frequency_based_preference_index":True,
+    "frequency_based_preference_index":False,
     "analyse_first_half_only":False,
     "analyse_second_half_only":False,
     "exclude_extreme_index":False,
@@ -30,7 +31,7 @@ analysis_methods = {
     "monitor_fps": 100,
     "body_length": 4,
     "growth_condition": "G",
-    "analysis_window": [-10, 10],
+    "analysis_window": [-5, 5],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:

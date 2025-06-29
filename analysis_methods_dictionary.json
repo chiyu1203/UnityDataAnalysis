@@ -1,9 +1,10 @@
 {
-    "experiment_name": "choice",
+    "experiment_name": "locustvr",
     "overwrite_curated_dataset": true,
     "export_fictrac_data_only": false,
+    "read_fictrac_data_only": false,
     "save_output": true,
-    "time_series_analysis": false,
+    "time_series_analysis": true,
     "filtering_method": "sg_filter",
     "plotting_trajectory": true,
     "plotting_event_distribution": true,
@@ -16,10 +17,10 @@
     "extract_follow_epoches": true,
     "follow_locustVR_criteria": true,
     "calculate_follow_chance_level": true,
-    "frequency_based_preference_index": true,
+    "frequency_based_preference_index": false,
     "analyse_first_half_only": false,
     "analyse_second_half_only": false,
-    "exclude_extreme_index": true,
+    "exclude_extreme_index": false,
     "graph_colour_code": [
         "r",
         "b",
@@ -33,11 +34,11 @@
     "follow_within_distance": 50,
     "camera_fps": 100,
     "trackball_radius_cm": 5,
-    "monitor_fps": 60,
+    "monitor_fps": 100,
     "body_length": 4,
     "growth_condition": "G",
     "analysis_window": [
-        -10,
-        10
+        -5,
+        5
     ]
 }
