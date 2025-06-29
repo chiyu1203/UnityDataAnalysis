@@ -13,7 +13,7 @@ from useful_tools import find_file,find_nearest
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 
 lock = Lock()
-def extract_locustvr_dat(this_file, analysis_methods):
+def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
@@ -25,6 +25,9 @@ def extract_locustvr_dat(this_file, analysis_methods):
     BODY_LENGTH3 = (
         analysis_methods.get("body_length", 4) * 3
     )
+    this_file = find_file(thisDir, "*.dat")
+    if type(this_file) == str:
+        this_file = Path(this_file)
     df = pd.read_csv(this_file, sep=' ',header=None)
 
     # if 'velocities_all' in basepath:
@@ -57,15 +60,12 @@ def extract_locustvr_dat(this_file, analysis_methods):
     # df["preChoice_X"]=df["preChoice_relativeX"]+ df['X']
     # df["preChoice_Y"]=df["preChoice_relativeY"]+ df['Y']
 
-        #[_, exp_time] = this_file.stem.split('_')[2]
-
-
     '''align temperature data with df'''
     [_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
     exp_time=f"{exp_date}_{exp_hour}"
     exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M")
 
-    found_result = find_file(this_file.parent, "locustVR*.txt", "DL220THP*.csv")
+    found_result = find_file(thisDir, "locustVR*.txt", "DL220THP*.csv")
     ## here to load temperature data
     if found_result is None:
         temperature_df = None
@@ -75,8 +75,8 @@ def extract_locustvr_dat(this_file, analysis_methods):
             print(
                 f"Multiple temperature files are detected. Have not figured out how to deal with this."
             )
-            for this_file in found_result:
-                temperature_df = load_temperature_data(this_file)
+            for this_f in found_result:
+                temperature_df = load_temperature_data(this_f)
         else:
             temperature_df = load_temperature_data(found_result)
         if (
@@ -175,7 +175,10 @@ def extract_locustvr_dat(this_file, analysis_methods):
         agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
         heading=pd_this_trial['heading_direction'].to_numpy()
         elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
-        state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
+        if len(df[df['trial_id'] == this_trial]['state_type'].unique())==1:
+            continue # if a trial only has 1 state type, that means that trial never enter the actual choice phase, skip this trial
+        else:
+            state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
         trial_label=df[df['trial_id'] == this_trial]['trial_label'].values[-1]##get trial label this way because in the first version, trial label is updated one row later 
         this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         if time_series_analysis:
@@ -234,7 +237,7 @@ def extract_locustvr_dat(this_file, analysis_methods):
             if time_series_analysis
             else len(curated_X) * BODY_LENGTH3
         )
-        chop = str(this_file.parent).split('\\')[-1].split('_')[:2]
+        chop = str(thisDir).split('\\')[-1].split('_')[:2]
         fchop = '_'.join(chop)
         df_xy = pd.DataFrame({
             'X': curated_X,
@@ -279,6 +282,8 @@ def extract_locustvr_dat(this_file, analysis_methods):
         XY_list.append(df_xy)
         preChoice_list.append(df_preChoice)
         agent_list.append(df_agent)
+    if len(trial_list)==0:
+        return print(f'Unable to process file from {thisDir}. Probably because the animal has never entered a choice phase')
     df_summary=pd.concat(trial_list, ignore_index=True)
     df_curated=pd.concat(XY_list, ignore_index=True)
     df_preChoice=pd.concat(preChoice_list, ignore_index=True)
@@ -310,17 +315,12 @@ def load_files(thisDir, json_file):
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())    
-    found_result = find_file(thisDir, "*.dat")
-    if isinstance(found_result, list):
-        for count, f in enumerate(found_result):
-            extract_locustvr_dat(f,analysis_methods)
-    elif len(found_result.stem) > 0:
-        extract_locustvr_dat(found_result,analysis_methods)
+    extract_locustvr_dat(thisDir,analysis_methods)
 
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25007\250624\choices\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25011\250624\choices\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
