@@ -25,7 +25,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     BODY_LENGTH3 = (
         analysis_methods.get("body_length", 4) * 3
     )
-    this_file = find_file(thisDir, "*.dat")
+    this_file = find_file(thisDir, "data*.dat")
     if type(this_file) == str:
         this_file = Path(this_file)
     df = pd.read_csv(this_file, sep=' ',header=None)
@@ -321,7 +321,7 @@ def load_files(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25007\250624\choices\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250625\choices\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
