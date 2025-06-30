@@ -691,7 +691,7 @@ def follow_behaviour_analysis(
             if num_agent>1:
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
-                num_duplocated_epochs = follow_pd_combined.duplicated(3).sum()
+                num_duplocated_epochs = follow_pd_combined.duplicated(subset=['ts']).sum()
                 sum_follow_epochs = follow_pd_combined.shape[0]-num_duplocated_epochs
                 
                 if 'simulated_pd_list' in locals() and len(simulated_pd_list)>0:
