@@ -1,0 +1,11 @@
+DrosophilaChoices/Data/*
+.ipynb_checkpoints/*
+__pycache__/*
+*.svg
+*.png
+*.jpg
+*.fig
+*.mp3
+*.mp4
+*.csv
+*.omv
