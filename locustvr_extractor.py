@@ -247,6 +247,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             'ts':dts,
             'trial_id': this_trial,
             'state_type': this_state_type,
+            'trial_label': trial_label,
         })
         df_trial = pd.DataFrame({
             'fname': [thisDir],
