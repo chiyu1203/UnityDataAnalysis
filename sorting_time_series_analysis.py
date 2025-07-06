@@ -691,7 +691,10 @@ def follow_behaviour_analysis(
             if num_agent>1:
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
-                num_duplocated_epochs = follow_pd_combined.duplicated(subset=['ts']).sum()
+                if 'ts' in follow_pd_combined:
+                    num_duplocated_epochs = follow_pd_combined.duplicated(subset=['ts']).sum()
+                else:
+                    num_duplocated_epochs = follow_pd_combined.duplicated(3).sum()
                 sum_follow_epochs = follow_pd_combined.shape[0]-num_duplocated_epochs
                 
                 if 'simulated_pd_list' in locals() and len(simulated_pd_list)>0:
@@ -924,8 +927,8 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
