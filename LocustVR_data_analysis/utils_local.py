@@ -239,6 +239,37 @@ def compute_directness_and_direction(df, trial_col='trial_id', t_col='ts',
 heading_angle_visualisation
 """
 
+def default_style(x_label, y_label, limits=None):
+    import matplotlib.pyplot as plt
+    plt.xlim(limits[0][0], limits[0][1])
+    plt.ylim(limits[1][0], limits[1][1])
+    plt.grid(False)
+    plt.box(True)
+    plt.xlabel(x_label, fontsize=16)
+    plt.ylabel(y_label, fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.tight_layout()
+
+def generate_plot_type(plot_type):
+    if plot_type == "hist":
+        plt_hist = True
+        plt_kde = False
+    elif plot_type == "kde":
+        plt_kde = True
+        plt_hist = False
+    else:
+        raise ValueError("plot_type must be 'hist' or 'kde'")
+    return plt_hist, plt_kde
+
+def generate_time_windows(critical_time):
+    time_windows = {}
+    for i in range(len(critical_time)-1):
+        row = {f"t1 ({critical_time[i]:.1f} to {critical_time[i+1]:.1f})": (critical_time[i], critical_time[i+1]),}
+        time_windows.update(row)
+    return time_windows
+
+
 def plt_density(df, angle_version, time_windows, angle_bins, plt_hist=False, plt_kde=False, label2=None):
     import numpy as np
     import matplotlib.pyplot as plt
