@@ -79,10 +79,10 @@ def plot_relative_pos_distribution(relative_pos_of_interest,trial_type_of_intere
     else:
         ax1.hist2d(np.hstack((relative_pos_of_interest[0]['x'].values,relative_pos_of_interest[1]['x'].values)),np.hstack((relative_pos_of_interest[0]['y'].values,relative_pos_of_interest[1]['y'].values)),bins=50)
         ax2.hist2d(np.hstack((relative_pos_of_interest[0]['x'].values,relative_pos_of_interest[1]['x'].values)),np.hstack((relative_pos_of_interest[0]['y'].values,relative_pos_of_interest[1]['y'].values*-1)),bins=50)
-        ax2.set(yticks=[-1*distance_threshold_for_plotting,-5,0,5,distance_threshold_for_plotting],xticks=[0,5,distance_threshold_for_plotting],xlim=xlimit,ylim=ylimit,title='agent preference',adjustable='box', aspect='equal')
+        ax2.set(yticks=[-1*distance_threshold_for_plotting,0,distance_threshold_for_plotting],xticks=[0,distance_threshold_for_plotting],xlim=xlimit,ylim=ylimit,title='agent preference',adjustable='box', aspect='equal')
     ax1.set(
-    yticks=[-1*distance_threshold_for_plotting,-5,0,5,distance_threshold_for_plotting],
-    xticks=[0,5,distance_threshold_for_plotting],
+    yticks=[-1*distance_threshold_for_plotting,0,distance_threshold_for_plotting],
+    xticks=[0,distance_threshold_for_plotting],
     xlim=xlimit,ylim=ylimit,title='spatial preference',adjustable='box', aspect='equal')
     if len(relative_pos_of_interest)==1:
         fig_name=f"heatmap2D_{this_vr}_{trial_type_of_interest[0]}_distance_threshold_{distance_threshold_for_plotting}.png"
@@ -143,6 +143,7 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
         ax1.set(
             ylabel="(postive means prefer left)",
             yticks=[-1,0,1],
+            ylim=(-1.1,1.1),
             xticks=thresholds,
             xlabel="ROI size (cm)",
             title="spatial preference",
@@ -151,6 +152,7 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
         ax2.set(
             #ylabel="(positive means prefer exp)",
             yticks=[-1,0,1],
+            ylim=(-1.1,1.1),
             xticks=thresholds,
             xlabel="ROI size (cm)",
             title="visual preference",
@@ -163,6 +165,7 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
 def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fig_name,data_color,thresholds=[4,5,6,7,8],this_vr='all'):
     ##try using seaborn to plot the data next time
     save_output=analysis_methods.get("save_output")
+    experiment_name=analysis_methods.get("experiment_name")
     camera_fps=analysis_methods.get("camera_fps")
     frequency_based_preference_index=analysis_methods.get("frequency_based_preference_index")
     if analysis_methods.get("exclude_extreme_index"):
@@ -174,6 +177,10 @@ def plot_epochs_time(epochs_exp,epochs_con,epochs_L,epochs_R,analysis_methods,fi
         camera_fps=1
         limits=[35,40,45,50,55]
         fig_type='_frequency_based'
+    # elif experiment_name=='band':
+    #     unit='(sec)'
+    #     limits=[25,30,35,40,45]
+    #     fig_type='_time_based'
     else:
         unit='(sec)'
         limits=[25,30,35,40,45]
@@ -247,7 +254,7 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
         print("error. trial type or object type used in the analysis should be no more than 2")
     for i,relative_pos_this_animal in enumerate(relative_pos_all_animals):
         trial_type_list=sorted(relative_pos_this_animal['type'].unique(), key=len)
-        if len(trial_type_list)<4:
+        if len(trial_type_list)<len(pd.concat(relative_pos_all_animals,ignore_index=True)['type'].unique()):
             print(f"animal {i} only three follow epochs from {len(trial_type_list)} trial types")
             continue
         homo_no=0
@@ -290,9 +297,10 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
                 else:
                     ##sum agent ID to get epochs for the left object because agent ID is 0 for the right object and 1 for the left object
                     #epochs_forL=np.sum(grp[relative_distance<this_threshold]["agent_id"].values)### try using .loc[row_index, column_name]=value instead
-                    epochs_forL=grp.loc[grp['enter_roi']==True,'agent_id'].sum()
+                    grp_no_duplicates=grp.loc[grp['enter_roi']==True].drop_duplicates(subset=['ts'])                    
+                    epochs_forL=grp_no_duplicates.loc[grp_no_duplicates['enter_roi']==True,'agent_id'].sum()
                     ##epochs for the R object comes from the rest of element in the array
-                    epochs_forR=grp.loc[grp['enter_roi']==True].shape[0]-epochs_forL
+                    epochs_forR=grp_no_duplicates.loc[grp_no_duplicates['enter_roi']==True].shape[0]-epochs_forL
 
                 ##assign epochs_exp or epochs_con based on the trial type, if the trial type is not of interest, assign NaN
                 if len(trial_type_of_interest)==2:
@@ -390,7 +398,7 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
     return left_right_preference_across_animals,exp_con_preference_across_animals,epochs_exp_all_animals_hetero,epochs_con_all_animals_hetero,epochs_forL_all_animals,epochs_forR_all_animals
 
 if __name__ == "__main__":
-    file_path='dataframes_list.pkl'
+    file_path='location_marching_band_black_vs_leader_locust_constant_speed&distance.pkl'
     with open(file_path, 'rb') as f:
         relative_pos_all_animals = pickle.load(f)
     json_file = "./analysis_methods_dictionary.json"
@@ -400,6 +408,6 @@ if __name__ == "__main__":
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
-    trial_type_of_interest=['LeaderLocust']
-    analysis_methods.update({"frequency_based_preference_index":False})
+    #trial_type_of_interest=['LeaderLocust']
+    trial_type_of_interest=['LocustBand_x_LocustBand_black', 'LocustBand_black_x_LocustBand']
     calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,analysis_methods,thresholds=[4,5,6,7,8],this_vr='all')

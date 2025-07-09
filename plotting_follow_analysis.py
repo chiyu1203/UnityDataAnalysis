@@ -28,14 +28,14 @@ def plot_follow_response_distribution(all_evaluation):
     ax1.axvline(x=good_follower_threshold,color="k",linestyle="--")
     if simulated_time_aba.eq(0.0).all()==False:
         ax1.hist(simulated_time_aba,color='tab:gray',alpha=0.5,bins=bins_aba)
-    ax1.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,0.5),yticks=[0,20],ylim=(0,20),title='proportion of time following aba')
+    ax1.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,0.5),yticks=[0,25],ylim=(0,25),title='proportion of time following aba')
     bins_tbt=np.linspace(0,1,21)
     ax2.hist(follow_time_tbt,color='red',bins=bins_tbt)
     if simulated_time_tbt.isnull().all()==False:
         ax2.hist(simulated_time_tbt,color='tab:gray',alpha=0.5,bins=bins_tbt)
     ax2.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,1),ylim=(0,400),title='proportion of time following tbt')
     ax3.hist(follow_walk_ratio_aba,color='red',bins=bins_aba)
-    ax3.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,0.5),yticks=[0,20],ylim=(0,20),title='follow/walk of locusts')
+    ax3.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,0.5),yticks=[0,25],ylim=(0,25),title='follow/walk of locusts')
     ax4.hist(follow_walk_ratio_tbt,color='red',bins=bins_tbt)
     ax4.set(xticks=[0,0.25,0.5,0.75,1],xticklabels=(['0', '25', '50', '75', '100']),xlim=(0,1),ylim=(0,400),title='follow/walk of trials')
     #follower_of_interest=all_evaluation.groupby(['animal_id'])['num_follow_epochs'].sum()/all_evaluation.groupby(['animal_id'])['number_frames'].sum()<good_follower_threshold
