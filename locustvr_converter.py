@@ -553,8 +553,11 @@ def analyse_focal_animal(
             else:
                 df_simulated = df_simulated_animal[id]
                 if "Current Time" in df_simulated.columns:
-                    df_simulated.set_index("Current Time", inplace=True)
-            df_simulated = df_simulated.reindex(ts.index, method="nearest")
+                    df_simulated.set_index("Current Time", inplace=True)            
+            if ts.index.inferred_type == "datetime64":
+                df_simulated = df_simulated.reindex(ts.index, method="nearest")
+            else:
+                df_simulated = df_simulated.reindex(ts, method="nearest") ## when the temperature data is not available, ts index would be normal
         elif (
             scene_name != "choice"
             and isinstance(df_simulated_animal[id], pd.DataFrame) == True
@@ -813,6 +816,8 @@ def analyse_focal_animal(
                 "sin": VecSin,
                 "cos": VecCos,
                 "duration": du[0],
+                "rotation_gain":condition['rotation_gain'],
+                "translation_gain":condition['translation_gain']
             }
         )
         if scene_name.lower() == "swarm" or scene_name.lower() == "band":
@@ -1144,6 +1149,21 @@ def preprocess_matrex_data(thisDir, json_file):
                         condition["duration"] = trial_sequence["sequences"][idx][
                             "duration"
                         ]  # may need to add condition to exclude some kind of data from choice assay.
+                        if type(trial_condition['closedLoopOrientation'])==bool:
+                            if trial_condition['closedLoopOrientation']==True:
+                                condition["rotation_gain"]=1.0
+                            else:
+                                condition["rotation_gain"]=0.0
+                        else:
+                            condition["rotation_gain"]=trial_condition['closedLoopOrientation']
+                        if type(trial_condition['closedLoopPosition'])==bool:
+                            if trial_condition['closedLoopPosition']==True:
+                                condition["translation_gain"]=1.0
+                            else:
+                                condition["translation_gain"]=0.0
+                        else:
+                            condition["translation_gain"]=trial_condition['closedLoopPosition']
+
                         condition_list.append(condition)
                         if num_object_on_scene == 1:
                             conditions.append(condition_list[0])
@@ -1190,6 +1210,20 @@ def preprocess_matrex_data(thisDir, json_file):
                             condition["duration"] = trial_sequence["sequences"][idx][
                                 "duration"
                             ]  # may need to add condition to exclude some kind of data from choice assay.
+                            if type(trial_condition['closedLoopOrientation'])==bool:
+                                if trial_condition['closedLoopOrientation']==True:
+                                    condition["rotation_gain"]=1.0
+                                else:
+                                    condition["rotation_gain"]=0.0
+                            else:
+                                condition["rotation_gain"]=trial_condition['closedLoopOrientation']
+                            if type(trial_condition['closedLoopPosition'])==bool:
+                                if trial_condition['closedLoopPosition']==True:
+                                    condition["translation_gain"]=1.0
+                                else:
+                                    condition["translation_gain"]=0.0
+                            else:
+                                condition["translation_gain"]=trial_condition['closedLoopPosition']
                             condition_list.append(condition)
                             if num_object_on_scene == 1:
                                 conditions.append(condition_list[0])
@@ -1240,7 +1274,8 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250522_170534"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250702_095817"
+    thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250514_134255"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250605_120838"
     json_file = "./analysis_methods_dictionary.json"
