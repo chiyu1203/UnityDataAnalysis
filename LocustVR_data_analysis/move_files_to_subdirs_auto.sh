@@ -1,5 +1,6 @@
 
 #!/bin/bash
+# cd ./LocustVR_data_analysis
 # Prerequisite: chmod +x move_files_to_subdirs.sh
 # Usage: ./move_files_to_subdirs.sh 25001
 
@@ -9,7 +10,7 @@ START_ID=$1
 # Hardcoded parameters
 EXPERIMENT_NAME="choices"
 SESSION_NUM="session1"
-BASE_DIR="/Users/aljoscha/Downloads/Data-2"
+BASE_DIR="/Users/aljoscha/Downloads/Data"
 
 # Input validation
 if [ "$#" -ne 1 ]; then
