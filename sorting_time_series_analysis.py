@@ -289,6 +289,8 @@ def classify_follow_epochs(
     extract_follow_epoches = analysis_methods.get("extract_follow_epoches", True)
     follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", False)
     follow_within_distance = analysis_methods.get("follow_within_distance", 50)
+    follow_above_speed = analysis_methods.get("follow_above_speed", 1)
+    follow_within_angle= analysis_methods.get("follow_within_angle", 10)
     focal_distance_fbf = instant_speed * np.diff(ts)
     agent_distance_fbf = np.sqrt(
         np.sum([np.diff(this_agent_xy)[0] ** 2, np.diff(this_agent_xy)[1] ** 2], axis=0)
@@ -302,10 +304,10 @@ def classify_follow_epochs(
     angles_in_degree = angles * 180 / np.pi
     locustVR_criteria = (
         (target_distance[1:] < follow_within_distance)
-        & (instant_speed > 1)
-        & (angles_in_degree < 10)
+        & (instant_speed > follow_above_speed)
+        & (angles_in_degree < follow_within_angle)
     )
-    walk_criteria = (target_distance[1:] < follow_within_distance) & (instant_speed > 1)
+    walk_criteria = (target_distance[1:] < follow_within_distance) & (instant_speed > follow_above_speed)
     if extract_follow_epoches and follow_locustVR_criteria:
         epochs_of_interest = locustVR_criteria
     elif extract_follow_epoches:
@@ -631,6 +633,18 @@ def follow_behaviour_analysis(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
                             follow_pd.shape[0],
                         ))
+                if "rotation_gain" in df_summary.columns:
+                    follow_pd.insert(follow_pd.shape[1],"rotation_gain",
+                            np.repeat(
+                                grp["rotation_gain"].values[0],
+                                follow_pd.shape[0],
+                            ))
+                    follow_pd.insert(follow_pd.shape[1],"translation_gain",
+                            np.repeat(
+                                grp["translation_gain"].values[0],
+                                follow_pd.shape[0],
+                            ))
+                    
                 if calculate_follow_chance_level and agent_based_modeling:
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(
                             np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
@@ -676,6 +690,7 @@ def follow_behaviour_analysis(
                                 simulated_pd.shape[0],
                             ),
                     )
+                    ## should add translational and rotational gain in simulated_pd too but lets figure out a better way to do this first
                 if plotting_trajectory:
                     target_distance = LA.norm(vector_dif, axis=0)
                     time_series_plot(
@@ -748,6 +763,9 @@ def follow_behaviour_analysis(
                     "object": [grp["type"].values[0]],
                 }
             )
+            if "rotation_gain" in df_summary.columns:
+                trial_summary['rotation_gain']=[grp["rotation_gain"].values[0]]
+                trial_summary['translation_gain']=[grp["translation_gain"].values[0]]
             if "density" in df_summary.columns:
                 trial_summary['density'] = grp["density"][0]
             trial_evaluation_list.append(trial_summary)
@@ -792,8 +810,12 @@ def follow_behaviour_analysis(
     dif_across_trials_pd = pd.concat(dif_across_trials)
     if 'simulated_across_trials' in locals() and len(simulated_across_trials)>0:
         simulated_across_trials_pd = pd.concat(simulated_across_trials)
-    dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
-    dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
+    if "rotation_gain" in df_summary.columns:
+        dif_column_list = ["x", "y", "degree", "ts","agent_id","type","rotation_gain","translation_gain"]
+        dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
+    else:
+        dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
+        dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     if 'simulated_across_trials_pd' in locals():
         simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
     else:
@@ -927,7 +949,8 @@ def load_data(this_dir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"

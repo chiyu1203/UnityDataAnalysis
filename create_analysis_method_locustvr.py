@@ -24,6 +24,8 @@ analysis_methods = {
     "exclude_extreme_index":False,
     "graph_colour_code": ["r", "b", "g", "k", "c", "y", "m", "r"],
     "follow_within_distance": 50,
+    "follow_above_speed": 1,
+    "follow_within_angle": 10,
     "camera_fps": 100,
     "trackball_radius_cm": 5,
     "monitor_fps": 100,

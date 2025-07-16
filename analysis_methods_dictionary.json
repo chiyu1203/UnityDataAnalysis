@@ -3,7 +3,7 @@
  "overwrite_curated_dataset": true,
  "export_fictrac_data_only": false,
  "read_fictrac_data_only": false,
- "save_output": false,
+ "save_output": true,
  "time_series_analysis": true,
  "filtering_method": "sg_filter",
  "plotting_trajectory": false,
@@ -32,6 +32,8 @@
   "r"
  ],
  "follow_within_distance": 50,
+ "follow_above_speed": 1,
+ "follow_within_angle": 10,
  "camera_fps": 100,
  "trackball_radius_cm": 5,
  "monitor_fps": 60,
