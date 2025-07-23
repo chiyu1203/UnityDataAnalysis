@@ -2,11 +2,11 @@
 locustVR_data_preperation
 """
 
-def access_utilities(utilities_name='utilities'):
+def access_utilities(utilities_name='utilities', resolve_parent_directories=0):
     from pathlib import Path
     import sys
     cwd = Path.cwd()
-    parent_dir = cwd.resolve().parents[1]
+    parent_dir = cwd.resolve().parents[resolve_parent_directories]
     # print(parent_dir)
     path_utilities = Path(parent_dir) / utilities_name
     sys.path.insert(0, str(path_utilities))
@@ -147,89 +147,62 @@ def align_trajectories(df, trial_col='trial_id', t_col='ts', heading_col='headin
 
 #################################################################################################
 
-def flip_symmetric_states(df, state_col='state_type', x_col='X_aligned', y_col='Y_aligned', heading_col='heading_rel'):
-    import numpy as np
+def flip_symmetric_states(df, state_col='state_type', y_col='Y_aligned'):
     df = df.copy()
 
-    df["X_flip"] = df[x_col]
+    # By default, keep original Y
     df["Y_flip"] = df[y_col]
 
-    # Only flip state_type == 2
-    symmetric_mask = df[state_col] == 2
-
-    grouped = df.groupby(['animal_id', 'trial_id'])
-
-    for (animal_id, trial_id), group in grouped:
-        idx_mask = (df['animal_id'] == animal_id) & (df['trial_id'] == trial_id) & symmetric_mask
-
-        if group.empty or not idx_mask.any():
-            continue
-
-        # Get initial heading at ts == 0 (or closest available)
-        trial_start = group.loc[group['ts'] == group['ts'].min()]
-        if trial_start.empty:
-            continue
-
-        heading0 = trial_start[heading_col].values[0]  # in radians
-
-        # Mirror angle: flip across heading0 + π/2
-        # So the flip angle = 2 * (heading0 + π/2)
-        theta = 2 * (heading0 + np.pi / 2)
-
-        # Apply rotation
-        x = df.loc[idx_mask, x_col].values
-        y = df.loc[idx_mask, y_col].values
-
-        # Rotate by -theta to mirror
-        x_flip = np.cos(-theta) * x - np.sin(-theta) * y
-        y_flip = np.sin(-theta) * x + np.cos(-theta) * y
-
-        df.loc[idx_mask, "X_flip"] = x_flip
-        df.loc[idx_mask, "Y_flip"] = y_flip
+    # Flip Y for state_type == 2
+    df.loc[df[state_col] == 2, "Y_flip"] *= -1
 
     return df
 
 ##################################################################################################
 
 def compute_directness_and_direction(df, trial_col='trial_id', t_col='ts',
-                                     x_col='X_aligned', y_col='Y_aligned'):
+                                     x_col='X_aligned', y_col='Y_flip'):
     import numpy as np
     df = df.copy()
 
     directness_list = []
     angle_list = []
 
-    # Group by trial
     for _, group in df.groupby(trial_col):
         group_sorted = group.sort_values(t_col)
-        x = group_sorted[x_col].to_numpy()
-        y = group_sorted[y_col].to_numpy()
 
-        if len(x) < 2:
-            directness_list.extend([np.nan] * len(group))
-            angle_list.extend([np.nan] * len(group))
-            continue
+        # Create full-length arrays for this group
+        directness_vals = [np.nan] * len(group_sorted)
+        angle_vals = [np.nan] * len(group_sorted)
 
-        dx = x[-1] - x[0]
-        dy = y[-1] - y[0]
+        # Filter for time range
+        group_filtered = group_sorted[(group_sorted[t_col] >= 0) & (group_sorted[t_col] <= 6000)]
 
-        # Direct distance
-        d_direct = np.hypot(dx, dy)
+        if len(group_filtered) >= 2:
+            x = group_filtered[x_col].to_numpy()
+            y = group_filtered[y_col].to_numpy()
 
-        # Trajectory length
-        d_steps = np.hypot(np.diff(x), np.diff(y))
-        d_trajectory = np.sum(d_steps)
+            dx = x[-1] - x[0]
+            dy = y[-1] - y[0]
 
-        # Avoid division by zero
-        directness = d_direct / d_trajectory if d_trajectory > 0 else np.nan
-        # angle_direct = np.arctan2(dy, dx)
+            d_direct = np.hypot(dx, dy)
+            d_steps = np.hypot(np.diff(x), np.diff(y))
+            d_trajectory = np.sum(d_steps)
 
-        # Fill values for each row in group
-        n = len(group)
-        directness_list.extend([directness] * n)
-        # angle_list.extend([angle_direct] * n)
+            directness = d_direct / d_trajectory if d_trajectory > 0 else np.nan
+            angle_direct = np.angle(np.exp(1j * (np.arctan2(dy, dx) + np.pi)))
+
+            # Assign only to the rows within time range
+            for i, (_, row) in enumerate(group_sorted.iterrows()):
+                if 0 <= row[t_col] <= 6000:
+                    directness_vals[i] = directness
+                    angle_vals[i] = angle_direct
+
+        directness_list.extend(directness_vals)
+        angle_list.extend(angle_vals)
+
     df["directness"] = directness_list
-    # df["angle_direct"] = angle_list
+    df["angle_direct"] = angle_list
 
     return df
 
@@ -239,16 +212,19 @@ def compute_directness_and_direction(df, trial_col='trial_id', t_col='ts',
 heading_angle_visualisation
 """
 
-def default_style(x_label, y_label, limits=None):
+def default_style(x_label, y_label, limits=False):
     import matplotlib.pyplot as plt
-    plt.xlim(limits[0][0], limits[0][1])
-    plt.ylim(limits[1][0], limits[1][1])
+    if limits is False:
+        pass
+    else:
+        plt.xlim(limits[0][0], limits[0][1])
+        plt.ylim(limits[1][0], limits[1][1])
     plt.grid(False)
     plt.box(True)
-    plt.xlabel(x_label, fontsize=16)
-    plt.ylabel(y_label, fontsize=16)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xlabel(x_label, fontsize=25)
+    plt.ylabel(y_label, fontsize=25)
+    plt.xticks(fontsize=22)
+    plt.yticks(fontsize=22)
     plt.tight_layout()
 
 def generate_plot_type(plot_type):
@@ -265,7 +241,7 @@ def generate_plot_type(plot_type):
 def generate_time_windows(critical_time):
     time_windows = {}
     for i in range(len(critical_time)-1):
-        row = {f"t1 ({critical_time[i]:.1f} to {critical_time[i+1]:.1f})": (critical_time[i], critical_time[i+1]),}
+        row = {f"{critical_time[i] / 100:.0f} to {critical_time[i+1]/ 100:.0f} s": (critical_time[i], critical_time[i+1]),}
         time_windows.update(row)
     return time_windows
 
@@ -294,12 +270,12 @@ def plt_density(df, angle_version, time_windows, angle_bins, plt_hist=False, plt
         x_vals = np.linspace(-180, 180, 500)
         kde_values = kde(x_vals)
         if plt_kde:
-            plt.plot(x_vals, kde_values, label=label_plt)
+            plt.plot(x_vals, kde_values, label=label_plt, linewidth=4)
 
-    plt.axvline(60, color='b', linestyle='--')
-    plt.axvline(-60, color='b', linestyle='--')
+    plt.axvline(60, color='grey', linestyle='--')
+    plt.axvline(-60, color='grey', linestyle='--')
 
     plt.xlabel('Relative heading (°)')
     plt.ylabel('Density')
-    plt.legend()
+    plt.legend(fontsize=12)
     plt.tight_layout()
