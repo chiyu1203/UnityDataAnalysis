@@ -241,7 +241,8 @@ def generate_plot_type(plot_type):
 def generate_time_windows(critical_time):
     time_windows = {}
     for i in range(len(critical_time)-1):
-        row = {f"{critical_time[i] / 100:.0f} to {critical_time[i+1]/ 100:.0f} s": (critical_time[i], critical_time[i+1]),}
+        row = {f"{critical_time[i]:.0f} to {critical_time[i+1]:.0f} s": (critical_time[i]*100, critical_time[i+1]*100),}
+        # row = {f"{critical_time[i] / 100:.0f} to {critical_time[i+1]/ 100:.0f} s": (critical_time[i], critical_time[i+1]),}
         time_windows.update(row)
     return time_windows
 
