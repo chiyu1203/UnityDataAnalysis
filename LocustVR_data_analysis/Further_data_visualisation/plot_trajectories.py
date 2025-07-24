@@ -13,7 +13,7 @@ import os
 save_path = "/Users/aljoscha/Downloads/locustVR_data"
 df1 = pd.read_pickle(os.path.join(save_path, 'locustvr_data.pkl'))
 print(df1["constant_speed"].unique())
-df1 = df1.loc[df1["constant_speed"] == 1, :]
+df1 = df1.loc[(df1["constant_speed"] == 3) & (df1["constant_distance"] == 10), :]
 # for aha in range(1, 2):
     # for yep in range(16, 17):
 #         df = df1.loc[(df1['animal_id'] == 5) & (df1['trial_id'] == yep) & (df1["ts"] >= 0) & (df1["ts"] <= 6000), ['X_aligned', 'Y_flip', 'ts', "heading", "constant_speed", "constant_distance"]]
