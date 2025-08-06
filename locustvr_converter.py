@@ -1143,7 +1143,22 @@ def preprocess_matrex_data(thisDir, json_file):
                                     df_agent = None
                                 result_list.append(df_agent)
                                 if (num_object_on_scene-this_object>1) and (num_object_on_scene>1):
-                                    condition["duration"] = trial_sequence["sequences"][idx]["duration"]  # may need to add condition to exclude some kind of data from choice assay.
+                                    condition["duration"] = trial_sequence["sequences"][idx]["duration"]
+                                    if type(trial_condition['closedLoopOrientation'])==bool:
+                                        if trial_condition['closedLoopOrientation']==True:
+                                            condition["rotation_gain"]=1.0
+                                        else:
+                                            condition["rotation_gain"]=0.0
+                                    else:
+                                        condition["rotation_gain"]=trial_condition['closedLoopOrientation']
+                                    if type(trial_condition['closedLoopPosition'])==bool:
+                                        if trial_condition['closedLoopPosition']==True:
+                                            condition["translation_gain"]=1.0
+                                        else:
+                                            condition["translation_gain"]=0.0
+                                    else:
+                                        condition["translation_gain"]=trial_condition['closedLoopPosition']
+                                     # may need to add condition to exclude some kind of data from choice assay.
                                     condition_list.append(condition)
 
                         condition["duration"] = trial_sequence["sequences"][idx][
@@ -1274,8 +1289,9 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
+    thisDir = r"G:\MatrexVR_2024_2_Data\RunData\20250625_105042"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250702_095817"
-    thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
+    #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250514_134255"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250605_120838"
     json_file = "./analysis_methods_dictionary.json"
