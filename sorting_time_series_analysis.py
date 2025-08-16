@@ -295,8 +295,8 @@ def classify_follow_epochs(
     agent_distance_fbf = np.sqrt(
         np.sum([np.diff(this_agent_xy)[0] ** 2, np.diff(this_agent_xy)[1] ** 2], axis=0)
     )
-    vector_dif = this_agent_xy - focal_xy
-    target_distance = LA.norm(vector_dif, axis=0)
+    focal2agent = this_agent_xy - focal_xy
+    target_distance = LA.norm(focal2agent, axis=0)
     dot_product = np.diag(
         np.matmul(np.transpose(np.diff(focal_xy)), np.diff(this_agent_xy))
     )
@@ -316,21 +316,21 @@ def classify_follow_epochs(
         epochs_of_interest = (
             np.ones((instant_speed.shape[0])) == 1.0
         )  # created a all-true array for overall heatmap
-    return epochs_of_interest, vector_dif, angles_in_degree,walk_criteria
+    return epochs_of_interest, focal2agent, angles_in_degree,walk_criteria
 
 
-def align_agent_moving_direction(vector_dif, grp):
+def align_agent_moving_direction(focal2agent, grp):
     theta = np.radians(grp["mu"].values[0] - 360)
     rot_matrix = np.array(
         [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
     )  # calculate the rotation matrix to align the agent to move along the same direction
-    vector_dif_rotated = rot_matrix @ vector_dif
-    return vector_dif_rotated
-    # vector_dif_rotated=vector_dif_rotated[:,1:]
+    focal2agent_rotated = rot_matrix @ focal2agent
+    return focal2agent_rotated
+    # focal2agent_rotated=focal2agent_rotated[:,1:]
 
 
 def conclude_as_pd(
-    df_focal_animal, vector_dif_rotated, epochs_of_interest, fname, agent_no):
+    df_focal_animal, focal2agent_rotated, epochs_of_interest, fname, agent_no):
     num_frames = df_focal_animal[df_focal_animal["fname"] == fname].shape[0]
     degree_in_the_trial = np.repeat(
         df_focal_animal[df_focal_animal["fname"] == fname]["mu"].to_numpy()[0],
@@ -343,9 +343,9 @@ def conclude_as_pd(
         )
     )
     degree_time = degree_time[:, 1:]
-    vector_dif_rotated = vector_dif_rotated[:, 1:]
+    focal2agent_rotated = focal2agent_rotated[:, 1:]
     follow_wrap = np.concat(
-        (vector_dif_rotated[:, epochs_of_interest], degree_time[:, epochs_of_interest])
+        (focal2agent_rotated[:, epochs_of_interest], degree_time[:, epochs_of_interest])
     )
     follow_pd = pd.DataFrame(np.transpose(follow_wrap))
     follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
@@ -613,9 +613,10 @@ def follow_behaviour_analysis(
                     nans, y = nan_helper(tmp_arr_y)
                     tmp_arr_y[nans] = np.interp(y(nans), y(~nans), tmp_arr_y[~nans])
                     this_agent_xy=np.vstack((tmp_arr_x,tmp_arr_y))
-                epochs_of_interest, vector_dif, angles_in_degree,walk_epochs = (
+                epochs_of_interest, focal2agent, angles_in_degree,walk_epochs = (
                 classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy, analysis_methods))
-                vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
+                focal2agent_rotated = align_agent_moving_direction(focal2agent, grp)
+                #agent2focal_rotated=focal2agent_rotated*-1
                 ### Here is a quick fix to analyse agents in a marching band.
                 ### instead of assigning agents ID based on which agent is analysed first (like in the 2-choice assay)
                 ### this one assign agents ID or more precisely band ID, based on whether the agents is in the left or right side from the allocentric view
@@ -623,11 +624,11 @@ def follow_behaviour_analysis(
                 ### However, if experiment are more advanced, for example, a locust navigate in a marching band mixed with different type of agent. This analysis will fail
                 ### Then we basically needs to change the code in locustvr_converter.py and assign ID for each type of agents explicitly.
                 if num_agent>2 and this_agent_xy[1,:].mean()>0:
-                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, 1)
+                    follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, epochs_of_interest, key, 1)
                 elif num_agent>2 and this_agent_xy[1,:].mean()<0:
-                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, 0)
+                    follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, epochs_of_interest, key, 0)
                 else:
-                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i)
+                    follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, epochs_of_interest, key, i)
                 follow_pd.insert(follow_pd.shape[1],"type",
                         np.repeat(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
@@ -649,9 +650,9 @@ def follow_behaviour_analysis(
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(
                             np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
                     )
-                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    focal2agent_simulated = align_agent_moving_direction(simulated_vector, grp)
                     simulated_pd= conclude_as_pd(
-                            df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
+                            df_focal_animal, focal2agent_simulated, epochs_by_chance, key, i
                     )
                 elif calculate_follow_chance_level and df_summary[variables_to_randomise].unique().shape[0]>1:
                     #other_vars=df_summary[variables_to_randomise].unique()[grp[variables_to_randomise][0]!=df_summary[variables_to_randomise].unique()]
@@ -671,15 +672,15 @@ def follow_behaviour_analysis(
                         )  # calculate the rotation matrix to align the agent to move along the same direction
                     this_agent_xy_rotated = rot_matrix @ this_agent_xy
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
-                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    focal2agent_simulated = align_agent_moving_direction(simulated_vector, grp)
                     ## same situation as line 617
                     if num_agent>2 and this_agent_xy_rotated[1,:].mean()>0:
-                        simulated_pd = conclude_as_pd(df_focal_animal, vector_dif_simulated, epochs_by_chance, key, 1)
+                        simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated, epochs_by_chance, key, 1)
                     elif num_agent>2 and this_agent_xy_rotated[1,:].mean()<0:
-                        simulated_pd = conclude_as_pd(df_focal_animal, vector_dif_simulated, epochs_by_chance, key, 0)
+                        simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated, epochs_by_chance, key, 0)
                     else:
                         simulated_pd= conclude_as_pd(
-                                df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
+                                df_focal_animal, focal2agent_simulated, epochs_by_chance, key, i
                         )
 
                     simulated_pd.insert(
@@ -692,7 +693,7 @@ def follow_behaviour_analysis(
                     )
                     ## should add translational and rotational gain in simulated_pd too but lets figure out a better way to do this first
                 if plotting_trajectory:
-                    target_distance = LA.norm(vector_dif, axis=0)
+                    target_distance = LA.norm(focal2agent, axis=0)
                     time_series_plot(
                             target_distance,
                             instant_speed,
@@ -862,14 +863,19 @@ def follow_behaviour_analysis(
             xlimit=(-20,100)
             ylimit=(-45,45)
         for keys, grp in dif_across_trials_pd.groupby(['type','degree']):
-            fig = plt.figure(figsize=(9,5))
-            ax = fig.add_subplot(212)
-            ax2 = fig.add_subplot(221)
-            ax3 = fig.add_subplot(222)
+            fig = plt.figure(figsize=(9,10))
+            #ax = fig.add_subplot(212)
+            #ax2 = fig.add_subplot(221)
+            #ax3 = fig.add_subplot(222)
+            ax = fig.add_subplot(313)
+            ax2 = fig.add_subplot(321)
+            ax3 = fig.add_subplot(322)
+            ax4 = fig.add_subplot(323)
+            ax5 = fig.add_subplot(324)
             ax.hist(grp['ts'].values,bins=100,density=False,color='r')
             if len(simulated_across_trials_pd)>0:
                 sim_grp=simulated_across_trials_pd[(simulated_across_trials_pd['type']==keys[0])&(simulated_across_trials_pd['degree']==keys[1])]
-                ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.3)
+                ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.4)
             else:
                 sim_grp=np.array([])
             #ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
@@ -878,22 +884,37 @@ def follow_behaviour_analysis(
                 if grp.shape[0]>0:
                     body_points=generate_points_within_rectangles(grp['x'].values,grp['y'].values, 1,4,2,21)
                     ax2.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                    body_points=generate_points_within_rectangles(grp['x'].values*-1,grp['y'].values*-1, 1,4,2,21)
+                    ax4.hist2d(body_points[:,0],body_points[:,1],bins=400)
                 if sim_grp.shape[0]>0:
                     body_points=generate_points_within_rectangles(sim_grp['x'].values,sim_grp['y'].values, 1,4,2,21)
                     ax3.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                    body_points=generate_points_within_rectangles(sim_grp['x'].values*-1,sim_grp['y'].values*-1, 1,4,2,21)
+                    ax5.hist2d(body_points[:,0],body_points[:,1],bins=400)
             else:
                 if grp.shape[0]>0:
                     ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
+                    ax4.hist2d(grp['x'].values*-1,grp['y'].values*-1,bins=400)
                 if sim_grp.shape[0]>0:
                     ax3.hist2d(sim_grp['x'].values,sim_grp['y'].values,bins=100)
+                    ax5.hist2d(sim_grp['x'].values*-1,sim_grp['y'].values*-1,bins=100)
             ax2.set(
             yticks=[ylimit[0],ylimit[1]],
             xticks=[xlimit[0],xlimit[1]],
-            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
+            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal',title='focal2agent')
             ax3.set(
             yticks=[ylimit[0],ylimit[1]],
             xticks=[xlimit[0],xlimit[1]],
-            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
+            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal',title='simulated2agent')
+            xlimit_rev=(xlimit[1]*-1,xlimit[0])
+            ax4.set(
+            yticks=[ylimit[0],ylimit[1]],
+            xticks=[xlimit_rev[0],xlimit_rev[1]],
+            xlim=xlimit_rev,ylim=ylimit,adjustable='box', aspect='equal',title='agent2focal')
+            ax5.set(
+            yticks=[ylimit[0],ylimit[1]],
+            xticks=[xlimit_rev[0],xlimit_rev[1]],
+            xlim=xlimit_rev,ylim=ylimit,adjustable='box', aspect='equal',title='agent2simulated')
             '''
             ax.axvline(
                     x=6,
@@ -933,11 +954,11 @@ def load_data(this_dir, json_file):
             #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR3*agent_full.h5"
+    agent_pattern = f"VR4*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR3*XY_full.h5"
+    xy_pattern = f"VR4*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR3*score_full.h5"
+    summary_pattern = f"VR4*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -950,13 +971,13 @@ def load_data(this_dir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
-    thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
+    #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
-    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
+    thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_grass1_Data\RunData\20240908_125638"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
