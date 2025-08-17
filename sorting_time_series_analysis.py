@@ -330,25 +330,23 @@ def align_agent_moving_direction(focal2agent, grp):
 
 
 def conclude_as_pd(
-    df_focal_animal, focal2agent_rotated, epochs_of_interest, fname, agent_no):
-    num_frames = df_focal_animal[df_focal_animal["fname"] == fname].shape[0]
-    degree_in_the_trial = np.repeat(
-        df_focal_animal[df_focal_animal["fname"] == fname]["mu"].to_numpy()[0],
-        num_frames,
-    )
+    df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, fname):
+    ts_of_interest=df_focal_animal[df_focal_animal["fname"] == fname]["ts"].to_numpy()[:-1][epochs_of_interest]
+    vx_of_interest = vx[:-1][epochs_of_interest]
+    vy_of_interest = vy[:-1][epochs_of_interest]
+
     degree_time = np.vstack(
-        (
-            degree_in_the_trial,
-            df_focal_animal[df_focal_animal["fname"] == fname]["ts"].to_numpy(),
+        (   
+            vx_of_interest,
+            vy_of_interest,
+            ts_of_interest
         )
     )
-    degree_time = degree_time[:, 1:]
-    focal2agent_rotated = focal2agent_rotated[:, 1:]
     follow_wrap = np.concat(
-        (focal2agent_rotated[:, epochs_of_interest], degree_time[:, epochs_of_interest])
+        (focal2agent_rotated[:, 1:][:, epochs_of_interest], degree_time)
     )
     follow_pd = pd.DataFrame(np.transpose(follow_wrap))
-    follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
+    #follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
     return follow_pd
 
 
@@ -358,6 +356,7 @@ def follow_behaviour_analysis(
     duration_for_baseline = 2
     pre_stim_ISI = 60
     trajec_lim = 150
+    rolling_window=5
     calculate_follow_chance_level = analysis_methods.get("calculate_follow_chance_level", False)
     agent_based_modeling=False
     variables_to_randomise='mu'
@@ -366,6 +365,7 @@ def follow_behaviour_analysis(
     add_cumulated_angular_velocity=True
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
+    camera_fps = analysis_methods.get("camera_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     plotting_event_distribution = analysis_methods.get("plotting_event_distribution", False)
@@ -400,20 +400,30 @@ def follow_behaviour_analysis(
     else:
         pass
     for key, grp in df_summary.groupby("fname"):
+        focal_animal_tmp = df_focal_animal[df_focal_animal["fname"] == key]
         focal_xy = np.vstack(
             (
-                df_focal_animal[df_focal_animal["fname"] == key]["X"].to_numpy(),
-                df_focal_animal[df_focal_animal["fname"] == key]["Y"].to_numpy(),
+                focal_animal_tmp["X"].to_numpy(),
+                focal_animal_tmp["Y"].to_numpy(),
             )
         )
         dif_x = np.diff(focal_xy[0])
         dif_y = np.diff(focal_xy[1])
-        ts = df_focal_animal[df_focal_animal["fname"] == key]["ts"].to_numpy()
+        ts = focal_animal_tmp["ts"].to_numpy()
         instant_speed = calculate_speed(dif_x, dif_y, ts)
 
-        heading_direction = df_focal_animal[df_focal_animal["fname"] == key][
-            "heading"
-        ].to_numpy()
+        focal_animal_tmp['x_future'] = focal_animal_tmp["X"].shift(-rolling_window)
+        focal_animal_tmp['y_future'] = focal_animal_tmp["Y"].shift(-rolling_window)
+        focal_animal_tmp['dx'] = focal_animal_tmp['x_future'] - focal_animal_tmp["X"]
+        focal_animal_tmp['dy'] = focal_animal_tmp['y_future'] - focal_animal_tmp["Y"]
+        focal_animal_tmp['displacement'] = (focal_animal_tmp['dx']**2 + focal_animal_tmp['dy']**2)**0.5
+        # Compute speed using the formula:
+        focal_animal_tmp['speedNew'] = camera_fps*focal_animal_tmp['displacement'] / rolling_window
+
+
+        heading_direction =focal_animal_tmp["heading"].to_numpy()
+        vx = focal_animal_tmp['speedNew'].to_numpy() * np.cos(heading_direction)
+        vy = focal_animal_tmp['speedNew'].to_numpy() * np.sin(heading_direction)
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
         if "density" in df_summary.columns:
@@ -623,12 +633,24 @@ def follow_behaviour_analysis(
                 ### this means if the agent's coordinate is negative, we assume this agent is on the right. Otherwise, on the left side, and given then ID accordingly.
                 ### However, if experiment are more advanced, for example, a locust navigate in a marching band mixed with different type of agent. This analysis will fail
                 ### Then we basically needs to change the code in locustvr_converter.py and assign ID for each type of agents explicitly.
+                ### if num_agent>2 and this_agent_xy[1,:].mean()>0:
+                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key, 1)
+                ### elif num_agent>2 and this_agent_xy[1,:].mean()<0:
+                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key, 0)
+                ### else:
+                follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key)
                 if num_agent>2 and this_agent_xy[1,:].mean()>0:
-                    follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, epochs_of_interest, key, 1)
+                    agent_no=1
                 elif num_agent>2 and this_agent_xy[1,:].mean()<0:
-                    follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, epochs_of_interest, key, 0)
+                    agent_no=0
                 else:
-                    follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, epochs_of_interest, key, i)
+                    agent_no=i
+                follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
+                follow_pd.insert(follow_pd.shape[1],"degree",
+                      np.repeat(
+                            df_agent[df_agent["fname"] == key]["mu"].values[0],
+                            follow_pd.shape[0],
+                        ))
                 follow_pd.insert(follow_pd.shape[1],"type",
                         np.repeat(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
@@ -674,15 +696,20 @@ def follow_behaviour_analysis(
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
                     focal2agent_simulated = align_agent_moving_direction(simulated_vector, grp)
                     ## same situation as line 617
-                    if num_agent>2 and this_agent_xy_rotated[1,:].mean()>0:
-                        simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated, epochs_by_chance, key, 1)
-                    elif num_agent>2 and this_agent_xy_rotated[1,:].mean()<0:
-                        simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated, epochs_by_chance, key, 0)
+                    simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated,vx,vy, epochs_by_chance, key)
+                    if num_agent>2 and this_agent_xy[1,:].mean()>0:
+                        agent_no=1
+                    elif num_agent>2 and this_agent_xy[1,:].mean()<0:
+                        agent_no=0
                     else:
-                        simulated_pd= conclude_as_pd(
-                                df_focal_animal, focal2agent_simulated, epochs_by_chance, key, i
-                        )
+                        agent_no=i
 
+                    simulated_pd.insert(
+                            simulated_pd.shape[1],
+                            "agent_id",
+                            np.repeat(agent_no, simulated_pd.shape[0]),
+                    )
+                    simulated_pd.insert(simulated_pd.shape[1],"degree",np.repeat(df_agent[df_agent["fname"] == key]["mu"].values[0], simulated_pd.shape[0]))
                     simulated_pd.insert(
                             simulated_pd.shape[1],
                             "type",
@@ -812,10 +839,10 @@ def follow_behaviour_analysis(
     if 'simulated_across_trials' in locals() and len(simulated_across_trials)>0:
         simulated_across_trials_pd = pd.concat(simulated_across_trials)
     if "rotation_gain" in df_summary.columns:
-        dif_column_list = ["x", "y", "degree", "ts","agent_id","type","rotation_gain","translation_gain"]
+        dif_column_list = ["x", "y","vx","vy","ts","agent_id","degree", "type","rotation_gain","translation_gain"]
         dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     else:
-        dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
+        dif_column_list = ["x", "y","vx","vy","ts","agent_id","degree","type"]
         dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     if 'simulated_across_trials_pd' in locals():
         simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
@@ -943,6 +970,118 @@ def follow_behaviour_analysis(
                 f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_follow_distribution.jpg"
             )
             fig.savefig(summary_file.parent / fig_name)
+        # Plotting the vector field    
+        #from matplotlib.lines import Line2D
+        normalise_vector_length=False
+        mean_velocity_vector=False
+        # ----------------------------
+        # 2. Define grid
+        # ----------------------------
+        (x_min, x_max,y_min, y_max)= (-30, 30,-30, 30)
+        nx, ny = 30, 30  # grid resolution
+
+        x_edges = np.linspace(x_min, x_max, nx+1)
+        y_edges = np.linspace(y_min, y_max, ny+1)
+
+
+        # vx=dif_across_trials_pd['vx'].values*-1
+        # vy=dif_across_trials_pd['vy'].values*-1
+        # x=dif_across_trials_pd['x'].values
+        # y=dif_across_trials_pd['y'].values
+        x=dif_across_trials_pd['x'].values*-1
+        y=dif_across_trials_pd['y'].values*-1
+        vx=dif_across_trials_pd['vx'].values
+        vy=dif_across_trials_pd['vy'].values
+        # Find which bin each vector falls into
+        x_idx = np.digitize(x, x_edges) - 1  # bin indices 0..nx-1
+        y_idx = np.digitize(y, y_edges) - 1  # bin indices 0..ny-1
+
+        # ----------------------------
+        # 3. Aggregate data per grid cell
+        # ----------------------------
+        count_grid = np.zeros((nx, ny))
+        vx_grid = np.zeros((nx, ny))
+        vy_grid = np.zeros((nx, ny))
+        if mean_velocity_vector:
+            for i in range(x_idx.shape[0]):
+                ix, iy = x_idx[i], y_idx[i]
+                if 0 <= ix < nx and 0 <= iy < ny:
+                    vx_grid[ix, iy] += vx[i]
+                    vy_grid[ix, iy] += vy[i]
+                    count_grid[ix, iy] += 1
+
+            # Average velocities in each grid cell
+            nonzero = count_grid > 0
+            vx_grid[nonzero] /= count_grid[nonzero]
+            vy_grid[nonzero] /= count_grid[nonzero]
+        else:
+            print("calculate median velocity vector")
+            vx_cells = [[[] for _ in range(ny)] for _ in range(nx)]
+            vy_cells = [[[] for _ in range(ny)] for _ in range(nx)]
+            for i in range(x_idx.shape[0]):
+                ix, iy = x_idx[i], y_idx[i]
+                if 0 <= ix < nx and 0 <= iy < ny:
+                    vx_cells[ix][iy].append(vx[i])
+                    vy_cells[ix][iy].append(vy[i])
+                    count_grid[ix, iy] += 1
+            nonzero = count_grid > 0
+            for ix in range(nx):
+                for iy in range(ny):
+                    if count_grid[ix, iy] > 0:
+                        vx_grid[ix, iy] = np.nanmedian(vx_cells[ix][iy])
+                        vy_grid[ix, iy] = np.nanmedian(vy_cells[ix][iy])
+
+
+        # ----------------------------
+        # 4. Prepare grid coordinates
+        # ----------------------------
+        # grid cell centers
+        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+        X, Y = np.meshgrid(x_centers, y_centers, indexing='ij')
+
+        # magnitude for scaling arrows
+        speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
+        plt.figure(figsize=(10, 8))
+        (legend_x,legend_y)=(-30,-30)
+
+        legend_v=0
+        if normalise_vector_length:
+            legend_u=1
+            scaling_factor=0.1
+            max_speed = np.max(speed_grid[~np.isnan(speed_grid)])
+            vx_plot = np.zeros_like(vx_grid)
+            vy_plot = np.zeros_like(vy_grid)
+            vx_plot[nonzero] = vx_grid[nonzero] / max_speed
+            vy_plot[nonzero] = vy_grid[nonzero] / max_speed
+
+
+            # legend_arrow = Line2D(
+            #     [0], [0], color='black', lw=2,
+            #     marker='>', markersize=8, label=f'Arrow length = {max_speed:.2f} (max speed)'
+            # )
+            # plt.legend(handles=[legend_arrow], loc='upper right')
+        else:
+            legend_u=10
+            scaling_factor=1
+            vx_plot = vx_grid
+            vy_plot = vy_grid
+
+        # ----------------------------
+        # 5. Plot vector field
+        # ----------------------------
+        L = plt.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
+        Q = plt.quiver(X, Y, vx_plot, vy_plot, count_grid, 
+                    angles='xy', scale_units='xy', scale=scaling_factor,cmap='viridis')
+
+        plt.colorbar(Q, label='Number of vectors in grid cell')
+        plt.title('Binned Velocity Vector Field')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.xlim(-30,30)
+        plt.ylim(-30,30)
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.show()
     return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap, simulated_across_trials_pd
 
 
