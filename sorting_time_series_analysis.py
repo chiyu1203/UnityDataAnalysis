@@ -32,6 +32,111 @@ def nan_helper(y):
 
     return np.isnan(y), lambda z: z.nonzero()[0]
 
+def plot_velocity_vector_field(dif_across_trials_pd):
+        #from matplotlib.lines import Line2D
+    normalise_vector_length=False
+    mean_velocity_vector=False
+        # ----------------------------
+        # 2. Define grid
+        # ----------------------------
+    (x_min, x_max,y_min, y_max)= (-30, 30,-30, 30)
+    (legend_x,legend_y)=(-30,-30)
+    nx, ny = 30, 30  # grid resolution
+
+    x_edges = np.linspace(x_min, x_max, nx+1)
+    y_edges = np.linspace(y_min, y_max, ny+1)
+
+    relative_x=dif_across_trials_pd['x'].values*-1
+    relative_y=dif_across_trials_pd['y'].values*-1
+    vx=dif_across_trials_pd['vx'].values
+    vy=dif_across_trials_pd['vy'].values
+        # Find which bin each vector falls into
+    x_idx = np.digitize(relative_x, x_edges) - 1  # bin indices 0..nx-1
+    y_idx = np.digitize(relative_y, y_edges) - 1  # bin indices 0..ny-1
+
+        # ----------------------------
+        # 3. Aggregate data per grid cell
+        # ----------------------------
+    count_grid = np.zeros((nx, ny))
+    vx_grid = np.zeros((nx, ny))
+    vy_grid = np.zeros((nx, ny))
+    if mean_velocity_vector:
+        for i in range(x_idx.shape[0]):
+            ix, iy = x_idx[i], y_idx[i]
+            if 0 <= ix < nx and 0 <= iy < ny:
+                vx_grid[ix, iy] += vx[i]
+                vy_grid[ix, iy] += vy[i]
+                count_grid[ix, iy] += 1
+
+            # Average velocities in each grid cell
+        nonzero = count_grid > 0
+        vx_grid[nonzero] /= count_grid[nonzero]
+        vy_grid[nonzero] /= count_grid[nonzero]
+    else:
+        print("calculate median velocity vector")
+        vx_cells = [[[] for _ in range(ny)] for _ in range(nx)]
+        vy_cells = [[[] for _ in range(ny)] for _ in range(nx)]
+        for i in range(x_idx.shape[0]):
+            ix, iy = x_idx[i], y_idx[i]
+            if 0 <= ix < nx and 0 <= iy < ny:
+                vx_cells[ix][iy].append(vx[i])
+                vy_cells[ix][iy].append(vy[i])
+                count_grid[ix, iy] += 1
+        nonzero = count_grid > 0
+        for ix in range(nx):
+            for iy in range(ny):
+                if count_grid[ix, iy] > 0:
+                    vx_grid[ix, iy] = np.nanmedian(vx_cells[ix][iy])
+                    vy_grid[ix, iy] = np.nanmedian(vy_cells[ix][iy])
+
+
+        # ----------------------------
+        # 4. Prepare grid coordinates
+        # ----------------------------
+        # grid cell centers
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    X, Y = np.meshgrid(x_centers, y_centers, indexing='ij')
+
+        # magnitude for scaling arrows
+    speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
+    fig2, (ax1,ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6, 9), tight_layout=True)
+
+    legend_v=0
+    if normalise_vector_length:
+        legend_u=1
+        scaling_factor=0.1
+        max_speed = np.max(speed_grid[~np.isnan(speed_grid)])
+        vx_plot = np.zeros_like(vx_grid)
+        vy_plot = np.zeros_like(vy_grid)
+        vx_plot[nonzero] = vx_grid[nonzero] / max_speed
+        vy_plot[nonzero] = vy_grid[nonzero] / max_speed
+    else:
+        legend_u=10
+        scaling_factor=1
+        vx_plot = vx_grid
+        vy_plot = vy_grid
+
+        # ----------------------------
+        # 5. Plot vector field
+        # ----------------------------
+    ax1.set(
+            xlim=(-30,30),
+            ylim=(-30,30),
+            title='Binned Velocity Vector Field'
+        )
+    q=ax1.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
+    q=ax1.quiver(X, Y, vx_plot, vy_plot, count_grid, 
+                    angles='xy', scale_units='xy', scale=scaling_factor,cmap='viridis')
+
+    plt.colorbar(q,label='Number of vectors in grid cell')
+
+    distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
+    ax2.scatter(distance,vx)
+        #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
+    plt.show()
+
+
 def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_interest,analysis_methods,all_evaluation,var1,var2=None):
     analysis_window=analysis_methods.get("analysis_window")
     split_stationary_moving_ISI=analysis_methods.get("split_stationary_moving_ISI")
@@ -117,15 +222,15 @@ def generate_points_within_rectangles(x_values, y_values, width,height1, height2
     return np.array(points)
 
 def calculate_speed(dif_x, dif_y, ts, number_frame_scene_changing=5):
-    focal_distance_fbf = np.sqrt(np.sum([dif_x**2, dif_y**2], axis=0))
-    focal_distance_fbf[0 : number_frame_scene_changing + 1] = (
+    focal_displacement_fbf = np.sqrt(np.sum([dif_x**2, dif_y**2], axis=0))
+    focal_displacement_fbf[0 : number_frame_scene_changing + 1] = (
         np.nan
     )  ##plus one to include the weird data from taking difference between 0 and some value
-    instant_speed = focal_distance_fbf / np.diff(ts)
+    instant_speed = focal_displacement_fbf / np.diff(ts)
     return instant_speed
 
 
-def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id):
+def time_series_plot(target_distance, instant_speed, angular_deviation, file_name, trial_id):
     fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(9, 7), tight_layout=True)
     plt.rcParams.update(plt.rcParamsDefault)
     plt.rcParams.update({"font.size": 8})
@@ -142,7 +247,7 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
     ax1.axhline(y=50,color="red",linestyle="--")
     ax2.plot(np.arange(instant_speed.shape[0]), instant_speed)
     ax2.axhline(y=1,color="red",linestyle="--")
-    ax3.plot(np.arange(angles.shape[0]), angles)
+    ax3.plot(np.arange(angular_deviation.shape[0]), angular_deviation)
     ax3.axhline(y=10,color="red",linestyle="--")
     fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_ts_plot.jpg"
     fig.savefig(file_name.parent / fig_name)
@@ -291,8 +396,8 @@ def classify_follow_epochs(
     follow_within_distance = analysis_methods.get("follow_within_distance", 50)
     follow_above_speed = analysis_methods.get("follow_above_speed", 1)
     follow_within_angle= analysis_methods.get("follow_within_angle", 10)
-    focal_distance_fbf = instant_speed * np.diff(ts)
-    agent_distance_fbf = np.sqrt(
+    focal_displacement_fbf = instant_speed * np.diff(ts)
+    agent_displacement_fbf = np.sqrt(
         np.sum([np.diff(this_agent_xy)[0] ** 2, np.diff(this_agent_xy)[1] ** 2], axis=0)
     )
     focal2agent = this_agent_xy - focal_xy
@@ -300,8 +405,8 @@ def classify_follow_epochs(
     dot_product = np.diag(
         np.matmul(np.transpose(np.diff(focal_xy)), np.diff(this_agent_xy))
     )
-    angles = np.arccos(dot_product / focal_distance_fbf / agent_distance_fbf)
-    angles_in_degree = angles * 180 / np.pi
+    angular_deviation = np.arccos(dot_product / focal_displacement_fbf / agent_displacement_fbf)
+    angles_in_degree = angular_deviation * 180 / np.pi
     locustVR_criteria = (
         (target_distance[1:] < follow_within_distance)
         & (instant_speed > follow_above_speed)
@@ -400,30 +505,30 @@ def follow_behaviour_analysis(
     else:
         pass
     for key, grp in df_summary.groupby("fname"):
-        focal_animal_tmp = df_focal_animal[df_focal_animal["fname"] == key]
+        focal_animal_this_trial = df_focal_animal[df_focal_animal["fname"] == key]
         focal_xy = np.vstack(
             (
-                focal_animal_tmp["X"].to_numpy(),
-                focal_animal_tmp["Y"].to_numpy(),
+                focal_animal_this_trial["X"].to_numpy(),
+                focal_animal_this_trial["Y"].to_numpy(),
             )
         )
         dif_x = np.diff(focal_xy[0])
         dif_y = np.diff(focal_xy[1])
-        ts = focal_animal_tmp["ts"].to_numpy()
+        ts = focal_animal_this_trial["ts"].to_numpy()
         instant_speed = calculate_speed(dif_x, dif_y, ts)
 
-        focal_animal_tmp['x_future'] = focal_animal_tmp["X"].shift(-rolling_window)
-        focal_animal_tmp['y_future'] = focal_animal_tmp["Y"].shift(-rolling_window)
-        focal_animal_tmp['dx'] = focal_animal_tmp['x_future'] - focal_animal_tmp["X"]
-        focal_animal_tmp['dy'] = focal_animal_tmp['y_future'] - focal_animal_tmp["Y"]
-        focal_animal_tmp['displacement'] = (focal_animal_tmp['dx']**2 + focal_animal_tmp['dy']**2)**0.5
+        focal_animal_this_trial['x_future'] = focal_animal_this_trial["X"].shift(-rolling_window)
+        focal_animal_this_trial['y_future'] = focal_animal_this_trial["Y"].shift(-rolling_window)
+        focal_animal_this_trial['dx'] = focal_animal_this_trial['x_future'] - focal_animal_this_trial["X"]
+        focal_animal_this_trial['dy'] = focal_animal_this_trial['y_future'] - focal_animal_this_trial["Y"]
+        focal_animal_this_trial['displacement'] = (focal_animal_this_trial['dx']**2 + focal_animal_this_trial['dy']**2)**0.5
         # Compute speed using the formula:
-        focal_animal_tmp['speedNew'] = camera_fps*focal_animal_tmp['displacement'] / rolling_window
+        focal_animal_this_trial['speedNew'] = camera_fps*focal_animal_this_trial['displacement'] / rolling_window
 
 
-        heading_direction =focal_animal_tmp["heading"].to_numpy()
-        vx = focal_animal_tmp['speedNew'].to_numpy() * np.cos(heading_direction)
-        vy = focal_animal_tmp['speedNew'].to_numpy() * np.sin(heading_direction)
+        heading_direction =focal_animal_this_trial["heading"].to_numpy()
+        vx = focal_animal_this_trial['speedNew'].to_numpy() * np.cos(heading_direction)
+        vy = focal_animal_this_trial['speedNew'].to_numpy() * np.sin(heading_direction)
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
         if "density" in df_summary.columns:
@@ -579,7 +684,7 @@ def follow_behaviour_analysis(
             pre_stim_ISI = grp["duration"][0]
             continue
         else:
-            focal_distance_fbf = instant_speed * np.diff(ts)
+            focal_displacement_fbf = instant_speed * np.diff(ts)
             agent_xy = np.vstack(
                 (
                     df_agent[df_agent["fname"] == key]["X"].to_numpy(),
@@ -770,7 +875,7 @@ def follow_behaviour_analysis(
                     "num_chance_epochs": [sum_chance_epochs],
                     "num_walk_epochs":[sum(walk_epochs)],
                     "number_frames": [focal_xy.shape[1] - 1],
-                    "travel_distance": [np.nansum(focal_distance_fbf)],
+                    "travel_distance": [np.nansum(focal_displacement_fbf)],
                     "total_turning": [np.nansum(abs(turn_degree_fbf))],
                     "gross_turning": [np.nansum(turn_degree_fbf)],
                     "travel_distance_ISI": [np.nansum(focal_distance_ISI)],
@@ -853,15 +958,12 @@ def follow_behaviour_analysis(
     print(f"the follow ratio of {summary_file.stem.split('_')[0]} in {summary_file.parent} is {this_animal_follow_ratio}")
 
     if plotting_event_distribution:
-        plt.close()
         trial_evaluation=pd.concat(trial_evaluation_list)
         trial_evaluation['time_group'] = pd.cut(trial_evaluation['trial_id'], bins=3, labels=[1, 2, 3])
         fig, axes = plt.subplots(
                 nrows=1, ncols=2, figsize=(9,5), tight_layout=True)
         ax, ax2 = axes.flatten()
         test1=ax.scatter(x=trial_evaluation['trial_id'],y=trial_evaluation['num_follow_epochs'],c=trial_evaluation['travel_distance'],cmap='viridis',s=10)
-        ax.set_xticks([])
-        ax.set_xlabel("Trial#")
         ax.set(
             ylabel="Number of follow epochs",
             xticks=[0, trial_evaluation['trial_id'].max()],
@@ -969,119 +1071,9 @@ def follow_behaviour_analysis(
             fig_name = (
                 f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_follow_distribution.jpg"
             )
-            fig.savefig(summary_file.parent / fig_name)
-        # Plotting the vector field    
-        #from matplotlib.lines import Line2D
-        normalise_vector_length=False
-        mean_velocity_vector=False
-        # ----------------------------
-        # 2. Define grid
-        # ----------------------------
-        (x_min, x_max,y_min, y_max)= (-30, 30,-30, 30)
-        nx, ny = 30, 30  # grid resolution
-
-        x_edges = np.linspace(x_min, x_max, nx+1)
-        y_edges = np.linspace(y_min, y_max, ny+1)
-
-
-        # vx=dif_across_trials_pd['vx'].values*-1
-        # vy=dif_across_trials_pd['vy'].values*-1
-        # x=dif_across_trials_pd['x'].values
-        # y=dif_across_trials_pd['y'].values
-        x=dif_across_trials_pd['x'].values*-1
-        y=dif_across_trials_pd['y'].values*-1
-        vx=dif_across_trials_pd['vx'].values
-        vy=dif_across_trials_pd['vy'].values
-        # Find which bin each vector falls into
-        x_idx = np.digitize(x, x_edges) - 1  # bin indices 0..nx-1
-        y_idx = np.digitize(y, y_edges) - 1  # bin indices 0..ny-1
-
-        # ----------------------------
-        # 3. Aggregate data per grid cell
-        # ----------------------------
-        count_grid = np.zeros((nx, ny))
-        vx_grid = np.zeros((nx, ny))
-        vy_grid = np.zeros((nx, ny))
-        if mean_velocity_vector:
-            for i in range(x_idx.shape[0]):
-                ix, iy = x_idx[i], y_idx[i]
-                if 0 <= ix < nx and 0 <= iy < ny:
-                    vx_grid[ix, iy] += vx[i]
-                    vy_grid[ix, iy] += vy[i]
-                    count_grid[ix, iy] += 1
-
-            # Average velocities in each grid cell
-            nonzero = count_grid > 0
-            vx_grid[nonzero] /= count_grid[nonzero]
-            vy_grid[nonzero] /= count_grid[nonzero]
-        else:
-            print("calculate median velocity vector")
-            vx_cells = [[[] for _ in range(ny)] for _ in range(nx)]
-            vy_cells = [[[] for _ in range(ny)] for _ in range(nx)]
-            for i in range(x_idx.shape[0]):
-                ix, iy = x_idx[i], y_idx[i]
-                if 0 <= ix < nx and 0 <= iy < ny:
-                    vx_cells[ix][iy].append(vx[i])
-                    vy_cells[ix][iy].append(vy[i])
-                    count_grid[ix, iy] += 1
-            nonzero = count_grid > 0
-            for ix in range(nx):
-                for iy in range(ny):
-                    if count_grid[ix, iy] > 0:
-                        vx_grid[ix, iy] = np.nanmedian(vx_cells[ix][iy])
-                        vy_grid[ix, iy] = np.nanmedian(vy_cells[ix][iy])
-
-
-        # ----------------------------
-        # 4. Prepare grid coordinates
-        # ----------------------------
-        # grid cell centers
-        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
-        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
-        X, Y = np.meshgrid(x_centers, y_centers, indexing='ij')
-
-        # magnitude for scaling arrows
-        speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
-        plt.figure(figsize=(10, 8))
-        (legend_x,legend_y)=(-30,-30)
-
-        legend_v=0
-        if normalise_vector_length:
-            legend_u=1
-            scaling_factor=0.1
-            max_speed = np.max(speed_grid[~np.isnan(speed_grid)])
-            vx_plot = np.zeros_like(vx_grid)
-            vy_plot = np.zeros_like(vy_grid)
-            vx_plot[nonzero] = vx_grid[nonzero] / max_speed
-            vy_plot[nonzero] = vy_grid[nonzero] / max_speed
-
-
-            # legend_arrow = Line2D(
-            #     [0], [0], color='black', lw=2,
-            #     marker='>', markersize=8, label=f'Arrow length = {max_speed:.2f} (max speed)'
-            # )
-            # plt.legend(handles=[legend_arrow], loc='upper right')
-        else:
-            legend_u=10
-            scaling_factor=1
-            vx_plot = vx_grid
-            vy_plot = vy_grid
-
-        # ----------------------------
-        # 5. Plot vector field
-        # ----------------------------
-        L = plt.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
-        Q = plt.quiver(X, Y, vx_plot, vy_plot, count_grid, 
-                    angles='xy', scale_units='xy', scale=scaling_factor,cmap='viridis')
-
-        plt.colorbar(Q, label='Number of vectors in grid cell')
-        plt.title('Binned Velocity Vector Field')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.xlim(-30,30)
-        plt.ylim(-30,30)
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.show()
+            fig.savefig(summary_file.parent / fig_name)   
+            # Plotting the vector field    
+            plot_velocity_vector_field(grp)
     return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap, simulated_across_trials_pd
 
 
