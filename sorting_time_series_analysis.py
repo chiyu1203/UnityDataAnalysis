@@ -48,8 +48,8 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
     relative_x=dif_across_trials_pd['x'].values*-1
     relative_y=dif_across_trials_pd['y'].values*-1
-    vx=dif_across_trials_pd['vx'].values
-    vy=dif_across_trials_pd['vy'].values
+    vx=dif_across_trials_pd['v_parallel'].values
+    vy=dif_across_trials_pd['v_perpendicular'].values
         # Find which bin each vector falls into
     x_idx = np.digitize(relative_x, x_edges) - 1  # bin indices 0..nx-1
     y_idx = np.digitize(relative_y, y_edges) - 1  # bin indices 0..ny-1
@@ -441,15 +441,15 @@ def align_agent_moving_direction(focal2agent, grp):
 
 
 def conclude_as_pd(
-    df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, fname):
+    df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, fname):
     ts_of_interest=df_focal_animal[df_focal_animal["fname"] == fname]["ts"].to_numpy()[:-1][epochs_of_interest]
-    vx_of_interest = vx[:-1][epochs_of_interest]
-    vy_of_interest = vy[:-1][epochs_of_interest]
+    v_parallel = relative_velocity[epochs_of_interest]
+    v_perpendicular = relative_velocity[epochs_of_interest]
 
     degree_time = np.vstack(
         (   
-            vx_of_interest,
-            vy_of_interest,
+            v_parallel,
+            v_perpendicular,
             ts_of_interest
         )
     )
@@ -522,19 +522,16 @@ def follow_behaviour_analysis(
         dif_y = np.diff(focal_xy[1])
         ts = focal_animal_this_trial["ts"].to_numpy()
         instant_speed = calculate_speed(dif_x, dif_y, ts)
-
-        focal_animal_this_trial['x_future'] = focal_animal_this_trial["X"].shift(-rolling_window)
-        focal_animal_this_trial['y_future'] = focal_animal_this_trial["Y"].shift(-rolling_window)
-        focal_animal_this_trial['dx'] = focal_animal_this_trial['x_future'] - focal_animal_this_trial["X"]
-        focal_animal_this_trial['dy'] = focal_animal_this_trial['y_future'] - focal_animal_this_trial["Y"]
-        focal_animal_this_trial['displacement'] = (focal_animal_this_trial['dx']**2 + focal_animal_this_trial['dy']**2)**0.5
+        #focal_animal_this_trial['x_future'] = focal_animal_this_trial["X"].shift(-rolling_window)
+        #focal_animal_this_trial['y_future'] = focal_animal_this_trial["Y"].shift(-rolling_window)
+        #focal_animal_this_trial['dx'] = focal_animal_this_trial['x_future'] - focal_animal_this_trial["X"]
+        #focal_animal_this_trial['dy'] = focal_animal_this_trial['y_future'] - focal_animal_this_trial["Y"]
+        #focal_animal_this_trial['displacement'] = (focal_animal_this_trial['dx']**2 + focal_animal_this_trial['dy']**2)**0.5
         # Compute speed using the formula:
-        focal_animal_this_trial['speedNew'] = camera_fps*focal_animal_this_trial['displacement'] / rolling_window
-
-
+        #focal_animal_this_trial['speedNew'] = camera_fps*focal_animal_this_trial['displacement'] / rolling_window
         heading_direction =focal_animal_this_trial["heading"].to_numpy()
-        vx = focal_animal_this_trial['speedNew'].to_numpy() * np.cos(heading_direction)
-        vy = focal_animal_this_trial['speedNew'].to_numpy() * np.sin(heading_direction)
+        #vx = focal_animal_this_trial['speedNew'].to_numpy() * np.cos(heading_direction)
+        #vy = focal_animal_this_trial['speedNew'].to_numpy() * np.sin(heading_direction)
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
         if "density" in df_summary.columns:
@@ -749,7 +746,8 @@ def follow_behaviour_analysis(
                 ### elif num_agent>2 and this_agent_xy[1,:].mean()<0:
                 ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key, 0)
                 ### else:
-                follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key)
+                relative_velocity=np.diff(focal2agent_rotated,axis=1)
+                follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, key)
                 if num_agent>2 and this_agent_xy[1,:].mean()>0:
                     agent_no=1
                 elif num_agent>2 and this_agent_xy[1,:].mean()<0:
@@ -806,8 +804,8 @@ def follow_behaviour_analysis(
                     this_agent_xy_rotated = rot_matrix @ this_agent_xy
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
                     focal2agent_simulated = align_agent_moving_direction(simulated_vector, grp)
-                    ## same situation as line 617
-                    simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated,vx,vy, epochs_by_chance, key)
+                    relative_velocity_simulated=np.diff(focal2agent_simulated,axis=1)
+                    simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated,relative_velocity_simulated, epochs_by_chance, key)
                     if num_agent>2 and this_agent_xy[1,:].mean()>0:
                         agent_no=1
                     elif num_agent>2 and this_agent_xy[1,:].mean()<0:
@@ -950,10 +948,10 @@ def follow_behaviour_analysis(
     if 'simulated_across_trials' in locals() and len(simulated_across_trials)>0:
         simulated_across_trials_pd = pd.concat(simulated_across_trials)
     if "rotation_gain" in df_summary.columns:
-        dif_column_list = ["x", "y","vx","vy","ts","agent_id","degree", "type","rotation_gain","translation_gain"]
+        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree", "type","rotation_gain","translation_gain"]
         dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     else:
-        dif_column_list = ["x", "y","vx","vy","ts","agent_id","degree","type"]
+        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree","type"]
         dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     if 'simulated_across_trials_pd' in locals():
         simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
