@@ -35,7 +35,8 @@ def nan_helper(y):
 def plot_velocity_vector_field(dif_across_trials_pd):
         #from matplotlib.lines import Line2D
     normalise_vector_length=False
-    mean_velocity_vector=False
+    mean_velocity_vector=True
+    agent_at_centre=True
         # ----------------------------
         # 2. Define grid
         # ----------------------------
@@ -45,11 +46,15 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
     x_edges = np.linspace(x_min, x_max, nx+1)
     y_edges = np.linspace(y_min, y_max, ny+1)
+    if agent_at_centre:
+        mirror_factor=-1
+    else:
+        mirror_factor=1
 
-    relative_x=dif_across_trials_pd['x'].values*-1
-    relative_y=dif_across_trials_pd['y'].values*-1
-    vx=dif_across_trials_pd['v_parallel'].values
-    vy=dif_across_trials_pd['v_perpendicular'].values
+    relative_x=dif_across_trials_pd['x'].values*mirror_factor
+    relative_y=dif_across_trials_pd['y'].values*mirror_factor
+    vx=dif_across_trials_pd['v_parallel'].values*mirror_factor
+    vy=dif_across_trials_pd['v_perpendicular'].values*mirror_factor
         # Find which bin each vector falls into
     x_idx = np.digitize(relative_x, x_edges) - 1  # bin indices 0..nx-1
     y_idx = np.digitize(relative_y, y_edges) - 1  # bin indices 0..ny-1
@@ -101,7 +106,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         # magnitude for scaling arrows
     speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
     #fig2, (ax1,ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6, 9), tight_layout=True)
-    fig2= plt.figure(figsize=(6, 9))
+    fig2= plt.figure(figsize=(10, 9))
     ax1 = fig2.add_subplot(2,1,2)
     ax2 = fig2.add_subplot(2,2,1)
     ax3 = fig2.add_subplot(2,2,2)
@@ -136,10 +141,17 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     plt.colorbar(q,label='Number of vectors in grid cell')
 
     distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0)) 
-    ax2.scatter(distance,vx)
+    ax2.scatter(distance,vx,s=0.1)
+    ax2.set(
+            xlim=(0,50),
+            ylim=(-5,15),
+            xlabel='euclidean distance(cm)',
+            ylabel='velocity parrallel to agent moving direction (cm/s)')
     ax3.hist(speed_grid[~np.isnan(speed_grid)])
+    ax3.set(xlabel='Speed (cm/s)',
+            ylabel='Count')
         #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
-    plt.show()
+    #plt.show()
     return fig2
 
 
@@ -406,7 +418,7 @@ def classify_follow_epochs(
     agent_displacement_fbf = np.sqrt(
         np.sum([np.diff(this_agent_xy)[0] ** 2, np.diff(this_agent_xy)[1] ** 2], axis=0)
     )
-    focal2agent = this_agent_xy - focal_xy
+    focal2agent = this_agent_xy - focal_xy##made focal animal in the centre
     target_distance = LA.norm(focal2agent, axis=0)
     dot_product = np.diag(
         np.matmul(np.transpose(np.diff(focal_xy)), np.diff(this_agent_xy))
@@ -443,8 +455,8 @@ def align_agent_moving_direction(focal2agent, grp):
 def conclude_as_pd(
     df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, fname):
     ts_of_interest=df_focal_animal[df_focal_animal["fname"] == fname]["ts"].to_numpy()[:-1][epochs_of_interest]
-    v_parallel = relative_velocity[epochs_of_interest]
-    v_perpendicular = relative_velocity[epochs_of_interest]
+    v_parallel = relative_velocity[0][epochs_of_interest]
+    v_perpendicular = relative_velocity[1][epochs_of_interest]
 
     degree_time = np.vstack(
         (   
@@ -746,7 +758,7 @@ def follow_behaviour_analysis(
                 ### elif num_agent>2 and this_agent_xy[1,:].mean()<0:
                 ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key, 0)
                 ### else:
-                relative_velocity=np.diff(focal2agent_rotated,axis=1)
+                relative_velocity=np.diff(focal2agent_rotated,axis=1)*monitor_fps
                 follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, key)
                 if num_agent>2 and this_agent_xy[1,:].mean()>0:
                     agent_no=1
