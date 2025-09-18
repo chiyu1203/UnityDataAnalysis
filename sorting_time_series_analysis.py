@@ -105,11 +105,8 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
         # magnitude for scaling arrows
     speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
-    #fig2, (ax1,ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6, 9), tight_layout=True)
-    fig2= plt.figure(figsize=(10, 9))
-    ax1 = fig2.add_subplot(2,1,2)
-    ax2 = fig2.add_subplot(2,2,1)
-    ax3 = fig2.add_subplot(2,2,2)
+    fig,ax= plt.subplots(nrows=1, ncols=1, figsize=(6, 5), tight_layout=True)
+    fig2, ((ax1,ax2),(ax3,ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(6, 9), tight_layout=True)
     legend_v=0
     if normalise_vector_length:
         legend_u=1
@@ -129,30 +126,44 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         # 5. Plot vector field
         # ----------------------------
     #ax1.subplot(2,1,2)    
-    ax1.set(
+    ax.set(
             xlim=(-30,30),
             ylim=(-30,30),
             title='Binned Velocity Vector Field'
         )
-    q=ax1.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
-    q=ax1.quiver(X, Y, vx_plot, vy_plot, count_grid, 
+    q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
+    q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
                     angles='xy', scale_units='xy', scale=scaling_factor,cmap='viridis')
 
     plt.colorbar(q,label='Number of vectors in grid cell')
 
-    distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0)) 
+    distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
+    speed = np.sqrt(np.sum([vx**2, vy**2], axis=0)) 
+    ax1.hist(speed_grid[~np.isnan(speed_grid)])
+    ax1.set(xlabel='averaged speed in vector field (cm/s)',
+            ylabel='Count')
     ax2.scatter(distance,vx,s=0.1)
     ax2.set(
             xlim=(0,50),
             ylim=(-5,15),
             xlabel='euclidean distance(cm)',
             ylabel='velocity parrallel to agent moving direction (cm/s)')
-    ax3.hist(speed_grid[~np.isnan(speed_grid)])
-    ax3.set(xlabel='Speed (cm/s)',
-            ylabel='Count')
+    ax3.scatter(relative_x,vx,s=0.1)
+    ax3.set(
+            xlim=(0,50),
+            ylim=(-5,15),
+            xlabel='distance parrallel (cm)',
+            ylabel='velocity parrallel to agent moving direction (cm/s)')
+    ax4.scatter(distance,speed,s=0.1)
+    ax4.set(
+            xlim=(0,50),
+            ylim=(-5,15),
+            xlabel='euclidean distance(cm)',
+            ylabel='speed (cm/s)')
+
         #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
     #plt.show()
-    return fig2
+    return fig,fig2
 
 
 def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_interest,analysis_methods,all_evaluation,var1,var2=None):
@@ -1089,11 +1100,15 @@ def follow_behaviour_analysis(
             )
             fig.savefig(summary_file.parent / fig_name)   
             # Plotting the vector field    
-            fig2=plot_velocity_vector_field(grp)
+            fig0,fig2=plot_velocity_vector_field(grp)
             fig_name = (
-                f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_velocity_analysis.jpg"
+                f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_velocity_distance_analysis.jpg"
             )
-            fig2.savefig(summary_file.parent / fig_name)   
+            fig2.savefig(summary_file.parent / fig_name)
+            fig_name = (
+                f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_velocity_vector_field.jpg"
+            )
+            fig0.savefig(summary_file.parent / fig_name)
     return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap, simulated_across_trials_pd
 
 
