@@ -35,7 +35,7 @@ def nan_helper(y):
 def plot_velocity_vector_field(dif_across_trials_pd):
         #from matplotlib.lines import Line2D
     normalise_vector_length=False
-    mean_velocity_vector=True
+    mean_velocity_vector=False
     agent_at_centre=True
         # ----------------------------
         # 2. Define grid
@@ -88,13 +88,31 @@ def plot_velocity_vector_field(dif_across_trials_pd):
                 vy_cells[ix][iy].append(vy[i])
                 count_grid[ix, iy] += 1
         nonzero = count_grid > 0
+        bins_aba=np.linspace(-2.5,12.5,30)
         for ix in range(nx):
+            vx_alongy=np.concatenate(vx_cells[ix][:])
+            if len(vx_alongy) > ny:
+                fig0,ax1=plt.subplots(nrows=1, ncols=1, figsize=(6, 9), tight_layout=True)
+
+                ax1.hist(vx_alongy,bins=bins_aba,color='black')
+                ax1.set(
+                    xlim=(-2.5,12.5),
+                    ylim=(0,8000)
+                    )
+                fig0.savefig(f'grid_{ix}_vx_distribution.jpg')
+                fig0.savefig(f'grid_{ix}_vx_distribution.svg')               
             for iy in range(ny):
                 if count_grid[ix, iy] > 0:
+                    # if count_grid[ix, iy] > 200:    
+                    #    fig0,(ax1,ax2)=plt.subplots(nrows=1, ncols=2, figsize=(6, 9), tight_layout=True)
+                       #ax1.hist(vx_cells[ix][iy],bins=30)
+                       #ax2.hist(vy_cells[ix][iy],bins=30)
+                    #    fig0.savefig(f'grid_{ix}_{iy}_vx_vy_distribution.jpg')
+
                     vx_grid[ix, iy] = np.nanmedian(vx_cells[ix][iy])
                     vy_grid[ix, iy] = np.nanmedian(vy_cells[ix][iy])
 
-
+    
         # ----------------------------
         # 4. Prepare grid coordinates
         # ----------------------------
@@ -127,42 +145,44 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         # ----------------------------
     #ax1.subplot(2,1,2)    
     ax.set(
-            xlim=(-30,30),
-            ylim=(-30,30),
-            title='Binned Velocity Vector Field'
+            #xlim=(-30,30),
+            xlim=(-15,5),
+            #ylim=(-30,30),
+            ylim=(-10,10),
+            #title='Binned Velocity Vector Field'
         )
     q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
     q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
-                    angles='xy', scale_units='xy', scale=scaling_factor,cmap='viridis')
+                    angles='xy', scale_units='xy', scale=scaling_factor,cmap='Reds')
 
     plt.colorbar(q,label='Number of vectors in grid cell')
 
-    distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
-    speed = np.sqrt(np.sum([vx**2, vy**2], axis=0)) 
+    #distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
+    #speed = np.sqrt(np.sum([vx**2, vy**2], axis=0)) 
     ax1.hist(speed_grid[~np.isnan(speed_grid)])
     ax1.set(xlabel='averaged speed in vector field (cm/s)',
             ylabel='Count')
-    ax2.scatter(distance,vx,s=0.1)
+    ax2.hist2d(abs(relative_x),vx,bins=400)
     ax2.set(
-            xlim=(0,50),
-            ylim=(-5,15),
-            xlabel='euclidean distance(cm)',
-            ylabel='velocity parrallel to agent moving direction (cm/s)')
-    ax3.scatter(relative_x,vx,s=0.1)
+            xlim=(0,30),
+            ylim=(-2.5,12.5),
+            xlabel='Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+    ax3.scatter(abs(relative_x),vx,s=0.1)
     ax3.set(
-            xlim=(0,50),
-            ylim=(-5,15),
-            xlabel='distance parrallel (cm)',
-            ylabel='velocity parrallel to agent moving direction (cm/s)')
-    ax4.scatter(distance,speed,s=0.1)
+            xlim=(0,30),
+            ylim=(-2.5,12.5),
+            xlabel='Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+    ax4.scatter(abs(relative_x),vx,s=0.1)
     ax4.set(
-            xlim=(0,50),
-            ylim=(-5,15),
-            xlabel='euclidean distance(cm)',
-            ylabel='speed (cm/s)')
+            xlim=(0,30),
+            ylim=(-2.5,12.5),
+            xlabel='Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
 
         #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
-    #plt.show()
+    plt.show()
     return fig,fig2
 
 
