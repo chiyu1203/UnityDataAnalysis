@@ -124,7 +124,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         # magnitude for scaling arrows
     speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
     fig,ax= plt.subplots(nrows=1, ncols=1, figsize=(6, 5), tight_layout=True)
-    fig2, ((ax1,ax2),(ax3,ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(6, 9), tight_layout=True)
+    
     legend_v=0
     if normalise_vector_length:
         legend_u=1
@@ -149,8 +149,11 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             xlim=(-15,5),
             #ylim=(-30,30),
             ylim=(-10,10),
+            xticks=([-3*5,-2*5,-1*5,0,5]),
+            yticks=([-2*5,-1*5,0,1*5,2*5]),
             #title='Binned Velocity Vector Field'
         )
+    q=ax.scatter(0,0,color='black',marker='*')
     q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
     q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
                     angles='xy', scale_units='xy', scale=scaling_factor,cmap='Reds')
@@ -159,27 +162,67 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
     #distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
     #speed = np.sqrt(np.sum([vx**2, vy**2], axis=0)) 
+    fig2, ((ax1,ax2),(ax3,ax4),(ax5,ax6)) = plt.subplots(nrows=3, ncols=2, figsize=(18, 12), tight_layout=True)
     ax1.hist(speed_grid[~np.isnan(speed_grid)])
-    ax1.set(xlabel='averaged speed in vector field (cm/s)',
+    ax1.set(xlabel='speed grid in vector field (cm/s)',
             ylabel='Count')
-    ax2.hist2d(abs(relative_x),vx,bins=400)
-    ax2.set(
-            xlim=(0,30),
-            ylim=(-2.5,12.5),
-            xlabel='Distance parallel (cm)',
-            ylabel='Velocity parallel (cm/s)')
+    ax2.hist(vx_grid[~np.isnan(vx_grid)])
+    ax2.set(xlabel='velocity parallel grid in vector field (cm/s)',
+            ylabel='Count')
     ax3.scatter(abs(relative_x),vx,s=0.1)
     ax3.set(
             xlim=(0,30),
             ylim=(-2.5,12.5),
-            xlabel='Distance parallel (cm)',
+            xlabel='abs Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
-    ax4.scatter(abs(relative_x),vx,s=0.1)
+
+    ax4.hist2d(abs(relative_x),vx,bins=400)
     ax4.set(
+            xlim=(0,30),
+            ylim=(-2.5,12.5),
+            xlabel='abs Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+
+    
+    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(9, 7), tight_layout=True)
+    # #ax1, ax2, ax3 = axes.flatten()
+    # axes.hist(np.diff(dif_across_trials_pd['ts'].values),bins=10000)
+    # axes.set(xlim=(-0.1,0.1),ylim=(0,500))
+    # fig_name = f"interval_histogram.jpg"
+    # fig.savefig(fig_name)
+
+    epoch_breaks=abs(np.diff(dif_across_trials_pd['ts'].values))>0.5
+    epoch_ids = epoch_breaks.cumsum()
+    epoch_ids=np.insert(epoch_ids,0,0)
+    relative_x_bin_list=[]
+    vx_bin_list=[]
+    for epoch_id, this_epoch in dif_across_trials_pd.groupby(epoch_ids):
+        if this_epoch.shape[0]<60*0.5:
+            continue
+        else:
+            relative_x=this_epoch['x'].values*mirror_factor
+            relative_y=this_epoch['y'].values*mirror_factor
+            vx=this_epoch['v_parallel'].values*mirror_factor
+            vy=this_epoch['v_perpendicular'].values*mirror_factor
+            relative_x_bin=abs(relative_x[::30])
+            vx_bin=vx[::30]
+            relative_x_bin_list.append(relative_x_bin)
+            vx_bin_list.append(vx_bin)
+              
+        #ax4.scatter(np.median(abs(this_epoch['x'].values)),np.median(this_epoch['v_parallel'].values),s=0.1)
+        ax5.plot(relative_x_bin,vx_bin)
+    ax5.set(
             xlim=(0,30),
             ylim=(-2.5,12.5),
             xlabel='Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
+    ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
+    ax6.set(
+            xlim=(0,30),
+            ylim=(-2.5,12.5),
+            xlabel='abs Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+
 
         #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
     plt.show()
@@ -1159,11 +1202,11 @@ if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
-    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240908_125638"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
-    thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_grass1_Data\RunData\20240908_125638"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_grass1_Data\RunData\20240908_125638"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"
