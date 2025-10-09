@@ -5,6 +5,7 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from matplotlib.patches import Rectangle
 from numpy import linalg as LA
 from scipy.stats import circmean
 current_working_directory = Path.cwd()
@@ -161,7 +162,16 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     plt.colorbar(q,label='Number of vectors in grid cell')
 
     #distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
-    #speed = np.sqrt(np.sum([vx**2, vy**2], axis=0)) 
+    #speed = np.sqrt(np.sum([vx**2, vy**2], axis=0))
+    
+    #calculate the threshold distance based on the distance when the agent reaches more than 40 degree visual angle
+    #the length or width of the agent is assumed to be between 2-3 cm
+    #therefore, the threshold distance is from 3/2/tan(40/2 degree) to 3/2/tan(40/2 degree)
+    threshold_degree=40
+    centroid2abodomen=4#the distance between the centriod to the tip of the abdomen
+    agent_size=[0.6,3]
+    ylim=[-2.5,12.5]
+    threshold_distance=[agent_size[0]/2/np.tan(np.radians(threshold_degree/2)),agent_size[1]/2/np.tan(np.radians(threshold_degree/2))]
     fig2, ((ax1,ax2),(ax3,ax4),(ax5,ax6)) = plt.subplots(nrows=3, ncols=2, figsize=(18, 12), tight_layout=True)
     ax1.hist(speed_grid[~np.isnan(speed_grid)])
     ax1.set(xlabel='speed grid in vector field (cm/s)',
@@ -172,14 +182,17 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     ax3.scatter(abs(relative_x),vx,s=0.1)
     ax3.set(
             xlim=(0,30),
-            ylim=(-2.5,12.5),
+            ylim=(ylim[0],ylim[1]),
             xlabel='abs Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
 
     ax4.hist2d(abs(relative_x),vx,bins=400)
+    # ax4.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+    # ax4.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
+    ax4.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
     ax4.set(
             xlim=(0,30),
-            ylim=(-2.5,12.5),
+            ylim=(ylim[0],ylim[1]),
             xlabel='abs Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
 
@@ -213,19 +226,22 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         ax5.plot(relative_x_bin,vx_bin)
     ax5.set(
             xlim=(0,30),
-            ylim=(-2.5,12.5),
+            ylim=(ylim[0],ylim[1]),
             xlabel='Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
     ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
+    ax6.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+    #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+    #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
     ax6.set(
             xlim=(0,30),
-            ylim=(-2.5,12.5),
+            ylim=(ylim[0],ylim[1]),
             xlabel='abs Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
 
 
-        #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
-    plt.show()
+    #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
+    #plt.show()
     return fig,fig2
 
 
