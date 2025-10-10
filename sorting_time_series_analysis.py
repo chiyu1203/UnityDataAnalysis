@@ -35,6 +35,8 @@ def nan_helper(y):
 
 def plot_velocity_vector_field(dif_across_trials_pd):
         #from matplotlib.lines import Line2D
+    body_length=6
+    body_width=2
     normalise_vector_length=False
     mean_velocity_vector=False
     agent_at_centre=True
@@ -56,6 +58,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     relative_y=dif_across_trials_pd['y'].values*mirror_factor
     vx=dif_across_trials_pd['v_parallel'].values*mirror_factor
     vy=dif_across_trials_pd['v_perpendicular'].values*mirror_factor
+    centroid2abodomen=4*mirror_factor #the distance between the centriod to the tip of the abdomen
         # Find which bin each vector falls into
     x_idx = np.digitize(relative_x, x_edges) - 1  # bin indices 0..nx-1
     y_idx = np.digitize(relative_y, y_edges) - 1  # bin indices 0..ny-1
@@ -154,7 +157,8 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             yticks=([-2*5,-1*5,0,1*5,2*5]),
             #title='Binned Velocity Vector Field'
         )
-    q=ax.scatter(0,0,color='black',marker='*')
+    q=ax.add_patch(Rectangle((centroid2abodomen,-1*body_width/2),body_length,body_width,fill=False,ec ='gray',alpha=1,lw = 0.5,linestyle="--"))    
+    #q=ax.scatter(0,0,color='black',marker='*')
     q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
     q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
                     angles='xy', scale_units='xy', scale=scaling_factor,cmap='Reds')
@@ -168,7 +172,6 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     #the length or width of the agent is assumed to be between 2-3 cm
     #therefore, the threshold distance is from 3/2/tan(40/2 degree) to 3/2/tan(40/2 degree)
     threshold_degree=40
-    centroid2abodomen=4#the distance between the centriod to the tip of the abdomen
     agent_size=[0.6,3]
     ylim=[-2.5,12.5]
     threshold_distance=[agent_size[0]/2/np.tan(np.radians(threshold_degree/2)),agent_size[1]/2/np.tan(np.radians(threshold_degree/2))]
@@ -189,7 +192,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     ax4.hist2d(abs(relative_x),vx,bins=400)
     # ax4.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
     # ax4.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
-    ax4.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+    ax4.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
     ax4.set(
             xlim=(0,30),
             ylim=(ylim[0],ylim[1]),
@@ -230,7 +233,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             xlabel='Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
     ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
-    ax6.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+    ax6.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
     #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
     #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
     ax6.set(
