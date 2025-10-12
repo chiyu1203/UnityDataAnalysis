@@ -45,7 +45,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         # ----------------------------
     (x_min, x_max,y_min, y_max)= (-30, 30,-30, 30)
     (legend_x,legend_y)=(-30,-30)
-    nx, ny = 30, 30  # grid resolution
+    nx, ny = 50, 50  # grid resolution
 
     x_edges = np.linspace(x_min, x_max, nx+1)
     y_edges = np.linspace(y_min, y_max, ny+1)
@@ -158,7 +158,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             #title='Binned Velocity Vector Field'
         )
     q=ax.add_patch(Rectangle((centroid2abodomen,-1*body_width/2),body_length,body_width,fill=False,ec ='gray',alpha=1,lw = 0.5,linestyle="--"))    
-    #q=ax.scatter(0,0,color='black',marker='*')
+    q=ax.scatter(0,0,color='black',marker='*')
     q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
     q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
                     angles='xy', scale_units='xy', scale=scaling_factor,cmap='Reds')
@@ -232,15 +232,16 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             ylim=(ylim[0],ylim[1]),
             xlabel='Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
-    ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
-    ax6.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
-    #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
-    #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
-    ax6.set(
-            xlim=(0,30),
-            ylim=(ylim[0],ylim[1]),
-            xlabel='abs Distance parallel (cm)',
-            ylabel='Velocity parallel (cm/s)')
+    if len(relative_x_bin_list)>0:
+        ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
+        ax6.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+        #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
+        ax6.set(
+                xlim=(0,30),
+                ylim=(ylim[0],ylim[1]),
+                xlabel='abs Distance parallel (cm)',
+                ylabel='Velocity parallel (cm/s)')
 
 
     #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
@@ -1202,11 +1203,11 @@ def load_data(this_dir, json_file):
             #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR4*agent_full.h5"
+    agent_pattern = f"VR1*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR4*XY_full.h5"
+    xy_pattern = f"VR1*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR4*score_full.h5"
+    summary_pattern = f"VR1*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -1221,7 +1222,8 @@ if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
-    thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240908_125638"
+    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240908_125638"
+    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240908_150715"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
