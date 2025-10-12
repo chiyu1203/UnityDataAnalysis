@@ -555,6 +555,9 @@ def analyse_focal_animal(
                 if "Current Time" in df_simulated.columns:
                     df_simulated.set_index("Current Time", inplace=True)            
             if ts.index.inferred_type == "datetime64":
+                if df_simulated.index.is_monotonic_increasing ==False or ts.index.is_monotonic_increasing ==False:
+                    df_simulated = df_simulated.sort_index()## somehow the index is not sorted
+                    ts = ts.sort_index()
                 df_simulated = df_simulated.reindex(ts.index, method="nearest")
             else:
                 df_simulated = df_simulated.reindex(ts, method="nearest") ## when the temperature data is not available, ts index would be normal
@@ -1289,7 +1292,7 @@ def preprocess_matrex_data(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
-    thisDir = r"G:\MatrexVR_2024_2_Data\RunData\20250625_105042"
+    thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250801_075938"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250702_095817"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250514_134255"
