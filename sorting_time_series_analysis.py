@@ -40,15 +40,17 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     normalise_vector_length=False
     mean_velocity_vector=False
     agent_at_centre=True
+    speed_range=[-10,10]
         # ----------------------------
         # 2. Define grid
         # ----------------------------
-    (x_min, x_max,y_min, y_max)= (-30, 30,-30, 30)
-    (legend_x,legend_y)=(-30,-30)
-    nx, ny = 50, 50  # grid resolution
+    (x_min, x_max,y_min, y_max)= (-15, 5,-10.5,9.5)
+    (legend_x,legend_y)=(-20,-20)
+    nx, ny = 20, 20  # grid resolution
 
     x_edges = np.linspace(x_min, x_max, nx+1)
     y_edges = np.linspace(y_min, y_max, ny+1)
+    #print(y_edges)
     if agent_at_centre:
         mirror_factor=-1
     else:
@@ -92,7 +94,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
                 vy_cells[ix][iy].append(vy[i])
                 count_grid[ix, iy] += 1
         nonzero = count_grid > 0
-        bins_aba=np.linspace(-2.5,12.5,30)
+        bins_aba=np.linspace(speed_range[0],speed_range[1],30)
         for ix in range(nx):
             vx_alongy=np.concatenate(vx_cells[ix][:])
             if len(vx_alongy) > ny:
@@ -100,8 +102,8 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
                 ax1.hist(vx_alongy,bins=bins_aba,color='black')
                 ax1.set(
-                    xlim=(-2.5,12.5),
-                    ylim=(0,8000)
+                    xlim=(speed_range[0],speed_range[1]),
+                    ylim=(0,12000)
                     )
                 fig0.savefig(f'grid_{ix}_vx_distribution.jpg')
                 fig0.savefig(f'grid_{ix}_vx_distribution.svg')               
@@ -173,9 +175,8 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     #therefore, the threshold distance is from 3/2/tan(40/2 degree) to 3/2/tan(40/2 degree)
     threshold_degree=40
     agent_size=[0.6,3]
-    ylim=[-2.5,12.5]
     threshold_distance=[agent_size[0]/2/np.tan(np.radians(threshold_degree/2)),agent_size[1]/2/np.tan(np.radians(threshold_degree/2))]
-    fig2, ((ax1,ax2),(ax3,ax4),(ax5,ax6)) = plt.subplots(nrows=3, ncols=2, figsize=(18, 12), tight_layout=True)
+    fig2, ((ax1,ax2),(ax3,ax4),(ax5,ax6),(ax7,ax8)) = plt.subplots(nrows=4, ncols=2, figsize=(24, 12), tight_layout=True)
     ax1.hist(speed_grid[~np.isnan(speed_grid)])
     ax1.set(xlabel='speed grid in vector field (cm/s)',
             ylabel='Count')
@@ -185,18 +186,18 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     ax3.scatter(abs(relative_x),vx,s=0.1)
     ax3.set(
             xlim=(0,30),
-            ylim=(ylim[0],ylim[1]),
+            ylim=(speed_range[0],speed_range[1]),
             xlabel='abs Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
 
     ax4.hist2d(abs(relative_x),vx,bins=400)
     # ax4.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
     # ax4.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
-    ax4.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+    ax4.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
     ax4.set(
             xlim=(0,30),
-            ylim=(ylim[0],ylim[1]),
-            xlabel='abs Distance parallel (cm)',
+            ylim=(speed_range[0],speed_range[1]),
+            xlabel='Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
 
     
@@ -212,8 +213,10 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     epoch_ids=np.insert(epoch_ids,0,0)
     relative_x_bin_list=[]
     vx_bin_list=[]
+    distance_bin_list=[]
+    velocity_bin_list=[]
     for epoch_id, this_epoch in dif_across_trials_pd.groupby(epoch_ids):
-        if this_epoch.shape[0]<60*0.5:
+        if this_epoch.shape[0]<60*0.5:##filter out those with less than 1 data point
             continue
         else:
             relative_x=this_epoch['x'].values*mirror_factor
@@ -221,27 +224,50 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             vx=this_epoch['v_parallel'].values*mirror_factor
             vy=this_epoch['v_perpendicular'].values*mirror_factor
             relative_x_bin=abs(relative_x[::30])
+            relative_y_bin=abs(relative_y[::30])
+            distance_bin=np.sqrt(np.sum([relative_x_bin**2+relative_y_bin**2],axis=0))
             vx_bin=vx[::30]
+            vy_bin=vy[::30]
+            velocity_bin=np.sqrt(np.sum([vx_bin**2+vy_bin**2],axis=0))
             relative_x_bin_list.append(relative_x_bin)
             vx_bin_list.append(vx_bin)
+            distance_bin_list.append(distance_bin)
+            velocity_bin_list.append(velocity_bin)
               
         #ax4.scatter(np.median(abs(this_epoch['x'].values)),np.median(this_epoch['v_parallel'].values),s=0.1)
         ax5.plot(relative_x_bin,vx_bin)
+        ax7.plot(distance_bin,velocity_bin)
     ax5.set(
             xlim=(0,30),
-            ylim=(ylim[0],ylim[1]),
+            ylim=(speed_range[0],speed_range[1]),
             xlabel='Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
+    ax7.set(
+            xlim=(0,30),
+            ylim=(0,speed_range[1]),
+            xlabel='Distance (cm)',
+            ylabel='Speed (cm/s)')
     if len(relative_x_bin_list)>0:
         ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
-        ax6.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), ylim[0]),threshold_distance[1]-threshold_distance[0],ylim[1]-ylim[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        ax6.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
         #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
         #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
         ax6.set(
                 xlim=(0,30),
-                ylim=(ylim[0],ylim[1]),
-                xlabel='abs Distance parallel (cm)',
+                ylim=(speed_range[0],speed_range[1]),
+                xlabel='Distance parallel (cm)',
                 ylabel='Velocity parallel (cm/s)')
+    if len(relative_x_bin_list)>0:
+        ax8.hist2d(np.concatenate(distance_bin_list),np.concatenate(velocity_bin_list),bins=100)
+        ax8.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+        #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
+        ax8.set(
+                xlim=(0,30),
+                ylim=(0,speed_range[1]),
+                xlabel='Distance (cm)',
+                ylabel='Speed (cm/s)')
+
 
 
     #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
