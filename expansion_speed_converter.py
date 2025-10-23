@@ -56,7 +56,8 @@ def calculate_expansion_rate(L, z, v):
 # Example usage:
 colormap_name = "Greys"
 COL = MplColorHelper(colormap_name, 0, 5)
-L = 3     # Object diameter in centimeters
+threshold_degree=40
+L = 2     # Object diameter in centimeters
 z = 10    # Distance to object in centimeters
 v = 4     # Approach velocity in centimeters per second
 fig, ax = plt.subplots(figsize=(5,5), dpi=250) 
@@ -87,9 +88,9 @@ for this_speed in range(1,5):
         these_v=np.vstack(v_linear_list)
 
     these_distances=np.vstack(this_distance_list)
-    these_areas=np.vstack(area_list)
+    #these_areas=np.vstack(area_list)
     ax.plot(these_v,these_distances,c=COL.get_rgb(this_speed),label=f'{this_speed} cm/s',linewidth=3)
-    ax.plot(these_areas,these_distances,c='r',linewidth=1)
+    #ax.plot(these_areas,these_distances,c='r',linewidth=1)
      # start with values near those we expect
     x0=np.transpose(these_v)
     y0=np.transpose(these_distances)
@@ -105,14 +106,16 @@ for this_speed in range(1,5):
     print(params)
 if use_angular_expansion_velocity:
     xlabel_text = "expansion/contraction speed (degree/s)"
-    f_name="angular_expansion_speed_object_speed"
+    f_name=f"angular_expansion_speed_object_{L}cm_speed"
 else:
     xlabel_text = "expansion/contraction speed(cm/s)"
-    f_name="linear_expansion_speed_object_speed"
+    f_name=f"linear_expansion_speed_object_{L}cm_speed"
+threshold_degree_line=L/2/np.tan(np.radians(threshold_degree)/2)
+ax.hlines(threshold_degree_line, 0, 4, colors='r', linestyles='--')
 ax.set(
     xlabel=xlabel_text,
     ylabel="distance from the test animal (cm)",
-    yticks=([0,20,40]),
+    yticks=([0,2,20,40]),
     #xticks=([0,2,4]),
 )
 ax.legend(title="agent speed",loc='upper right')
@@ -120,3 +123,8 @@ fig_name=f"{f_name}.svg"
 fig.savefig(fig_name)
 fig_name=f"{f_name}.png"
 fig.savefig(fig_name)
+# linear expansion velocity: 0.216058 m/s
+# Angular expansion velocity: 0.004997 rad/s
+# Angular expansion velocity: 0.286300 degree/s
+# linear expansion velocity: 0.199875 m/s
+# [70.04534966  3.58192544  3.94627183]
