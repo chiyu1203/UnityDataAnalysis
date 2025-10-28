@@ -37,6 +37,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         #from matplotlib.lines import Line2D
     body_length=6
     body_width=2
+    centroid2abodomen=4 #the distance between the centriod to the tip of the abdomen
     normalise_vector_length=False
     mean_velocity_vector=False
     agent_at_centre=True
@@ -53,14 +54,16 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     #print(y_edges)
     if agent_at_centre:
         mirror_factor=-1
+        agent_centroid=[0,0]
     else:
         mirror_factor=1
+        agent_centroid=[8,0]
 
     relative_x=dif_across_trials_pd['x'].values*mirror_factor
     relative_y=dif_across_trials_pd['y'].values*mirror_factor
-    vx=dif_across_trials_pd['v_parallel'].values*mirror_factor
-    vy=dif_across_trials_pd['v_perpendicular'].values*mirror_factor
-    centroid2abodomen=4*mirror_factor #the distance between the centriod to the tip of the abdomen
+    relative_vx=dif_across_trials_pd['v_parallel'].values*mirror_factor
+    relative_vy=dif_across_trials_pd['v_perpendicular'].values*mirror_factor
+    
         # Find which bin each vector falls into
     x_idx = np.digitize(relative_x, x_edges) - 1  # bin indices 0..nx-1
     y_idx = np.digitize(relative_y, y_edges) - 1  # bin indices 0..ny-1
@@ -75,8 +78,8 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         for i in range(x_idx.shape[0]):
             ix, iy = x_idx[i], y_idx[i]
             if 0 <= ix < nx and 0 <= iy < ny:
-                vx_grid[ix, iy] += vx[i]
-                vy_grid[ix, iy] += vy[i]
+                vx_grid[ix, iy] += relative_vx[i]
+                vy_grid[ix, iy] += relative_vy[i]
                 count_grid[ix, iy] += 1
 
             # Average velocities in each grid cell
@@ -90,11 +93,14 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         for i in range(x_idx.shape[0]):
             ix, iy = x_idx[i], y_idx[i]
             if 0 <= ix < nx and 0 <= iy < ny:
-                vx_cells[ix][iy].append(vx[i])
-                vy_cells[ix][iy].append(vy[i])
+                vx_cells[ix][iy].append(relative_vx[i])
+                vy_cells[ix][iy].append(relative_vy[i])
                 count_grid[ix, iy] += 1
         nonzero = count_grid > 0
         bins_aba=np.linspace(speed_range[0],speed_range[1],30)
+        vx_alongy_median=[]
+        vx_alongy_mean=[]
+        num_vx_alongy=[]
         for ix in range(nx):
             vx_alongy=np.concatenate(vx_cells[ix][:])
             if len(vx_alongy) > ny:
@@ -106,7 +112,13 @@ def plot_velocity_vector_field(dif_across_trials_pd):
                     ylim=(0,12000)
                     )
                 fig0.savefig(f'grid_{ix}_vx_distribution.jpg')
-                fig0.savefig(f'grid_{ix}_vx_distribution.svg')               
+                fig0.savefig(f'grid_{ix}_vx_distribution.svg')
+                vx_alongy_median.append(np.median(vx_alongy))
+                num_vx_alongy.append(vx_alongy.shape[0])
+                vx_alongy_mean.append(np.mean(vx_alongy))
+            else:
+                vx_alongy_median.append(0)
+                vx_alongy_mean.append(0)
             for iy in range(ny):
                 if count_grid[ix, iy] > 0:
                     # if count_grid[ix, iy] > 200:    
@@ -117,6 +129,11 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
                     vx_grid[ix, iy] = np.nanmedian(vx_cells[ix][iy])
                     vy_grid[ix, iy] = np.nanmedian(vy_cells[ix][iy])
+        fig1,ax1=plt.subplots(nrows=1, ncols=1, figsize=(9, 2), tight_layout=True)
+        ax1.plot(np.linspace(x_min+0.5, x_max-0.5, nx),np.hstack(vx_alongy_median),'ro',linestyle='--')
+        ax1.plot(np.linspace(x_min+0.5, x_max-0.5, nx),np.hstack(vx_alongy_mean),'bo',linestyle='--')#(0, (3, 10, 1, 10))
+        ax1.set(ylim=(-3,5),ylabel='Velocity parallel (cm/s)')
+        #fig1.savefig(f'grid_vx_median.jpg')
 
     
         # ----------------------------
@@ -159,8 +176,9 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             yticks=([-2*5,-1*5,0,1*5,2*5]),
             #title='Binned Velocity Vector Field'
         )
-    q=ax.add_patch(Rectangle((centroid2abodomen,-1*body_width/2),body_length,body_width,fill=False,ec ='gray',alpha=1,lw = 0.5,linestyle="--"))    
-    q=ax.scatter(0,0,color='black',marker='*')
+
+    q=ax.add_patch(Rectangle((-1*centroid2abodomen+agent_centroid[0],-1*body_width/2+agent_centroid[1]),body_length,body_width,fill=False,ec ='gray',alpha=1,lw = 0.5,linestyle="--"))    
+    q=ax.scatter(agent_centroid[0],agent_centroid[1],color='black',marker='*')
     q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
     q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
                     angles='xy', scale_units='xy', scale=scaling_factor,cmap='Reds')
@@ -168,7 +186,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     plt.colorbar(q,label='Number of vectors in grid cell')
 
     #distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
-    #speed = np.sqrt(np.sum([vx**2, vy**2], axis=0))
+    #speed = np.sqrt(np.sum([relative_vx**2, relative_vy**2], axis=0))
     
     #calculate the threshold distance based on the distance when the agent reaches more than 40 degree visual angle
     #the length or width of the agent is assumed to be between 2-3 cm
@@ -183,17 +201,17 @@ def plot_velocity_vector_field(dif_across_trials_pd):
     ax2.hist(vx_grid[~np.isnan(vx_grid)])
     ax2.set(xlabel='velocity parallel grid in vector field (cm/s)',
             ylabel='Count')
-    ax3.scatter(abs(relative_x),vx,s=0.1)
+    ax3.scatter(abs(relative_x),relative_vx,s=0.1)
     ax3.set(
             xlim=(0,30),
             ylim=(speed_range[0],speed_range[1]),
             xlabel='abs Distance parallel (cm)',
             ylabel='Velocity parallel (cm/s)')
 
-    ax4.hist2d(abs(relative_x),vx,bins=400)
+    ax4.hist2d(abs(relative_x),relative_vx,bins=400)
     # ax4.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
     # ax4.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
-    ax4.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+    ax4.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
     ax4.set(
             xlim=(0,30),
             ylim=(speed_range[0],speed_range[1]),
@@ -221,13 +239,13 @@ def plot_velocity_vector_field(dif_across_trials_pd):
         else:
             relative_x=this_epoch['x'].values*mirror_factor
             relative_y=this_epoch['y'].values*mirror_factor
-            vx=this_epoch['v_parallel'].values*mirror_factor
-            vy=this_epoch['v_perpendicular'].values*mirror_factor
+            relative_vx=this_epoch['v_parallel'].values*mirror_factor
+            relative_vy=this_epoch['v_perpendicular'].values*mirror_factor
             relative_x_bin=abs(relative_x[::30])
             relative_y_bin=abs(relative_y[::30])
             distance_bin=np.sqrt(np.sum([relative_x_bin**2+relative_y_bin**2],axis=0))
-            vx_bin=vx[::30]
-            vy_bin=vy[::30]
+            vx_bin=relative_vx[::30]
+            vy_bin=relative_vy[::30]
             velocity_bin=np.sqrt(np.sum([vx_bin**2+vy_bin**2],axis=0))
             relative_x_bin_list.append(relative_x_bin)
             vx_bin_list.append(vx_bin)
@@ -249,7 +267,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
             ylabel='Speed (cm/s)')
     if len(relative_x_bin_list)>0:
         ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
-        ax6.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        ax6.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
         #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
         #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
         ax6.set(
@@ -259,7 +277,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
                 ylabel='Velocity parallel (cm/s)')
     if len(relative_x_bin_list)>0:
         ax8.hist2d(np.concatenate(distance_bin_list),np.concatenate(velocity_bin_list),bins=100)
-        ax8.add_patch(Rectangle((threshold_distance[0]+abs(centroid2abodomen), speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        ax8.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
         #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
         #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
         ax8.set(
@@ -272,7 +290,7 @@ def plot_velocity_vector_field(dif_across_trials_pd):
 
     #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
     #plt.show()
-    return fig,fig2
+    return fig,fig2,fig1
 
 
 def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_interest,analysis_methods,all_evaluation,var1,var2=None):
@@ -662,8 +680,8 @@ def follow_behaviour_analysis(
         # Compute speed using the formula:
         #focal_animal_this_trial['speedNew'] = camera_fps*focal_animal_this_trial['displacement'] / rolling_window
         heading_direction =focal_animal_this_trial["heading"].to_numpy()
-        #vx = focal_animal_this_trial['speedNew'].to_numpy() * np.cos(heading_direction)
-        #vy = focal_animal_this_trial['speedNew'].to_numpy() * np.sin(heading_direction)
+        #relative_vx = focal_animal_this_trial['speedNew'].to_numpy() * np.cos(heading_direction)
+        #relative_vy = focal_animal_this_trial['speedNew'].to_numpy() * np.sin(heading_direction)
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
         if "density" in df_summary.columns:
@@ -874,9 +892,9 @@ def follow_behaviour_analysis(
                 ### However, if experiment are more advanced, for example, a locust navigate in a marching band mixed with different type of agent. This analysis will fail
                 ### Then we basically needs to change the code in locustvr_converter.py and assign ID for each type of agents explicitly.
                 ### if num_agent>2 and this_agent_xy[1,:].mean()>0:
-                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key, 1)
+                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_vx,relative_vy,epochs_of_interest, key, 1)
                 ### elif num_agent>2 and this_agent_xy[1,:].mean()<0:
-                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, vx,vy,epochs_of_interest, key, 0)
+                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_vx,relative_vy,epochs_of_interest, key, 0)
                 ### else:
                 relative_velocity=np.diff(focal2agent_rotated,axis=1)*monitor_fps
                 follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, key)
@@ -891,6 +909,11 @@ def follow_behaviour_analysis(
                       np.repeat(
                             df_agent[df_agent["fname"] == key]["mu"].values[0],
                             follow_pd.shape[0],
+                        ))
+                follow_pd.insert(follow_pd.shape[1],"radial_distance",
+                        np.repeat(
+                            grp['radial_distance'].values[0],
+                            follow_pd.shape[0]
                         ))
                 follow_pd.insert(follow_pd.shape[1],"type",
                         np.repeat(
@@ -951,6 +974,12 @@ def follow_behaviour_analysis(
                             np.repeat(agent_no, simulated_pd.shape[0]),
                     )
                     simulated_pd.insert(simulated_pd.shape[1],"degree",np.repeat(df_agent[df_agent["fname"] == key]["mu"].values[0], simulated_pd.shape[0]))
+                    simulated_pd.insert(simulated_pd.shape[1],"radial_distance",
+                        np.repeat(
+                            grp['radial_distance'].values[0],
+                            simulated_pd.shape[0]
+                        ))
+                    
                     simulated_pd.insert(
                             simulated_pd.shape[1],
                             "type",
@@ -1080,10 +1109,10 @@ def follow_behaviour_analysis(
     if 'simulated_across_trials' in locals() and len(simulated_across_trials)>0:
         simulated_across_trials_pd = pd.concat(simulated_across_trials)
     if "rotation_gain" in df_summary.columns:
-        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree", "type","rotation_gain","translation_gain"]
+        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree","radial_distance","type","rotation_gain","translation_gain"]
         dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     else:
-        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree","type"]
+        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree","radial_distance","type"]
         dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     if 'simulated_across_trials_pd' in locals():
         simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
@@ -1229,11 +1258,11 @@ def load_data(this_dir, json_file):
             #print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
 
-    agent_pattern = f"VR1*agent_full.h5"
+    agent_pattern = f"VR3*agent_full.h5"
     agent_file = find_file(Path(this_dir), agent_pattern)
-    xy_pattern = f"VR1*XY_full.h5"
+    xy_pattern = f"VR3*XY_full.h5"
     focal_animal_file = find_file(Path(this_dir), xy_pattern)
-    summary_pattern = f"VR1*score_full.h5"
+    summary_pattern = f"VR3*score_full.h5"
     summary_file = find_file(Path(this_dir), summary_pattern)
 
     dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap,simulated_across_trials_pd = (
@@ -1246,10 +1275,11 @@ def load_data(this_dir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240908_125638"
-    thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240908_150715"
+    #thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240908_150715"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
