@@ -13,7 +13,8 @@ import os
 save_path = "/Users/aljoscha/Downloads/locustVR_data"
 df1 = pd.read_pickle(os.path.join(save_path, 'locustvr_data.pkl'))
 print(df1["constant_speed"].unique())
-df1 = df1.loc[(df1["constant_speed"] == 3) & (df1["constant_distance"] == 10), :]
+# df1 = df1.loc[(df1["constant_speed"] == 5) & (df1["constant_distance"] == 10), :]
+df1 = df1.loc[df1["constant_distance"] == 5, :]
 # for aha in range(1, 2):
     # for yep in range(16, 17):
 #         df = df1.loc[(df1['animal_id'] == 5) & (df1['trial_id'] == yep) & (df1["ts"] >= 0) & (df1["ts"] <= 6000), ['X_aligned', 'Y_flip', 'ts', "heading", "constant_speed", "constant_distance"]]
@@ -25,7 +26,7 @@ for aha in df1['animal_id'].unique():
             (df1['animal_id'] == aha) &
             (df1['trial_id'] == yep) &
             (df1["ts"] >= 0) &
-            (df1["ts"] <= 6000),
+            (df1["ts"] <= 1000),
             ['X_aligned', 'Y_flip', 'ts', "heading", "constant_speed", "constant_distance"]
         ]
         df = df.iloc[::20, :]
@@ -56,6 +57,8 @@ for aha in df1['animal_id'].unique():
         x32 = np.cos(np.radians(60)) * a
         y32 = np.sin(np.radians(60)) * a
         plt.plot(x32, y32)
+        plt.plot(x32, -y32)
+
         # time_2 = np.arange(1, 30, 4)
         # for i in time_2:
         #     plt.plot([X_focal[i], agent_cd[0][i]], [Y_focal[i], agent_cd[1][i]], color='grey', alpha=0.7, linestyle='--', linewidth=0.8)

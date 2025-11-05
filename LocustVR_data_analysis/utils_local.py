@@ -212,7 +212,7 @@ def compute_directness_and_direction(df, trial_col='trial_id', t_col='ts',
 heading_angle_visualisation
 """
 
-def default_style(x_label, y_label, limits=False):
+def default_style(x_label, y_label, limits=False, title=None, fontsize1=25, fontsize2=22):
     import matplotlib.pyplot as plt
     if limits is False:
         pass
@@ -221,10 +221,11 @@ def default_style(x_label, y_label, limits=False):
         plt.ylim(limits[1][0], limits[1][1])
     plt.grid(False)
     plt.box(True)
-    plt.xlabel(x_label, fontsize=25)
-    plt.ylabel(y_label, fontsize=25)
-    plt.xticks(fontsize=22)
-    plt.yticks(fontsize=22)
+    plt.xlabel(x_label, fontsize=fontsize1)
+    plt.ylabel(y_label, fontsize=fontsize1)
+    plt.title(title, fontsize=fontsize1)
+    plt.xticks(fontsize=fontsize2)
+    plt.yticks(fontsize=fontsize2)
     plt.tight_layout()
 
 def generate_plot_type(plot_type):
