@@ -869,9 +869,11 @@ def analyse_focal_animal(
             else:
                 df_summary["numberOfRings"] = [np.nan]
                 df_summary["watchIndex"] = [np.nan]
+                df_summary["moveWithTransform"] = [condition["moveWithTransform"]]
             df_summary["boundaryLengthX"] = [condition["boundaryLengthX"]]
             df_summary["boundaryLengthZ"] = [condition["boundaryLengthZ"]]
             df_summary["hexRadius"] = [condition["hexRadius"]]
+
             # df_summary.drop(['mu', 'speed'], axis=1)
             # df_curated.drop(['mu', 'speed'], axis=1)
 
@@ -1378,8 +1380,8 @@ def preprocess_matrex_data(thisDir, json_file):
 if __name__ == "__main__":
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250801_075938"
-    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_173358"
-    thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_185029"
+    thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_173358"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_185029"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250702_095817"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250514_134255"
