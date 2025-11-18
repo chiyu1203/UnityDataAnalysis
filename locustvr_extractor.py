@@ -8,7 +8,10 @@ from math import atan2
 from threading import Lock
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file,find_nearest
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 

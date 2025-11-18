@@ -1,4 +1,4 @@
-import time, sys, json,warnings
+import time, sys, json,warnings,os
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -10,7 +10,10 @@ from numpy import linalg as LA
 from scipy.stats import circmean
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file
 from data_cleaning import findLongestConseqSubseq,interp_fill
 colormap_name = "viridis"

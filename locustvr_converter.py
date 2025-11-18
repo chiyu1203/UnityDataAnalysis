@@ -12,7 +12,7 @@
 # in terms of pos, those are filled with sv filter so that nan can not be detected anymore but it is visible in rotY
 ## Due to sometime RotY did not get fictrac data for some reasons for some rows, the rows with nan is 1 + (number of undetected rows) in the dataset.
 
-import time
+import time,os
 import pandas as pd
 import numpy as np
 import gzip, re, json, sys
@@ -29,7 +29,10 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file
 from data_cleaning import (
     load_temperature_data,
