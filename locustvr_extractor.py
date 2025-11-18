@@ -8,7 +8,7 @@ from math import atan2
 from threading import Lock
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file,find_nearest
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 
@@ -322,7 +322,8 @@ def load_files(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250625\choices\session1"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25042\20251111\choices\session1"
+    thisDir = "/Volumes/DATA/experiment_trackball_Optomotor/locustVR/GN25042/251111/choices/session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
