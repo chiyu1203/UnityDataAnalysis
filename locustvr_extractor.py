@@ -20,6 +20,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
+    contain_prechoice_phase = analysis_methods.get("contain_prechoice_phase", True)
+    
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
@@ -47,14 +49,25 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     ### baitX and baitY means the relative position of the bait to the focal animal during the prechoice phase
     ### AgentX1,X2 and AgentY1,Y2 means the position of the two agents in the trial
 
-    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]    
+    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']
+    convert_unit=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']
+    if contain_prechoice_phase==True:
+        addon_columns=["preChoice_relativeX","preChoice_relativeY"]
+    else:
+        addon_columns=[]
+    columns_in_use=default_column_names[:df.shape[1]-len(addon_columns)]
+    columns_in_use.extend(addon_columns)
+    convert_unit.extend(addon_columns)
     #default_column_names = ["preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
     #df.iloc[:,-5:].columns=default_column_names[-7:-2]
-    df.columns=default_column_names[:df.shape[1]]
-
+    df.columns=columns_in_use
     ##The unit of raw data is in meters so we need to convert it to cm
-    cols_to_convert=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]
-    df[cols_to_convert] = df[cols_to_convert]* 100
+    if 'AgentX2' not in df.columns:
+        convert_unit = [i for i in convert_unit if i != 'AgentX2']
+    if 'AgentY2' not in df.columns:
+        convert_unit = [i for i in convert_unit if i != 'AgentY2']
+    
+    df[convert_unit] = df[convert_unit]* 100
     df = remove_false_detection_heading(df, angle_col='heading_direction', threshold_lower=3, threshold_upper=5.5, threshold_range=200)
     
     ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
@@ -324,7 +337,8 @@ def load_files(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250625\choices\session1"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250625\choices\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\20251128_1015_1764321335_one_agent_collision"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)

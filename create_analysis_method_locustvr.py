@@ -6,6 +6,7 @@ analysis_methods = {
     "overwrite_curated_dataset": True,
     "save_output": True,
     "time_series_analysis": True,
+    "contain_prechoice_phase": True,
     "filtering_method": "sg_filter",
     "plotting_trajectory": True,
     "plotting_event_distribution": True,
