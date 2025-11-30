@@ -77,7 +77,17 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     # df["preChoice_Y"]=df["preChoice_relativeY"]+ df['Y']
 
     '''align temperature data with df'''
-    [_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
+    if len(this_file.stem.split('_'))>=3:
+        exp_date=this_file.stem.split('_')[1]
+        exp_hour=this_file.stem.split('_')[2]
+        #[_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
+    elif len(this_file.stem.split('_'))<2:
+        print("File name format error, unable to extract experiment date and hour")
+        exp_date="00000000"
+        exp_hour="0000"
+    else:
+        exp_date=this_file.stem.split('_')[0]
+        exp_hour=this_file.stem.split('_')[1]
     exp_time=f"{exp_date}_{exp_hour}"
     exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M")
 
@@ -186,9 +196,10 @@ def extract_locustvr_dat(thisDir, analysis_methods):
         agent1=pd_this_trial[['AgentX1','AgentY1','trial_id']]
         agent1.columns=['X','Y','trial_id']
         agent1.loc[:,'agent_id']=list(np.ones(agent1.shape[0], dtype=int))
-        agent2=pd_this_trial[['AgentX2','AgentY2','trial_id']]
-        agent2.columns=['X','Y','trial_id']
-        agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
+        if 'AgentX2' in pd_this_trial.columns:
+            agent2=pd_this_trial[['AgentX2','AgentY2','trial_id']]
+            agent2.columns=['X','Y','trial_id']
+            agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
         heading=pd_this_trial['heading_direction'].to_numpy()
         elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
         if len(df[df['trial_id'] == this_trial]['state_type'].unique())==1:
@@ -214,7 +225,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             elapsed_time=elapsed_time[1:][mask]
             df_preChoice=df_preChoice.iloc[1:,:][mask]
             agent1=agent1.iloc[1:,:][mask]
-            agent2=agent2.iloc[1:,:][mask]
+            if 'AgentX2' in pd_this_trial.columns:
+                agent2=agent2.iloc[1:,:][mask]
             loss = 1 - loss
             if len(X) == 0:
                 continue
@@ -227,10 +239,14 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             dts = elapsed_time[newindex]
             df_preChoice=df_preChoice.iloc[newindex,:]
             agent1=agent1.iloc[newindex,:]
-            agent2=agent2.iloc[newindex,:]
+            if 'AgentX2' in pd_this_trial.columns:
+                agent2=agent2.iloc[newindex,:]
             this_state_type=this_state_type[newindex]
             num_spatial_decision = len(angles) - 1
-        df_agent=pd.concat([agent1,agent2],axis=0,ignore_index=True)
+        if 'AgentX2' in pd_this_trial.columns:    
+            df_agent=pd.concat([agent1,agent2],axis=0,ignore_index=True)
+        else:
+            df_agent=agent1
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:
@@ -336,9 +352,8 @@ def load_files(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
-    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250625\choices\session1"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\20251128_1015_1764321335_one_agent_collision"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250626\choices\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25081\251128\collision\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
