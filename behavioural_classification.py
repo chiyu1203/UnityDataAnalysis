@@ -1,4 +1,4 @@
-import time, sys, json
+import time, sys, json,os
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file
 
 

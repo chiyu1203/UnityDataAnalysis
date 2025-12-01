@@ -1,4 +1,4 @@
-import sys
+import sys,os
 from pathlib import Path
 current_working_directory = Path.cwd()
 import numpy as np
@@ -6,7 +6,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as st
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import select_animals_gpt,find_file,column_name_list,get_fill_between_range
 
 def fix_data_type(all_trials):

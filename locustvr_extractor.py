@@ -8,7 +8,10 @@ from math import atan2
 from threading import Lock
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "/utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file,find_nearest
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 
@@ -17,6 +20,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
+    contain_prechoice_phase = analysis_methods.get("contain_prechoice_phase", True)
+    
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
@@ -44,14 +49,25 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     ### baitX and baitY means the relative position of the bait to the focal animal during the prechoice phase
     ### AgentX1,X2 and AgentY1,Y2 means the position of the two agents in the trial
 
-    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]    
+    default_column_names = ["dX","dY",'heading_direction',"ts","trial_id","state_type","trial_label",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']
+    convert_unit=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2']
+    if contain_prechoice_phase==True:
+        addon_columns=["preChoice_relativeX","preChoice_relativeY"]
+    else:
+        addon_columns=[]
+    columns_in_use=default_column_names[:df.shape[1]-len(addon_columns)]
+    columns_in_use.extend(addon_columns)
+    convert_unit.extend(addon_columns)
     #default_column_names = ["preChoice_relativeX","preChoice_relativeY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"x","y","trial_id","state_type","ts","trial_label"]
     #df.iloc[:,-5:].columns=default_column_names[-7:-2]
-    df.columns=default_column_names[:df.shape[1]]
-
+    df.columns=columns_in_use
     ##The unit of raw data is in meters so we need to convert it to cm
-    cols_to_convert=["dX","dY",'AgentX1', 'AgentY1', 'AgentX2', 'AgentY2',"preChoice_relativeX","preChoice_relativeY"]
-    df[cols_to_convert] = df[cols_to_convert]* 100
+    if 'AgentX2' not in df.columns:
+        convert_unit = [i for i in convert_unit if i != 'AgentX2']
+    if 'AgentY2' not in df.columns:
+        convert_unit = [i for i in convert_unit if i != 'AgentY2']
+    
+    df[convert_unit] = df[convert_unit]* 100
     df = remove_false_detection_heading(df, angle_col='heading_direction', threshold_lower=3, threshold_upper=5.5, threshold_range=200)
     
     ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
@@ -61,7 +77,17 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     # df["preChoice_Y"]=df["preChoice_relativeY"]+ df['Y']
 
     '''align temperature data with df'''
-    [_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
+    if len(this_file.stem.split('_'))>=3:
+        exp_date=this_file.stem.split('_')[1]
+        exp_hour=this_file.stem.split('_')[2]
+        #[_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
+    elif len(this_file.stem.split('_'))<2:
+        print("File name format error, unable to extract experiment date and hour")
+        exp_date="00000000"
+        exp_hour="0000"
+    else:
+        exp_date=this_file.stem.split('_')[0]
+        exp_hour=this_file.stem.split('_')[1]
     exp_time=f"{exp_date}_{exp_hour}"
     exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M")
 
@@ -170,9 +196,10 @@ def extract_locustvr_dat(thisDir, analysis_methods):
         agent1=pd_this_trial[['AgentX1','AgentY1','trial_id']]
         agent1.columns=['X','Y','trial_id']
         agent1.loc[:,'agent_id']=list(np.ones(agent1.shape[0], dtype=int))
-        agent2=pd_this_trial[['AgentX2','AgentY2','trial_id']]
-        agent2.columns=['X','Y','trial_id']
-        agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
+        if 'AgentX2' in pd_this_trial.columns:
+            agent2=pd_this_trial[['AgentX2','AgentY2','trial_id']]
+            agent2.columns=['X','Y','trial_id']
+            agent2.loc[:,'agent_id']=list(np.ones(agent2.shape[0], dtype=int)*2)
         heading=pd_this_trial['heading_direction'].to_numpy()
         elapsed_time=pd_this_trial['ts'].to_numpy()-min(pd_this_trial['ts'].to_numpy())
         if len(df[df['trial_id'] == this_trial]['state_type'].unique())==1:
@@ -198,7 +225,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             elapsed_time=elapsed_time[1:][mask]
             df_preChoice=df_preChoice.iloc[1:,:][mask]
             agent1=agent1.iloc[1:,:][mask]
-            agent2=agent2.iloc[1:,:][mask]
+            if 'AgentX2' in pd_this_trial.columns:
+                agent2=agent2.iloc[1:,:][mask]
             loss = 1 - loss
             if len(X) == 0:
                 continue
@@ -211,10 +239,14 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             dts = elapsed_time[newindex]
             df_preChoice=df_preChoice.iloc[newindex,:]
             agent1=agent1.iloc[newindex,:]
-            agent2=agent2.iloc[newindex,:]
+            if 'AgentX2' in pd_this_trial.columns:
+                agent2=agent2.iloc[newindex,:]
             this_state_type=this_state_type[newindex]
             num_spatial_decision = len(angles) - 1
-        df_agent=pd.concat([agent1,agent2],axis=0,ignore_index=True)
+        if 'AgentX2' in pd_this_trial.columns:    
+            df_agent=pd.concat([agent1,agent2],axis=0,ignore_index=True)
+        else:
+            df_agent=agent1
         c = np.cos(angles)
         s = np.sin(angles)
         if len(angles) == 0:

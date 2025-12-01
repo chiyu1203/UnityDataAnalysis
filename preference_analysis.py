@@ -79,10 +79,10 @@ def plot_relative_pos_distribution(relative_pos_of_interest,trial_type_of_intere
     else:
         ax1.hist2d(np.hstack((relative_pos_of_interest[0]['x'].values,relative_pos_of_interest[1]['x'].values)),np.hstack((relative_pos_of_interest[0]['y'].values,relative_pos_of_interest[1]['y'].values)),bins=50)
         ax2.hist2d(np.hstack((relative_pos_of_interest[0]['x'].values,relative_pos_of_interest[1]['x'].values)),np.hstack((relative_pos_of_interest[0]['y'].values,relative_pos_of_interest[1]['y'].values*-1)),bins=50)
-        ax2.set(yticks=[-1*distance_threshold_for_plotting,-5,0,5,distance_threshold_for_plotting],xticks=[0,5,distance_threshold_for_plotting],xlim=xlimit,ylim=ylimit,title='agent preference',adjustable='box', aspect='equal')
+        ax2.set(yticks=[-1*distance_threshold_for_plotting,0,distance_threshold_for_plotting],xticks=[0,distance_threshold_for_plotting],xlim=xlimit,ylim=ylimit,title='agent preference',adjustable='box', aspect='equal')
     ax1.set(
-    yticks=[-1*distance_threshold_for_plotting,-5,0,5,distance_threshold_for_plotting],
-    xticks=[0,5,distance_threshold_for_plotting],
+    yticks=[-1*distance_threshold_for_plotting,0,distance_threshold_for_plotting],
+    xticks=[0,distance_threshold_for_plotting],
     xlim=xlimit,ylim=ylimit,title='spatial preference',adjustable='box', aspect='equal')
     if len(relative_pos_of_interest)==1:
         fig_name=f"heatmap2D_{this_vr}_{trial_type_of_interest[0]}_distance_threshold_{distance_threshold_for_plotting}.png"
@@ -143,6 +143,7 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
         ax1.set(
             ylabel="(postive means prefer left)",
             yticks=[-1,0,1],
+            ylim=(-1.1,1.1),
             xticks=thresholds,
             xlabel="ROI size (cm)",
             title="spatial preference",
@@ -151,6 +152,7 @@ def plot_preference_index(left_right_preference_across_animals,exp_con_preferenc
         ax2.set(
             #ylabel="(positive means prefer exp)",
             yticks=[-1,0,1],
+            ylim=(-1.1,1.1),
             xticks=thresholds,
             xlabel="ROI size (cm)",
             title="visual preference",
@@ -325,19 +327,25 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
                 epochs_forR_array[j]=epochs_forR
                 epochs_exp_array[j]=epochs_exp
                 epochs_con_array[j]=epochs_con
+
+            if key in trial_type_of_interest:
+                if len(key.split("_x_"))==1:
+                    epochs_forL_this_animal_homo[:,homo_no]=epochs_forL_array
+                    epochs_forR_this_animal_homo[:,homo_no]=epochs_forR_array
+                    homo_no=homo_no+1
+                    epochs_forL_this_animal_hetero[:]=np.nan
+                    epochs_forR_this_animal_hetero[:]=np.nan
+                    epochs_exp_this_animal_hetero[:]=np.nan
+                    epochs_con_this_animal_hetero[:]=np.nan
+                else:
+                    epochs_forL_this_animal_hetero[:,hetero_no]=epochs_forL_array
+                    epochs_forR_this_animal_hetero[:,hetero_no]=epochs_forR_array
+                    epochs_exp_this_animal_hetero[:,hetero_no]=epochs_exp_array
+                    epochs_con_this_animal_hetero[:,hetero_no]=epochs_con_array
+                    hetero_no=hetero_no+1
+                    epochs_forL_this_animal_homo[:]=np.nan
+                    epochs_forR_this_animal_homo[:]=np.nan              
                 
-            if len(key.split("_x_"))==1:
-                epochs_forL_this_animal_homo[:,homo_no]=epochs_forL_array
-                epochs_forR_this_animal_homo[:,homo_no]=epochs_forR_array
-                homo_no=homo_no+1
-            elif len(key.split("_x_"))==2:
-                epochs_forL_this_animal_hetero[:,hetero_no]=epochs_forL_array
-                epochs_forR_this_animal_hetero[:,hetero_no]=epochs_forR_array
-                epochs_exp_this_animal_hetero[:,hetero_no]=epochs_exp_array
-                epochs_con_this_animal_hetero[:,hetero_no]=epochs_con_array
-                hetero_no=hetero_no+1
-            else:
-                Warning("unknown trial")
         epochs_forL_all_animals_homo[:,i]=np.nansum(epochs_forL_this_animal_homo,axis=1)
         epochs_forR_all_animals_homo[:,i]=np.nansum(epochs_forR_this_animal_homo,axis=1)
         epochs_forL_all_animals_hetero[:,i]=np.nansum(epochs_forL_this_animal_hetero,axis=1)
@@ -396,7 +404,8 @@ def calculate_preference_index(relative_pos_all_animals,trial_type_of_interest,a
     return left_right_preference_across_animals,exp_con_preference_across_animals,epochs_exp_all_animals_hetero,epochs_con_all_animals_hetero,epochs_forL_all_animals,epochs_forR_all_animals
 
 if __name__ == "__main__":
-    file_path='location_marching_band_black_vs_leader_locust_constant_speed&distance.pkl'
+    #file_path='location_marching_band_black_vs_leader_locust_constant_speed&distance.pkl'
+    file_path='location_marching_band_black_vs_leader_locust_constant_speed.pkl'
     with open(file_path, 'rb') as f:
         relative_pos_all_animals = pickle.load(f)
     json_file = "./analysis_methods_dictionary.json"

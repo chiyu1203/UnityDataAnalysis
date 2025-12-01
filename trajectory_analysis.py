@@ -147,11 +147,11 @@ def plot_sercantrajec(dfXY,analysis_methods,parameters,parameter_name,trajec_lim
     plt.rcParams['axes.linewidth'] = 2
     # Get the colormap
     cmap = plt.get_cmap('viridis')
-
+    lw=0.5
     #plt.style.use('dark_background') 
     for i, (key2, grp2) in enumerate(a):
         color = cmap(i/ len(a))
-        plt.plot(grp2["X"].values, grp2["Y"].values, color=color, linewidth=1)
+        plt.plot(grp2["X"].values, grp2["Y"].values, color=color, linewidth=lw)
 
     if type(parameters)==tuple:
         this_variable=parameters[0]
@@ -171,7 +171,7 @@ def plot_sercantrajec(dfXY,analysis_methods,parameters,parameter_name,trajec_lim
         radial_distance_b=np.sin(travel_direction)*radial_distance
         delta_sin=np.cumsum(np.repeat(np.sin(travel_direction)*agent_speed, duration))
         agent_sin=radial_distance_b+delta_sin
-        plt.plot(agent_cos, agent_sin, color='k', linewidth=1)
+        plt.plot(agent_cos, agent_sin, color='k', linewidth=lw)
 
     plt.xlim(-1*trajec_lim, trajec_lim)
     plt.ylim(-1*trajec_lim, trajec_lim)

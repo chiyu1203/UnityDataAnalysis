@@ -69,7 +69,7 @@ conda activate unity_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
-conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel pytables deepdiff
+conda install --yes -c conda-forge -v h5py opencv ipython jupyter matplotlib pandas matplotlib scipy jupyterlab seaborn ipyparallel pytables deepdiff pyarrow fastparquet
 ```
 [Optional] if you ever want to load database from an excel sheet
 ```
@@ -95,7 +95,17 @@ git clone https://github.com/chiyu1203/utilities.git
 conda env export > environment.yml --no-builds
 conda list -e > requirements.txt
 ```
-# Start coding
+# Start data analysis
+
+## the logic of data analysis
+
+The preprocessing step of the data analysis was done with custom Python scripts. Briefly, the method to analyse movement trajectory of locusts depends on whether temporal analysis is involved afterwards. If so, Savitzky–Golay filter with a 1-second filter window was used to smooth the trajectory. Otherwise, each trajectory was spatially discretised into consecutive points spaced 12 cm apart, which corresponds to roughly 3 body length of 5th-instar nymph.
+
+In the two alternative free response assay, locusts’ preference index (PI) for one type of stimuli (virtual locusts) is quantified with the following equation.
+
+PI = (Choice1 - Choice2 / Choice1 + Choice2)
+
+where Choice# represents the quantity of choices for Stimulus#. As locusts typically make maximum one choice in the 60-second trial, their response to the same two types of stimuli was pooled across trials to calculate the index. In the constant distance experiment, trajectory points was rediscretised for every 6-body length to reduce auto-correlation in the [data](https://github.com/jgraving/sayin_locust_mixture_model/blob/main/locust_mixture_model.ipynb) and considered to be an animal’s choice (so Choice# means the number of choices). In other experiments, total duration of follow event was used as the proxy for Choice#. In the case where visualising the distribution of individual preference was needed, locusts choosing only one type of stimuli, which effectively leads to an index of +1 or -1, was removed (“excluding extreme index” case).
 
 ## How to use the analysis pipeline and jupyter notebook
 
@@ -110,6 +120,8 @@ Therefore, each project has its own json file. Below explains what those analysi
     "overwrite_curated_dataset": boolean, whether to delete the existing HDF file or not. If True, **locustvr_converter.py** or **locustvr_extractor.py** will delete the old curated dataset before processing raw data.
 
     "export_fictrac_data_only": this is used in locustVR_converter and data_exploration notebook. This option will skip the rest of processing in locustVR_converter after exporting the fictrac raw data into a parquet file format. 
+
+    "read_fictrac_data_only": this is used in time-series analysis notebook. This option will skip loading the unity-based curated dataset and load only the fictrac dataset.
 
     "save_output": boolean, whether to save any output (including dataset and figures) during data analysis. If True, then save any output
 
@@ -139,11 +151,15 @@ Therefore, each project has its own json file. Below explains what those analysi
 
     "analyse_first_half_only" and "analyse_second_half_only": boolean. This is used in the sorting_time_series_analysis.py. Default settings: both of them is false to analyse the entire experiment. There is no definition for both of them is true.
 
-    "exclude_extreme_index": boolean. This is used when calculating preference index. This will include animals that only choose one type of option in the experiment, which results in 1 or -1, a rather extreme preference.
+    "exclude_extreme_index": boolean. This is used when calculating preference index. If True, this will exclude animals choosing only one type of options regardless which one is right or left during the entire experiment, which results in 1 or -1, an extreme preference index for the two particular options.
     
     "graph_colour_code": array of string, just a helper array to know which colour is used when plotting the data.
 
     "follow_within_distance": int, one of the criteria to define follow behaviour in "sorting_time_series_analysis.py"
+
+    "follow_above_speed": int, one of the criteria to define follow behaviour in "sorting_time_series_analysis.py"
+    
+    "follow_within_angle": int, one of the criteria to define follow behaviour in "sorting_time_series_analysis.py"
 
     "camera_fps": 100, #default video acqusition rate in matrexVR
     
@@ -160,6 +176,7 @@ Therefore, each project has its own json file. Below explains what those analysi
 Use **time_series_analysis.ipynb**, if you want to analyse stimulus-evoked responses in details.
 
 Use **preference_analysis.ipynb**, if you want to calculate animal's preference index based on follow behaviour.
+
 
 
 

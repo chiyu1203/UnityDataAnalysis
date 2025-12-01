@@ -1,15 +1,19 @@
-import time, sys, json,warnings
+import time, sys, json,warnings,os
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from matplotlib.patches import Rectangle
 from numpy import linalg as LA
 from scipy.stats import circmean
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
-sys.path.insert(0, str(parent_dir) + "\\utilities")
+if os.name == 'nt':
+    sys.path.insert(0, str(parent_dir) + "\\utilities")
+else:
+    sys.path.insert(0, str(parent_dir) + "/utilities")
 from useful_tools import find_file
 from data_cleaning import findLongestConseqSubseq,interp_fill
 colormap_name = "viridis"
@@ -31,6 +35,266 @@ def nan_helper(y):
     """
 
     return np.isnan(y), lambda z: z.nonzero()[0]
+
+def plot_velocity_vector_field(dif_across_trials_pd):
+        #from matplotlib.lines import Line2D
+    body_length=6
+    body_width=2
+    centroid2abodomen=4 #the distance between the centriod to the tip of the abdomen
+    normalise_vector_length=False
+    mean_velocity_vector=False
+    agent_at_centre=True
+    speed_range=[-10,10]
+        # ----------------------------
+        # 2. Define grid
+        # ----------------------------
+    (x_min, x_max,y_min, y_max)= (-15, 5,-10.5,9.5)
+    (legend_x,legend_y)=(-20,-20)
+    nx, ny = 20, 20  # grid resolution
+
+    x_edges = np.linspace(x_min, x_max, nx+1)
+    y_edges = np.linspace(y_min, y_max, ny+1)
+    #print(y_edges)
+    if agent_at_centre:
+        mirror_factor=-1
+        agent_centroid=[0,0]
+    else:
+        mirror_factor=1
+        agent_centroid=[8,0]
+
+    relative_x=dif_across_trials_pd['x'].values*mirror_factor
+    relative_y=dif_across_trials_pd['y'].values*mirror_factor
+    relative_vx=dif_across_trials_pd['v_parallel'].values*mirror_factor
+    relative_vy=dif_across_trials_pd['v_perpendicular'].values*mirror_factor
+    
+        # Find which bin each vector falls into
+    x_idx = np.digitize(relative_x, x_edges) - 1  # bin indices 0..nx-1
+    y_idx = np.digitize(relative_y, y_edges) - 1  # bin indices 0..ny-1
+
+        # ----------------------------
+        # 3. Aggregate data per grid cell
+        # ----------------------------
+    count_grid = np.zeros((nx, ny))
+    vx_grid = np.zeros((nx, ny))
+    vy_grid = np.zeros((nx, ny))
+    if mean_velocity_vector:
+        for i in range(x_idx.shape[0]):
+            ix, iy = x_idx[i], y_idx[i]
+            if 0 <= ix < nx and 0 <= iy < ny:
+                vx_grid[ix, iy] += relative_vx[i]
+                vy_grid[ix, iy] += relative_vy[i]
+                count_grid[ix, iy] += 1
+
+            # Average velocities in each grid cell
+        nonzero = count_grid > 0
+        vx_grid[nonzero] /= count_grid[nonzero]
+        vy_grid[nonzero] /= count_grid[nonzero]
+    else:
+        print("calculate median velocity vector")
+        vx_cells = [[[] for _ in range(ny)] for _ in range(nx)]
+        vy_cells = [[[] for _ in range(ny)] for _ in range(nx)]
+        for i in range(x_idx.shape[0]):
+            ix, iy = x_idx[i], y_idx[i]
+            if 0 <= ix < nx and 0 <= iy < ny:
+                vx_cells[ix][iy].append(relative_vx[i])
+                vy_cells[ix][iy].append(relative_vy[i])
+                count_grid[ix, iy] += 1
+        nonzero = count_grid > 0
+        bins_aba=np.linspace(speed_range[0],speed_range[1],30)
+        vx_alongy_median=[]
+        vx_alongy_mean=[]
+        num_vx_alongy=[]
+        for ix in range(nx):
+            vx_alongy=np.concatenate(vx_cells[ix][:])
+            if len(vx_alongy) > ny:
+                fig0,ax1=plt.subplots(nrows=1, ncols=1, figsize=(6, 9), tight_layout=True)
+
+                ax1.hist(vx_alongy,bins=bins_aba,color='black')
+                ax1.set(
+                    xlim=(speed_range[0],speed_range[1]),
+                    ylim=(0,12000)
+                    )
+                fig0.savefig(f'grid_{ix}_vx_distribution.jpg')
+                fig0.savefig(f'grid_{ix}_vx_distribution.svg')
+                vx_alongy_median.append(np.median(vx_alongy))
+                num_vx_alongy.append(vx_alongy.shape[0])
+                vx_alongy_mean.append(np.mean(vx_alongy))
+            else:
+                vx_alongy_median.append(0)
+                vx_alongy_mean.append(0)
+            for iy in range(ny):
+                if count_grid[ix, iy] > 0:
+                    # if count_grid[ix, iy] > 200:    
+                    #    fig0,(ax1,ax2)=plt.subplots(nrows=1, ncols=2, figsize=(6, 9), tight_layout=True)
+                       #ax1.hist(vx_cells[ix][iy],bins=30)
+                       #ax2.hist(vy_cells[ix][iy],bins=30)
+                    #    fig0.savefig(f'grid_{ix}_{iy}_vx_vy_distribution.jpg')
+
+                    vx_grid[ix, iy] = np.nanmedian(vx_cells[ix][iy])
+                    vy_grid[ix, iy] = np.nanmedian(vy_cells[ix][iy])
+        fig1,ax1=plt.subplots(nrows=1, ncols=1, figsize=(9, 2), tight_layout=True)
+        ax1.plot(np.linspace(x_min+0.5, x_max-0.5, nx),np.hstack(vx_alongy_median),'ro',linestyle='--')
+        ax1.plot(np.linspace(x_min+0.5, x_max-0.5, nx),np.hstack(vx_alongy_mean),'bo',linestyle='--')#(0, (3, 10, 1, 10))
+        ax1.set(ylim=(-3,5),ylabel='Velocity parallel (cm/s)')
+        #fig1.savefig(f'grid_vx_median.jpg')
+
+    
+        # ----------------------------
+        # 4. Prepare grid coordinates
+        # ----------------------------
+        # grid cell centers
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+    X, Y = np.meshgrid(x_centers, y_centers, indexing='ij')
+
+        # magnitude for scaling arrows
+    speed_grid = np.sqrt(vx_grid**2 + vy_grid**2)
+    fig,ax= plt.subplots(nrows=1, ncols=1, figsize=(6, 5), tight_layout=True)
+    
+    legend_v=0
+    if normalise_vector_length:
+        legend_u=1
+        scaling_factor=0.1
+        max_speed = np.max(speed_grid[~np.isnan(speed_grid)])
+        vx_plot = np.zeros_like(vx_grid)
+        vy_plot = np.zeros_like(vy_grid)
+        vx_plot[nonzero] = vx_grid[nonzero] / max_speed
+        vy_plot[nonzero] = vy_grid[nonzero] / max_speed
+    else:
+        legend_u=10
+        scaling_factor=1
+        vx_plot = vx_grid
+        vy_plot = vy_grid
+
+        # ----------------------------
+        # 5. Plot vector field
+        # ----------------------------
+    #ax1.subplot(2,1,2)    
+    ax.set(
+            #xlim=(-30,30),
+            xlim=(-15,5),
+            #ylim=(-30,30),
+            ylim=(-10,10),
+            xticks=([-3*5,-2*5,-1*5,0,5]),
+            yticks=([-2*5,-1*5,0,1*5,2*5]),
+            #title='Binned Velocity Vector Field'
+        )
+
+    q=ax.add_patch(Rectangle((-1*centroid2abodomen+agent_centroid[0],-1*body_width/2+agent_centroid[1]),body_length,body_width,fill=False,ec ='gray',alpha=1,lw = 0.5,linestyle="--"))    
+    q=ax.scatter(agent_centroid[0],agent_centroid[1],color='black',marker='*')
+    q=ax.quiver(legend_x, legend_y, legend_u, legend_v,color='black',angles='xy', scale_units='xy', scale=scaling_factor)
+    q=ax.quiver(X, Y, vx_plot, vy_plot, count_grid, 
+                    angles='xy', scale_units='xy', scale=scaling_factor,cmap='Reds')
+
+    plt.colorbar(q,label='Number of vectors in grid cell')
+
+    #distance = np.sqrt(np.sum([relative_x**2, relative_y**2], axis=0))
+    #speed = np.sqrt(np.sum([relative_vx**2, relative_vy**2], axis=0))
+    
+    #calculate the threshold distance based on the distance when the agent reaches more than 40 degree visual angle
+    #the length or width of the agent is assumed to be between 2-3 cm
+    #therefore, the threshold distance is from 3/2/tan(40/2 degree) to 3/2/tan(40/2 degree)
+    threshold_degree=40
+    agent_size=[0.6,3]
+    threshold_distance=[agent_size[0]/2/np.tan(np.radians(threshold_degree/2)),agent_size[1]/2/np.tan(np.radians(threshold_degree/2))]
+    fig2, ((ax1,ax2),(ax3,ax4),(ax5,ax6),(ax7,ax8)) = plt.subplots(nrows=4, ncols=2, figsize=(24, 12), tight_layout=True)
+    ax1.hist(speed_grid[~np.isnan(speed_grid)])
+    ax1.set(xlabel='speed grid in vector field (cm/s)',
+            ylabel='Count')
+    ax2.hist(vx_grid[~np.isnan(vx_grid)])
+    ax2.set(xlabel='velocity parallel grid in vector field (cm/s)',
+            ylabel='Count')
+    ax3.scatter(abs(relative_x),relative_vx,s=0.1)
+    ax3.set(
+            xlim=(0,30),
+            ylim=(speed_range[0],speed_range[1]),
+            xlabel='abs Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+
+    ax4.hist2d(abs(relative_x),relative_vx,bins=400)
+    # ax4.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+    # ax4.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
+    ax4.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+    ax4.set(
+            xlim=(0,30),
+            ylim=(speed_range[0],speed_range[1]),
+            xlabel='Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+
+    
+    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(9, 7), tight_layout=True)
+    # #ax1, ax2, ax3 = axes.flatten()
+    # axes.hist(np.diff(dif_across_trials_pd['ts'].values),bins=10000)
+    # axes.set(xlim=(-0.1,0.1),ylim=(0,500))
+    # fig_name = f"interval_histogram.jpg"
+    # fig.savefig(fig_name)
+
+    epoch_breaks=abs(np.diff(dif_across_trials_pd['ts'].values))>0.5
+    epoch_ids = epoch_breaks.cumsum()
+    epoch_ids=np.insert(epoch_ids,0,0)
+    relative_x_bin_list=[]
+    vx_bin_list=[]
+    distance_bin_list=[]
+    velocity_bin_list=[]
+    for epoch_id, this_epoch in dif_across_trials_pd.groupby(epoch_ids):
+        if this_epoch.shape[0]<60*0.5:##filter out those with less than 1 data point
+            continue
+        else:
+            relative_x=this_epoch['x'].values*mirror_factor
+            relative_y=this_epoch['y'].values*mirror_factor
+            relative_vx=this_epoch['v_parallel'].values*mirror_factor
+            relative_vy=this_epoch['v_perpendicular'].values*mirror_factor
+            relative_x_bin=abs(relative_x[::30])
+            relative_y_bin=abs(relative_y[::30])
+            distance_bin=np.sqrt(np.sum([relative_x_bin**2+relative_y_bin**2],axis=0))
+            vx_bin=relative_vx[::30]
+            vy_bin=relative_vy[::30]
+            velocity_bin=np.sqrt(np.sum([vx_bin**2+vy_bin**2],axis=0))
+            relative_x_bin_list.append(relative_x_bin)
+            vx_bin_list.append(vx_bin)
+            distance_bin_list.append(distance_bin)
+            velocity_bin_list.append(velocity_bin)
+              
+        #ax4.scatter(np.median(abs(this_epoch['x'].values)),np.median(this_epoch['v_parallel'].values),s=0.1)
+        ax5.plot(relative_x_bin,vx_bin)
+        ax7.plot(distance_bin,velocity_bin)
+    ax5.set(
+            xlim=(0,30),
+            ylim=(speed_range[0],speed_range[1]),
+            xlabel='Distance parallel (cm)',
+            ylabel='Velocity parallel (cm/s)')
+    ax7.set(
+            xlim=(0,30),
+            ylim=(0,speed_range[1]),
+            xlabel='Distance (cm)',
+            ylabel='Speed (cm/s)')
+    if len(relative_x_bin_list)>0:
+        ax6.hist2d(np.concatenate(relative_x_bin_list),np.concatenate(vx_bin_list),bins=100)
+        ax6.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+        #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
+        ax6.set(
+                xlim=(0,30),
+                ylim=(speed_range[0],speed_range[1]),
+                xlabel='Distance parallel (cm)',
+                ylabel='Velocity parallel (cm/s)')
+    if len(relative_x_bin_list)>0:
+        ax8.hist2d(np.concatenate(distance_bin_list),np.concatenate(velocity_bin_list),bins=100)
+        ax8.add_patch(Rectangle((threshold_distance[0]+centroid2abodomen, speed_range[0]),threshold_distance[1]-threshold_distance[0],speed_range[1]-speed_range[0],fc ='white',ec ='white',alpha=0.1,lw = 0.1))
+        #ax6.axvline(x=threshold_distance[0]+4,color='white',linestyle="--")
+        #ax6.axvline(x=threshold_distance[1]+4,color='white',linestyle="--")
+        ax8.set(
+                xlim=(0,30),
+                ylim=(0,speed_range[1]),
+                xlabel='Distance (cm)',
+                ylabel='Speed (cm/s)')
+
+
+
+    #plt.gca().set_aspect('equal', adjustable='box')##not useful in subplot mode
+    #plt.show()
+    return fig,fig2,fig1
+
 
 def sort_raster_fictrac(raster_across_animals_fictrac,animal_interest,step_interest,analysis_methods,all_evaluation,var1,var2=None):
     analysis_window=analysis_methods.get("analysis_window")
@@ -117,15 +381,15 @@ def generate_points_within_rectangles(x_values, y_values, width,height1, height2
     return np.array(points)
 
 def calculate_speed(dif_x, dif_y, ts, number_frame_scene_changing=5):
-    focal_distance_fbf = np.sqrt(np.sum([dif_x**2, dif_y**2], axis=0))
-    focal_distance_fbf[0 : number_frame_scene_changing + 1] = (
+    focal_displacement_fbf = np.sqrt(np.sum([dif_x**2, dif_y**2], axis=0))
+    focal_displacement_fbf[0 : number_frame_scene_changing + 1] = (
         np.nan
     )  ##plus one to include the weird data from taking difference between 0 and some value
-    instant_speed = focal_distance_fbf / np.diff(ts)
+    instant_speed = focal_displacement_fbf / np.diff(ts)
     return instant_speed
 
 
-def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id):
+def time_series_plot(target_distance, instant_speed, angular_deviation, file_name, trial_id):
     fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(9, 7), tight_layout=True)
     plt.rcParams.update(plt.rcParamsDefault)
     plt.rcParams.update({"font.size": 8})
@@ -142,7 +406,7 @@ def time_series_plot(target_distance, instant_speed, angles, file_name, trial_id
     ax1.axhline(y=50,color="red",linestyle="--")
     ax2.plot(np.arange(instant_speed.shape[0]), instant_speed)
     ax2.axhline(y=1,color="red",linestyle="--")
-    ax3.plot(np.arange(angles.shape[0]), angles)
+    ax3.plot(np.arange(angular_deviation.shape[0]), angular_deviation)
     ax3.axhline(y=10,color="red",linestyle="--")
     fig_name = f"{file_name.stem.split('_')[0]}_{trial_id}_ts_plot.jpg"
     fig.savefig(file_name.parent / fig_name)
@@ -289,23 +553,25 @@ def classify_follow_epochs(
     extract_follow_epoches = analysis_methods.get("extract_follow_epoches", True)
     follow_locustVR_criteria = analysis_methods.get("follow_locustVR_criteria", False)
     follow_within_distance = analysis_methods.get("follow_within_distance", 50)
-    focal_distance_fbf = instant_speed * np.diff(ts)
-    agent_distance_fbf = np.sqrt(
+    follow_above_speed = analysis_methods.get("follow_above_speed", 1)
+    follow_within_angle= analysis_methods.get("follow_within_angle", 10)
+    focal_displacement_fbf = instant_speed * np.diff(ts)
+    agent_displacement_fbf = np.sqrt(
         np.sum([np.diff(this_agent_xy)[0] ** 2, np.diff(this_agent_xy)[1] ** 2], axis=0)
     )
-    vector_dif = this_agent_xy - focal_xy
-    target_distance = LA.norm(vector_dif, axis=0)
+    focal2agent = this_agent_xy - focal_xy##made focal animal in the centre
+    target_distance = LA.norm(focal2agent, axis=0)
     dot_product = np.diag(
         np.matmul(np.transpose(np.diff(focal_xy)), np.diff(this_agent_xy))
     )
-    angles = np.arccos(dot_product / focal_distance_fbf / agent_distance_fbf)
-    angles_in_degree = angles * 180 / np.pi
+    angular_deviation = np.arccos(dot_product / focal_displacement_fbf / agent_displacement_fbf)
+    angles_in_degree = angular_deviation * 180 / np.pi
     locustVR_criteria = (
         (target_distance[1:] < follow_within_distance)
-        & (instant_speed > 1)
-        & (angles_in_degree < 10)
+        & (instant_speed > follow_above_speed)
+        & (angles_in_degree < follow_within_angle)
     )
-    walk_criteria = (target_distance[1:] < follow_within_distance) & (instant_speed > 1)
+    walk_criteria = (target_distance[1:] < follow_within_distance) & (instant_speed > follow_above_speed)
     if extract_follow_epoches and follow_locustVR_criteria:
         epochs_of_interest = locustVR_criteria
     elif extract_follow_epoches:
@@ -314,39 +580,37 @@ def classify_follow_epochs(
         epochs_of_interest = (
             np.ones((instant_speed.shape[0])) == 1.0
         )  # created a all-true array for overall heatmap
-    return epochs_of_interest, vector_dif, angles_in_degree,walk_criteria
+    return epochs_of_interest, focal2agent, angles_in_degree,walk_criteria
 
 
-def align_agent_moving_direction(vector_dif, grp):
+def align_agent_moving_direction(focal2agent, grp):
     theta = np.radians(grp["mu"].values[0] - 360)
     rot_matrix = np.array(
         [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
     )  # calculate the rotation matrix to align the agent to move along the same direction
-    vector_dif_rotated = rot_matrix @ vector_dif
-    return vector_dif_rotated
-    # vector_dif_rotated=vector_dif_rotated[:,1:]
+    focal2agent_rotated = rot_matrix @ focal2agent
+    return focal2agent_rotated
+    # focal2agent_rotated=focal2agent_rotated[:,1:]
 
 
 def conclude_as_pd(
-    df_focal_animal, vector_dif_rotated, epochs_of_interest, fname, agent_no):
-    num_frames = df_focal_animal[df_focal_animal["fname"] == fname].shape[0]
-    degree_in_the_trial = np.repeat(
-        df_focal_animal[df_focal_animal["fname"] == fname]["mu"].to_numpy()[0],
-        num_frames,
-    )
+    df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, fname):
+    ts_of_interest=df_focal_animal[df_focal_animal["fname"] == fname]["ts"].to_numpy()[:-1][epochs_of_interest]
+    v_parallel = relative_velocity[0][epochs_of_interest]
+    v_perpendicular = relative_velocity[1][epochs_of_interest]
+
     degree_time = np.vstack(
-        (
-            degree_in_the_trial,
-            df_focal_animal[df_focal_animal["fname"] == fname]["ts"].to_numpy(),
+        (   
+            v_parallel,
+            v_perpendicular,
+            ts_of_interest
         )
     )
-    degree_time = degree_time[:, 1:]
-    vector_dif_rotated = vector_dif_rotated[:, 1:]
     follow_wrap = np.concat(
-        (vector_dif_rotated[:, epochs_of_interest], degree_time[:, epochs_of_interest])
+        (focal2agent_rotated[:, 1:][:, epochs_of_interest], degree_time)
     )
     follow_pd = pd.DataFrame(np.transpose(follow_wrap))
-    follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
+    #follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
     return follow_pd
 
 
@@ -356,6 +620,7 @@ def follow_behaviour_analysis(
     duration_for_baseline = 2
     pre_stim_ISI = 60
     trajec_lim = 150
+    rolling_window=5
     calculate_follow_chance_level = analysis_methods.get("calculate_follow_chance_level", False)
     agent_based_modeling=False
     variables_to_randomise='mu'
@@ -364,6 +629,7 @@ def follow_behaviour_analysis(
     add_cumulated_angular_velocity=True
     analysis_window = analysis_methods.get("analysis_window")
     monitor_fps = analysis_methods.get("monitor_fps")
+    camera_fps = analysis_methods.get("camera_fps")
     align_with_isi_onset = analysis_methods.get("align_with_isi_onset", False)
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     plotting_event_distribution = analysis_methods.get("plotting_event_distribution", False)
@@ -398,20 +664,27 @@ def follow_behaviour_analysis(
     else:
         pass
     for key, grp in df_summary.groupby("fname"):
+        focal_animal_this_trial = df_focal_animal[df_focal_animal["fname"] == key]
         focal_xy = np.vstack(
             (
-                df_focal_animal[df_focal_animal["fname"] == key]["X"].to_numpy(),
-                df_focal_animal[df_focal_animal["fname"] == key]["Y"].to_numpy(),
+                focal_animal_this_trial["X"].to_numpy(),
+                focal_animal_this_trial["Y"].to_numpy(),
             )
         )
         dif_x = np.diff(focal_xy[0])
         dif_y = np.diff(focal_xy[1])
-        ts = df_focal_animal[df_focal_animal["fname"] == key]["ts"].to_numpy()
+        ts = focal_animal_this_trial["ts"].to_numpy()
         instant_speed = calculate_speed(dif_x, dif_y, ts)
-
-        heading_direction = df_focal_animal[df_focal_animal["fname"] == key][
-            "heading"
-        ].to_numpy()
+        #focal_animal_this_trial['x_future'] = focal_animal_this_trial["X"].shift(-rolling_window)
+        #focal_animal_this_trial['y_future'] = focal_animal_this_trial["Y"].shift(-rolling_window)
+        #focal_animal_this_trial['dx'] = focal_animal_this_trial['x_future'] - focal_animal_this_trial["X"]
+        #focal_animal_this_trial['dy'] = focal_animal_this_trial['y_future'] - focal_animal_this_trial["Y"]
+        #focal_animal_this_trial['displacement'] = (focal_animal_this_trial['dx']**2 + focal_animal_this_trial['dy']**2)**0.5
+        # Compute speed using the formula:
+        #focal_animal_this_trial['speedNew'] = camera_fps*focal_animal_this_trial['displacement'] / rolling_window
+        heading_direction =focal_animal_this_trial["heading"].to_numpy()
+        #relative_vx = focal_animal_this_trial['speedNew'].to_numpy() * np.cos(heading_direction)
+        #relative_vy = focal_animal_this_trial['speedNew'].to_numpy() * np.sin(heading_direction)
         _, turn_degree_fbf = diff_angular_degree(heading_direction, num_unfilled_gap)
         angular_velocity = turn_degree_fbf / np.diff(ts)
         if "density" in df_summary.columns:
@@ -567,7 +840,7 @@ def follow_behaviour_analysis(
             pre_stim_ISI = grp["duration"][0]
             continue
         else:
-            focal_distance_fbf = instant_speed * np.diff(ts)
+            focal_displacement_fbf = instant_speed * np.diff(ts)
             agent_xy = np.vstack(
                 (
                     df_agent[df_agent["fname"] == key]["X"].to_numpy(),
@@ -611,33 +884,64 @@ def follow_behaviour_analysis(
                     nans, y = nan_helper(tmp_arr_y)
                     tmp_arr_y[nans] = np.interp(y(nans), y(~nans), tmp_arr_y[~nans])
                     this_agent_xy=np.vstack((tmp_arr_x,tmp_arr_y))
-                epochs_of_interest, vector_dif, angles_in_degree,walk_epochs = (
+                epochs_of_interest, focal2agent, angles_in_degree,walk_epochs = (
                 classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy, analysis_methods))
-                vector_dif_rotated = align_agent_moving_direction(vector_dif, grp)
+                focal2agent_rotated = align_agent_moving_direction(focal2agent, grp)
+                #agent2focal_rotated=focal2agent_rotated*-1
                 ### Here is a quick fix to analyse agents in a marching band.
                 ### instead of assigning agents ID based on which agent is analysed first (like in the 2-choice assay)
                 ### this one assign agents ID or more precisely band ID, based on whether the agents is in the left or right side from the allocentric view
                 ### this means if the agent's coordinate is negative, we assume this agent is on the right. Otherwise, on the left side, and given then ID accordingly.
                 ### However, if experiment are more advanced, for example, a locust navigate in a marching band mixed with different type of agent. This analysis will fail
                 ### Then we basically needs to change the code in locustvr_converter.py and assign ID for each type of agents explicitly.
+                ### if num_agent>2 and this_agent_xy[1,:].mean()>0:
+                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_vx,relative_vy,epochs_of_interest, key, 1)
+                ### elif num_agent>2 and this_agent_xy[1,:].mean()<0:
+                ###     follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_vx,relative_vy,epochs_of_interest, key, 0)
+                ### else:
+                relative_velocity=np.diff(focal2agent_rotated,axis=1)*monitor_fps
+                follow_pd = conclude_as_pd(df_focal_animal, focal2agent_rotated, relative_velocity,epochs_of_interest, key)
                 if num_agent>2 and this_agent_xy[1,:].mean()>0:
-                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, 1)
+                    agent_no=1
                 elif num_agent>2 and this_agent_xy[1,:].mean()<0:
-                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, 0)
+                    agent_no=0
                 else:
-                    follow_pd = conclude_as_pd(df_focal_animal, vector_dif_rotated, epochs_of_interest, key, i)
+                    agent_no=i
+                follow_pd.insert(follow_pd.shape[1], "agent_id", np.repeat(agent_no, follow_pd.shape[0]))
+                follow_pd.insert(follow_pd.shape[1],"degree",
+                      np.repeat(
+                            df_agent[df_agent["fname"] == key]["mu"].values[0],
+                            follow_pd.shape[0],
+                        ))
+                follow_pd.insert(follow_pd.shape[1],"radial_distance",
+                        np.repeat(
+                            grp['radial_distance'].values[0],
+                            follow_pd.shape[0]
+                        ))
                 follow_pd.insert(follow_pd.shape[1],"type",
                         np.repeat(
                             df_agent[df_agent["fname"] == key]["type"].values[0],
                             follow_pd.shape[0],
                         ))
+                if "rotation_gain" in df_summary.columns:
+                    follow_pd.insert(follow_pd.shape[1],"rotation_gain",
+                            np.repeat(
+                                grp["rotation_gain"].values[0],
+                                follow_pd.shape[0],
+                            ))
+                    follow_pd.insert(follow_pd.shape[1],"translation_gain",
+                            np.repeat(
+                                grp["translation_gain"].values[0],
+                                follow_pd.shape[0],
+                            ))
+                    
                 if calculate_follow_chance_level and agent_based_modeling:
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(
                             np.vstack((simulated_x,simulated_y)), simulated_speed, ts, this_agent_xy, analysis_methods
                     )
-                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    focal2agent_simulated = align_agent_moving_direction(simulated_vector, grp)
                     simulated_pd= conclude_as_pd(
-                            df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
+                            df_focal_animal, focal2agent_simulated, epochs_by_chance, key, i
                     )
                 elif calculate_follow_chance_level and df_summary[variables_to_randomise].unique().shape[0]>1:
                     #other_vars=df_summary[variables_to_randomise].unique()[grp[variables_to_randomise][0]!=df_summary[variables_to_randomise].unique()]
@@ -657,17 +961,28 @@ def follow_behaviour_analysis(
                         )  # calculate the rotation matrix to align the agent to move along the same direction
                     this_agent_xy_rotated = rot_matrix @ this_agent_xy
                     epochs_by_chance,simulated_vector,_,_=classify_follow_epochs(focal_xy, instant_speed, ts, this_agent_xy_rotated, analysis_methods)
-                    vector_dif_simulated = align_agent_moving_direction(simulated_vector, grp)
-                    ## same situation as line 617
-                    if num_agent>2 and this_agent_xy_rotated[1,:].mean()>0:
-                        simulated_pd = conclude_as_pd(df_focal_animal, vector_dif_simulated, epochs_by_chance, key, 1)
-                    elif num_agent>2 and this_agent_xy_rotated[1,:].mean()<0:
-                        simulated_pd = conclude_as_pd(df_focal_animal, vector_dif_simulated, epochs_by_chance, key, 0)
+                    focal2agent_simulated = align_agent_moving_direction(simulated_vector, grp)
+                    relative_velocity_simulated=np.diff(focal2agent_simulated,axis=1)
+                    simulated_pd = conclude_as_pd(df_focal_animal, focal2agent_simulated,relative_velocity_simulated, epochs_by_chance, key)
+                    if num_agent>2 and this_agent_xy[1,:].mean()>0:
+                        agent_no=1
+                    elif num_agent>2 and this_agent_xy[1,:].mean()<0:
+                        agent_no=0
                     else:
-                        simulated_pd= conclude_as_pd(
-                                df_focal_animal, vector_dif_simulated, epochs_by_chance, key, i
-                        )
+                        agent_no=i
 
+                    simulated_pd.insert(
+                            simulated_pd.shape[1],
+                            "agent_id",
+                            np.repeat(agent_no, simulated_pd.shape[0]),
+                    )
+                    simulated_pd.insert(simulated_pd.shape[1],"degree",np.repeat(df_agent[df_agent["fname"] == key]["mu"].values[0], simulated_pd.shape[0]))
+                    simulated_pd.insert(simulated_pd.shape[1],"radial_distance",
+                        np.repeat(
+                            grp['radial_distance'].values[0],
+                            simulated_pd.shape[0]
+                        ))
+                    
                     simulated_pd.insert(
                             simulated_pd.shape[1],
                             "type",
@@ -676,8 +991,9 @@ def follow_behaviour_analysis(
                                 simulated_pd.shape[0],
                             ),
                     )
+                    ## should add translational and rotational gain in simulated_pd too but lets figure out a better way to do this first
                 if plotting_trajectory:
-                    target_distance = LA.norm(vector_dif, axis=0)
+                    target_distance = LA.norm(focal2agent, axis=0)
                     time_series_plot(
                             target_distance,
                             instant_speed,
@@ -691,7 +1007,10 @@ def follow_behaviour_analysis(
             if num_agent>1:
                 follow_pd_combined = pd.concat(follow_pd_list)
                 dif_across_trials.append(follow_pd_combined)
-                num_duplocated_epochs = follow_pd_combined.duplicated(subset=['ts']).sum()
+                if 'ts' in follow_pd_combined:
+                    num_duplocated_epochs = follow_pd_combined.duplicated(subset=['ts']).sum()
+                else:
+                    num_duplocated_epochs = follow_pd_combined.duplicated(3).sum()
                 sum_follow_epochs = follow_pd_combined.shape[0]-num_duplocated_epochs
                 
                 if 'simulated_pd_list' in locals() and len(simulated_pd_list)>0:
@@ -724,7 +1043,7 @@ def follow_behaviour_analysis(
                     "num_chance_epochs": [sum_chance_epochs],
                     "num_walk_epochs":[sum(walk_epochs)],
                     "number_frames": [focal_xy.shape[1] - 1],
-                    "travel_distance": [np.nansum(focal_distance_fbf)],
+                    "travel_distance": [np.nansum(focal_displacement_fbf)],
                     "total_turning": [np.nansum(abs(turn_degree_fbf))],
                     "gross_turning": [np.nansum(turn_degree_fbf)],
                     "travel_distance_ISI": [np.nansum(focal_distance_ISI)],
@@ -745,6 +1064,9 @@ def follow_behaviour_analysis(
                     "object": [grp["type"].values[0]],
                 }
             )
+            if "rotation_gain" in df_summary.columns:
+                trial_summary['rotation_gain']=[grp["rotation_gain"].values[0]]
+                trial_summary['translation_gain']=[grp["translation_gain"].values[0]]
             if "density" in df_summary.columns:
                 trial_summary['density'] = grp["density"][0]
             trial_evaluation_list.append(trial_summary)
@@ -789,8 +1111,12 @@ def follow_behaviour_analysis(
     dif_across_trials_pd = pd.concat(dif_across_trials)
     if 'simulated_across_trials' in locals() and len(simulated_across_trials)>0:
         simulated_across_trials_pd = pd.concat(simulated_across_trials)
-    dif_column_list = ["x", "y", "degree", "ts","agent_id","type"]
-    dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
+    if "rotation_gain" in df_summary.columns:
+        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree","radial_distance","type","rotation_gain","translation_gain"]
+        dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
+    else:
+        dif_column_list = ["x", "y","v_parallel","v_perpendicular","ts","agent_id","degree","radial_distance","type"]
+        dif_across_trials_pd.columns=dif_column_list[:dif_across_trials_pd.shape[1]]
     if 'simulated_across_trials_pd' in locals():
         simulated_across_trials_pd.columns=dif_column_list[:simulated_across_trials_pd.shape[1]]
     else:
@@ -798,17 +1124,14 @@ def follow_behaviour_analysis(
     trial_evaluation_pd=pd.concat(trial_evaluation_list)
     this_animal_follow_ratio=trial_evaluation_pd['num_follow_epochs'].sum()/trial_evaluation_pd['number_frames'].sum()
     print(f"the follow ratio of {summary_file.stem.split('_')[0]} in {summary_file.parent} is {this_animal_follow_ratio}")
-
+    #most_follow_quantile=trial_evaluation_pd['num_follow_epochs']>np.quantile(trial_evaluation_pd['num_follow_epochs'].values,0.66)
     if plotting_event_distribution:
-        plt.close()
         trial_evaluation=pd.concat(trial_evaluation_list)
         trial_evaluation['time_group'] = pd.cut(trial_evaluation['trial_id'], bins=3, labels=[1, 2, 3])
         fig, axes = plt.subplots(
                 nrows=1, ncols=2, figsize=(9,5), tight_layout=True)
         ax, ax2 = axes.flatten()
         test1=ax.scatter(x=trial_evaluation['trial_id'],y=trial_evaluation['num_follow_epochs'],c=trial_evaluation['travel_distance'],cmap='viridis',s=10)
-        ax.set_xticks([])
-        ax.set_xlabel("Trial#")
         ax.set(
             ylabel="Number of follow epochs",
             xticks=[0, trial_evaluation['trial_id'].max()],
@@ -837,14 +1160,19 @@ def follow_behaviour_analysis(
             xlimit=(-20,100)
             ylimit=(-45,45)
         for keys, grp in dif_across_trials_pd.groupby(['type','degree']):
-            fig = plt.figure(figsize=(9,5))
-            ax = fig.add_subplot(212)
-            ax2 = fig.add_subplot(221)
-            ax3 = fig.add_subplot(222)
+            fig = plt.figure(figsize=(9,10))
+            #ax = fig.add_subplot(212)
+            #ax2 = fig.add_subplot(221)
+            #ax3 = fig.add_subplot(222)
+            ax = fig.add_subplot(313)
+            ax2 = fig.add_subplot(321)
+            ax3 = fig.add_subplot(322)
+            ax4 = fig.add_subplot(323)
+            ax5 = fig.add_subplot(324)
             ax.hist(grp['ts'].values,bins=100,density=False,color='r')
             if len(simulated_across_trials_pd)>0:
                 sim_grp=simulated_across_trials_pd[(simulated_across_trials_pd['type']==keys[0])&(simulated_across_trials_pd['degree']==keys[1])]
-                ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.3)
+                ax.hist(sim_grp['ts'].values,bins=100,density=False,color='tab:gray',alpha=0.4)
             else:
                 sim_grp=np.array([])
             #ax.set(xlim=(0,60),ylim=(0,0.05),title=f'agent:{keys[0]},deg:{int(keys[1])}')
@@ -853,22 +1181,37 @@ def follow_behaviour_analysis(
                 if grp.shape[0]>0:
                     body_points=generate_points_within_rectangles(grp['x'].values,grp['y'].values, 1,4,2,21)
                     ax2.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                    body_points=generate_points_within_rectangles(grp['x'].values*-1,grp['y'].values*-1, 1,4,2,21)
+                    ax4.hist2d(body_points[:,0],body_points[:,1],bins=400)
                 if sim_grp.shape[0]>0:
                     body_points=generate_points_within_rectangles(sim_grp['x'].values,sim_grp['y'].values, 1,4,2,21)
                     ax3.hist2d(body_points[:,0],body_points[:,1],bins=400)
+                    body_points=generate_points_within_rectangles(sim_grp['x'].values*-1,sim_grp['y'].values*-1, 1,4,2,21)
+                    ax5.hist2d(body_points[:,0],body_points[:,1],bins=400)
             else:
                 if grp.shape[0]>0:
                     ax2.hist2d(grp['x'].values,grp['y'].values,bins=100)
+                    ax4.hist2d(grp['x'].values*-1,grp['y'].values*-1,bins=400)
                 if sim_grp.shape[0]>0:
                     ax3.hist2d(sim_grp['x'].values,sim_grp['y'].values,bins=100)
+                    ax5.hist2d(sim_grp['x'].values*-1,sim_grp['y'].values*-1,bins=100)
             ax2.set(
             yticks=[ylimit[0],ylimit[1]],
             xticks=[xlimit[0],xlimit[1]],
-            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
+            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal',title='focal2agent')
             ax3.set(
             yticks=[ylimit[0],ylimit[1]],
             xticks=[xlimit[0],xlimit[1]],
-            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal')
+            xlim=xlimit,ylim=ylimit,adjustable='box', aspect='equal',title='simulated2agent')
+            xlimit_rev=(xlimit[1]*-1,xlimit[0])
+            ax4.set(
+            yticks=[ylimit[0],ylimit[1]],
+            xticks=[xlimit_rev[0],xlimit_rev[1]],
+            xlim=xlimit_rev,ylim=ylimit,adjustable='box', aspect='equal',title='agent2focal')
+            ax5.set(
+            yticks=[ylimit[0],ylimit[1]],
+            xticks=[xlimit_rev[0],xlimit_rev[1]],
+            xlim=xlimit_rev,ylim=ylimit,adjustable='box', aspect='equal',title='agent2simulated')
             '''
             ax.axvline(
                     x=6,
@@ -896,7 +1239,17 @@ def follow_behaviour_analysis(
             fig_name = (
                 f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_follow_distribution.jpg"
             )
-            fig.savefig(summary_file.parent / fig_name)
+            fig.savefig(summary_file.parent / fig_name)   
+            # Plotting the vector field    
+            fig0,fig2=plot_velocity_vector_field(grp)
+            fig_name = (
+                f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_velocity_distance_analysis.jpg"
+            )
+            fig2.savefig(summary_file.parent / fig_name)
+            fig_name = (
+                f"{summary_file.stem.split('_')[0]}_{keys[0]}_{keys[1]}_velocity_vector_field.jpg"
+            )
+            fig0.savefig(summary_file.parent / fig_name)
     return dif_across_trials_pd, trial_evaluation_list, raster_pd, num_unfilled_gap, simulated_across_trials_pd
 
 
@@ -925,12 +1278,15 @@ def load_data(this_dir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241125_131510"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
-    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_190839"
+    thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
+    #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
+    #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
+    #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240908_125638"
+    #thisDir = r"D:\MatrexVR_grass1_Data\RunData\20240908_150715"
     #thisDir = r"D:/MatrexVR_grass1_Data/RunData/20240907_142802"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241110_165438"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241116_134457"
-    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2024_Data\RunData\20241116_134457"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_grass1_Data\RunData\20240908_125638"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20241225_134852"
     #thisDir = r"D:/MatrexVR_2024_Data/RunData/20250423_112912"
     #thisDir =r"D:/MatrexVR_2024_Data/RunData/20241231_130927"

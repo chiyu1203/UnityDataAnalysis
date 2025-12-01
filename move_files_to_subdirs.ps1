@@ -1,14 +1,17 @@
-# Usage in PowerShell as admin: .\move_files_to_subdirs.ps1 -StartID 25001 -ExperimentDate 250624
+# Usage in PowerShell as admin:
+# map network again by the following command. net use Z: "\\files.uni-konstanz.de\AG_Couzin-Fuchs"
+# Then move to the directory where this script is located and run:
+# .\move_files_to_subdirs.ps1 -StartID 25001 -ExperimentDate 250624
 param (
     [Parameter(Mandatory=$true)][int]$StartID,
     [Parameter(Mandatory=$true)][string]$ExperimentDate
 )
 
 # Hardcoded parameters
-$ExperimentName = "choices"
+$ExperimentName = "collision"
 $SessionNumber = "session1"
 # Base directory
-$BaseDir = "C:\Users\neuroPC\Documents\test"
+$BaseDir = "Z:\DATA\experiment_trackball_Optomotor\locustVR"
 
 # Get subdirectories under BaseDir, excluding those starting with "GN"
 $Subdirs = Get-ChildItem -Path $BaseDir | Where-Object { $_.PSIsContainer -and ($_.Name -notlike "GN*") }
