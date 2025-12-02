@@ -1,7 +1,7 @@
 {
- "experiment_name": "locustvr",
+ "experiment_name": "kannadi",
  "overwrite_curated_dataset": true,
- "save_output": true,
+ "save_output": false,
  "time_series_analysis": true,
  "contain_prechoice_phase": true,
  "filtering_method": "sg_filter",
@@ -10,7 +10,7 @@
  "distribution_with_entire_body": true,
  "load_individual_data": true,
  "select_animals_by_condition": true,
- "active_trials_only": true,
+ "active_trials_only": false,
  "split_stationary_moving_ISI": true,
  "align_with_isi_onset": false,
  "extract_follow_epoches": true,

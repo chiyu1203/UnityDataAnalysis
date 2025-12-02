@@ -84,6 +84,9 @@ def plot_sercansincos(df,analysis_methods,parameters,variable_name,vr_num='all')
     elif scene_name=='choice':
         cos_fig_name=f"{vr_num}_cos_{scene_name}_{variable_name}_{parameters}_single_target_{df['type'].values[0]}{active_trial}.svg"
         sin_fig_name=f"{vr_num}_sin_{scene_name}_{variable_name}_{parameters}_single_target_{df['type'].values[0]}{active_trial}.svg"
+    elif scene_name=='kannadi':
+        cos_fig_name=f"{vr_num}_cos_{scene_name}_{variable_name}_{parameters}_single_target_{df['type'].values[0]}{active_trial}.svg"
+        sin_fig_name=f"{vr_num}_sin_{scene_name}_{variable_name}_{parameters}_single_target_{df['type'].values[0]}{active_trial}.svg"
 
     fig, ax = plt.subplots(dpi=300, figsize=(1.1,0.25))
     #plt.rcParams.update(plt.rcParamsDefault)
@@ -136,8 +139,10 @@ def plot_sercantrajec(dfXY,analysis_methods,parameters,parameter_name,trajec_lim
         #     fig_name=f"{vr_num}_summary_trajectory_{scene_name}_{parameter_name}_{parameters}_{active_trial}.png"        
         # else:
         fig_name=f"{vr_num}_summary_trajectory_{scene_name}_{parameter_name}_{parameters}_density_{int(density)}{active_trial}.png"
-    else:
+    elif "type" in dfXY.columns:
         fig_name=f"{vr_num}_summary_trajectory_{scene_name}_{parameter_name}_{parameters}_single_target_{dfXY['type'].values[0]}{active_trial}.png"
+    else:
+        fig_name=f"{vr_num}_summary_trajectory_{scene_name}_{parameter_name}_{parameters}{active_trial}.png"
 
     fig, ax = plt.subplots(figsize=(3,3), dpi=300) 
     plt.rcParams.update(plt.rcParamsDefault)
@@ -160,18 +165,19 @@ def plot_sercantrajec(dfXY,analysis_methods,parameters,parameter_name,trajec_lim
 
 
         # Here plot agent's trajectory with hardcode parameters
-    if scene_name=='choice' and dfXY['type'].values[0] !='empty_trial':
-        agent_speed=2
-        radial_distance=8
-        duration=60
-        travel_direction=this_variable*-np.pi/180#the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
-        radial_distance_b=np.cos(travel_direction)*radial_distance
-        delta_cos=np.cumsum(np.repeat(np.cos(travel_direction)*agent_speed, duration))
-        agent_cos=radial_distance_b+delta_cos
-        radial_distance_b=np.sin(travel_direction)*radial_distance
-        delta_sin=np.cumsum(np.repeat(np.sin(travel_direction)*agent_speed, duration))
-        agent_sin=radial_distance_b+delta_sin
-        plt.plot(agent_cos, agent_sin, color='k', linewidth=lw)
+    if "type" in dfXY.columns:
+        if scene_name=='choice' and dfXY['type'].values[0] !='empty_trial':
+            agent_speed=2
+            radial_distance=8
+            duration=60
+            travel_direction=this_variable*-np.pi/180#the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+            radial_distance_b=np.cos(travel_direction)*radial_distance
+            delta_cos=np.cumsum(np.repeat(np.cos(travel_direction)*agent_speed, duration))
+            agent_cos=radial_distance_b+delta_cos
+            radial_distance_b=np.sin(travel_direction)*radial_distance
+            delta_sin=np.cumsum(np.repeat(np.sin(travel_direction)*agent_speed, duration))
+            agent_sin=radial_distance_b+delta_sin
+            plt.plot(agent_cos, agent_sin, color='k', linewidth=lw)
 
     plt.xlim(-1*trajec_lim, trajec_lim)
     plt.ylim(-1*trajec_lim, trajec_lim)
