@@ -96,13 +96,21 @@ def align_and_flip_heading(df, heading_col='heading', trial_col='trial_id', t_co
 
 #############################################################################################
 
-def convert_trial_label(df):
+def convert_trial_label(df, exp_type='choice'):
     # Extract values using regex groups
-    extracted = df['trial_label'].str.extract(r'CD(\d+(?:\.\d+)?)_CS(\d+(?:\.\d+)?)')
 
-    # Assign to new columns, converting to float or int if needed
-    df['constant_distance'] = extracted[0].astype(float).astype(int)
-    df['constant_speed'] = extracted[1].astype(float).astype(int)
+    if exp_type == 'choice':
+        extracted = df['trial_label'].str.extract(r'CD(\d+(?:\.\d+)?)_CS(\d+(?:\.\d+)?)')
+         # Assign to new columns, converting to float or int if needed
+        df['constant_distance'] = extracted[0].astype(float)  #.astype(int)
+        df['constant_speed'] = extracted[1].astype(float)  #.astype(int)
+
+    elif exp_type == 'collision': 
+        extracted = df['trial_label'].str.extract(r'Texture(\d+(?:\.\d+)?)_CS(\d+(?:\.\d+)?)')
+        # Assign to new columns, converting to float or int if needed
+        df['texture_type'] = extracted[0].astype(float)  #.astype(int)
+        df['constant_speed'] = extracted[1].astype(float)  #.astype(int)
+
 
     # Drop the original column
     df.drop(columns=['trial_label'], inplace=True)

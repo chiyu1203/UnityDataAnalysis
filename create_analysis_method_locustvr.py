@@ -33,6 +33,11 @@ analysis_methods = {
     "body_length": 4,
     "growth_condition": "G",
     "analysis_window": [-5, 5],
+
+    "analysis_windows_by_speed": {
+        1.0: [-5, 5],  
+        4.0: [-4, 6],  
+    },
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:
