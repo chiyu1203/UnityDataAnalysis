@@ -19,9 +19,9 @@ lock = Lock()
 def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
+    camera_fps = analysis_methods.get("camera_fps")
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     contain_prechoice_phase = analysis_methods.get("contain_prechoice_phase", True)
-    
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
@@ -30,6 +30,10 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     BODY_LENGTH3 = (
         analysis_methods.get("body_length", 4) * 3
     )
+    if int(camera_fps/2)%2==0:
+        filter_window_length=int(camera_fps/2)+1
+    else:
+        filter_window_length=int(camera_fps/2)
     this_file = find_file(thisDir, "data*.dat")
     if type(this_file) == str:
         this_file = Path(this_file)
@@ -211,8 +215,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
         this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         if time_series_analysis:
             if analysis_methods.get("filtering_method") == "sg_filter":
-                X = savgol_filter(X, 59, 3, axis=0)
-                Y = savgol_filter(Y, 59, 3, axis=0)
+                X = savgol_filter(X, filter_window_length, 3, axis=0)
+                Y = savgol_filter(Y, filter_window_length, 3, axis=0)
             loss, curated_X, curated_Y,mask= remove_unreliable_tracking(X, Y,analysis_methods)
             loss = 1 - loss
             if mask.shape[1]>0:
@@ -353,7 +357,7 @@ def load_files(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250626\choices\session1"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25081\251128\collision\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25077\251128\collision\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
