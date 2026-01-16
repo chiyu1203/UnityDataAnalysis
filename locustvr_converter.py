@@ -419,6 +419,7 @@ def analyse_focal_animal(
     temperature_df=None,
 ):
     monitor_fps = analysis_methods.get("monitor_fps")
+    camera_fps = analysis_methods.get("camera_fps",100)
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     save_output = analysis_methods.get("save_output", False)
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
@@ -430,11 +431,15 @@ def analyse_focal_animal(
         analysis_methods.get("body_length", 4) * 3
     )  ## multiple 3 because 3 body length is used for spatial discretisation in Sayin et al.
     growth_condition = analysis_methods.get("growth_condition")
+    if int(camera_fps/2)%2==0:
+        filter_window_length=int(camera_fps/2)+1
+    else:
+        filter_window_length=int(camera_fps/2)
 
     if type(this_file) == str:
         this_file = Path(this_file)
         df = load_file(this_file)
-    elif type(this_file) == list:
+    elif type(this_file) == list:## this is designed to deal with the use of different scene
         df1 = load_file(this_file[0])
         df2 = load_file(this_file[1])
         this_file=this_file[0]
@@ -486,10 +491,8 @@ def analyse_focal_animal(
     loss = 1 - remains
     elapsed_time = (ts - ts.min()).dt.total_seconds().values
     if time_series_analysis and analysis_methods.get("filtering_method") == "sg_filter":
-        X = bfill(X)
-        Y = bfill(Y)
-        X = savgol_filter(X, 59, 3, axis=0)
-        Y = savgol_filter(Y, 59, 3, axis=0)
+        X = savgol_filter(bfill(X), 59, 3, axis=0)
+        Y = savgol_filter(bfill(Y), 59, 3, axis=0)
     else:
         elapsed_time=elapsed_time[:-1][mask]
         step_id=step_id.values[:-1][mask]
@@ -543,10 +546,8 @@ def analyse_focal_animal(
         loss = 1 - remains
         elapsed_time = (ts - ts.min()).dt.total_seconds().values
         if time_series_analysis and analysis_methods.get("filtering_method") == "sg_filter":
-            X = bfill(X)
-            Y = bfill(Y)
-            X = savgol_filter(X, 59, 3, axis=0)
-            Y = savgol_filter(Y, 59, 3, axis=0)
+            X = savgol_filter(bfill(X), filter_window_length, 3, axis=0)
+            Y = savgol_filter(bfill(Y), filter_window_length, 3, axis=0)
             angles_rad = np.radians(-rot_y.values)
         else:
             if remains<1.0:
@@ -622,7 +623,7 @@ def analyse_focal_animal(
             humidity = df[this_range]["Relative Humidity (%)"].values
             #num_spatial_decision = len(angles)
         else:
-            newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
+            newindex = diskretize(x=list(rXY[0]), y=list(rXY[1]),diskretise_length=BODY_LENGTH3)
             dX = rXY[0][newindex]
             dY = rXY[1][newindex]
             temperature = df.iloc[newindex]["Temperature ˚C (ºC)"].values

@@ -91,7 +91,7 @@ def plot_sercansincos(df,analysis_methods,parameters,variable_name,vr_num='all')
     fig, ax = plt.subplots(dpi=300, figsize=(1.1,0.25))
     #plt.rcParams.update(plt.rcParamsDefault)
     plt.rcParams.update({'font.size': 8})
-    plt.rcParams['font.family'] = 'Arial'
+    #plt.rcParams['font.family'] = 'Arial'
     plt.set_cmap('cividis')
     # Set the axis line width to 2
     plt.rcParams['ytick.major.width'] = 2

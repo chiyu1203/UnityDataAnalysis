@@ -19,7 +19,7 @@ lock = Lock()
 def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
-    camera_fps = analysis_methods.get("camera_fps")
+    camera_fps = analysis_methods.get("camera_fps",100)
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
     contain_prechoice_phase = analysis_methods.get("contain_prechoice_phase", True)
     save_output = analysis_methods.get("save_output", False)
@@ -243,7 +243,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             if len(X) == 0:
                 continue
             rXY = np.vstack((X, Y))
-            newindex = diskretize(list(rXY[0]), list(rXY[1]), BODY_LENGTH3)
+            newindex = diskretize(x=list(rXY[0]), y=list(rXY[1]),diskretise_length=BODY_LENGTH3)
             curated_X = rXY[0][newindex]
             curated_Y = rXY[1][newindex]
             angles = np.arctan2(np.diff(curated_Y), np.diff(curated_X)) ## in time series analysis, the angles should come from locustVR directly.
