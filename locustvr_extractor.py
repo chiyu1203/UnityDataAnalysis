@@ -184,12 +184,13 @@ def extract_locustvr_dat(thisDir, analysis_methods):
         # ax4.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['preChoice_relativeY'])
         # ax5.scatter(pd_this_trial['preChoice_relativeX'],pd_this_trial['preChoice_relativeY'],c=np.arange(pd_this_trial.shape[0]),marker=".")
         # ax6.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['heading_direction'])
-        # ax7.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentX2'])## In the first trial, Agent2 is the constant speed one
-        # ax8.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentY2'])
+        # # ax7.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentX2'])## In the first trial, Agent2 is the constant speed one
+        # # ax8.plot(np.arange(pd_this_trial.shape[0]),pd_this_trial['AgentY2'])
         # # ax1.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_X)
         # # ax2.plot(np.arange(pd_this_trial.shape[0]),this_trajectory_Y)
         # # ax3.scatter(this_trajectory_X,this_trajectory_Y,c=np.arange(pd_this_trial.shape[0]),marker=".")        
-        # plt.show()
+        # fig.savefig(f'overview_trial{this_trial}.png')
+        #plt.show()
         
         
         ## this can be used to recover the trajectory in the VR environment. However, it would make plotting trajectory more difficult so we rezero every position trial by trial
@@ -221,8 +222,15 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             loss = 1 - loss
             if mask.shape[1]>0:
                 heading[mask]=np.nan
-            angles=heading
+            
             dts =elapsed_time
+            # angles = np.arctan2(np.diff(curated_Y), np.diff(curated_X))
+            # fig2, (ax1,ax2) = plt.subplots(
+            # nrows=1, ncols=2, figsize=(9,10), tight_layout=True)
+            # ax1.plot(np.arange(pd_this_trial.shape[0]),heading)
+            # ax2.plot(np.arange(angles.shape[0]),angles)
+            # fig2.savefig(f'heading_trial{this_trial}.png')
+            angles=heading
             num_spatial_decision = len(angles)
         else:
             loss, X, Y,mask = remove_unreliable_tracking(X, Y,analysis_methods)
