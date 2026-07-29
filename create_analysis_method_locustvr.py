@@ -38,7 +38,7 @@ analysis_methods = {
         1.0: [-5, 5],  
         4.0: [-4, 6],  
     },
-}  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
+}  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence level
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:
     f.write(json_string)
