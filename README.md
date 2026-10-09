@@ -83,6 +83,16 @@ conda create --name unity_analysis --file requirements.txt
 ```
 It seems that environment.yml is better for environment with packages installed via conda....
 
+If you want to install with uv but still under conda environment.
+```
+conda create --name unity_analysis --channel conda-forge python=3.11
+conda activate unity_analysis
+conda update -n base -c defaults conda
+conda config --add channels conda-forge
+conda install conda-forge::uv
+uv pip install lifelines reliability matplotlib notebook seaborn pytables deepdiff pyarrow fastparquet ipyparallel seaborn deepdiff pyarrow fastparquet ipyparallel tables h5py
+```
+
 ## Other modules required to run this analysis
 
 There are useful tools stored in another repository so after you cloned UnityDataAnalaysis, remember to clone utilities as well and place them all under the GitHub folder
