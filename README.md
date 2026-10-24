@@ -90,7 +90,7 @@ conda activate unity_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda install conda-forge::uv
-uv pip install reliability matplotlib notebook seaborn pytables deepdiff pyarrow fastparquet ipyparallel seaborn deepdiff tables h5py marimo zenodo-get
+uv pip install numpy scipy pandas reliability matplotlib notebook seaborn deepdiff pyarrow fastparquet ipyparallel seaborn deepdiff tables h5py marimo zenodo-get
 ```
 
 ## Other modules required to run this analysis
