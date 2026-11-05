@@ -1,4 +1,4 @@
-import os,time,json,sys
+import os,time,json,re,sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -16,6 +16,70 @@ from useful_tools import find_file,find_nearest
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 
 lock = Lock()
+
+TRIAL_LABEL_PATTERN = re.compile(
+    r"^(?:T\d+_)?CD(?P<distance_cm>\d+)_"
+    r"CS(?P<condition_code>\d+)_"
+    r"S(?P<state>\d+)_"
+    r"L(?P<left_texture>[^_]+)_"
+    r"R(?P<right_texture>[^_]+)_"
+    r"BT(?P<bait_texture>[^_]+)$"
+)
+
+
+def parse_trial_label(trial_label):
+    """Return the extended LocustVR label as separate analysis fields."""
+    match = TRIAL_LABEL_PATTERN.match(str(trial_label))
+    if match is None:
+        return {
+            "distance_cm": np.nan,
+            "condition_code": np.nan,
+            "label_state": np.nan,
+            "left_texture": np.nan,
+            "right_texture": np.nan,
+            "bait_texture": np.nan,
+        }
+
+    fields = match.groupdict()
+    return {
+        "distance_cm": int(fields["distance_cm"]),
+        "condition_code": int(fields["condition_code"]),
+        "label_state": int(fields["state"]),
+        "left_texture": fields["left_texture"],
+        "right_texture": fields["right_texture"],
+        "bait_texture": fields["bait_texture"],
+    }
+
+
+def extract_experiment_datetime(this_file):
+    """Read YYYYMMDD/HHMM from the data filename or its result folder."""
+    for name in (this_file.stem, this_file.parent.name):
+        parts = name.split("_")
+        for index in range(len(parts) - 1):
+            date_part = parts[index]
+            time_part = parts[index + 1]
+            if (
+                len(date_part) == 8
+                and date_part.isdigit()
+                and len(time_part) >= 4
+                and time_part[:4].isdigit()
+            ):
+                try:
+                    return pd.to_datetime(
+                        "{}_{}".format(date_part, time_part[:4]),
+                        format="%Y%m%d_%H%M",
+                    )
+                except ValueError:
+                    continue
+
+    print(
+        "Unable to extract experiment date and time from {} or {}".format(
+            this_file.name, this_file.parent.name
+        )
+    )
+    return None
+
+
 def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
@@ -77,19 +141,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     # df["preChoice_Y"]=df["preChoice_relativeY"]+ df['Y']
 
     '''align temperature data with df'''
-    if len(this_file.stem.split('_'))>=3:
-        exp_date=this_file.stem.split('_')[1]
-        exp_hour=this_file.stem.split('_')[2]
-        #[_,exp_date, exp_hour,_,_] = this_file.stem.split('_')
-    elif len(this_file.stem.split('_'))<2:
-        print("File name format error, unable to extract experiment date and hour")
-        exp_date="00000000"
-        exp_hour="0000"
-    else:
-        exp_date=this_file.stem.split('_')[0]
-        exp_hour=this_file.stem.split('_')[1]
-    exp_time=f"{exp_date}_{exp_hour}"
-    exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M")
+    exp_time_dt = extract_experiment_datetime(this_file)
 
     found_result = find_file(thisDir, "locustVR*.txt", "DL220THP*.csv")
     ## here to load temperature data
@@ -117,7 +169,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             )
 
 
-    if temperature_df is None:
+    if temperature_df is None or exp_time_dt is None:
         df["Temperature ˚C (ºC)"] = np.nan
         df["Relative Humidity (%)"] = np.nan
     else:
@@ -206,8 +258,15 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             continue # if a trial only has 1 state type, that means that trial never enter the actual choice phase, skip this trial
         else:
             state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
-        label_split=df[df['trial_id'] == this_trial]['trial_label'].values[-1].split("_")##get trial label this way because in the first version, trial label is updated one row later 
-        trial_label=f"{label_split[1]}_{label_split[2]}_{label_split[3]}"##remove T information because that is redundant 
+        raw_trial_label = str(
+            df[df["trial_id"] == this_trial]["trial_label"].values[-1]
+        )
+        label_split = raw_trial_label.split("_")
+        if label_split[0].startswith("T") and label_split[0][1:].isdigit():
+            trial_label = "_".join(label_split[1:])
+        else:
+            trial_label = raw_trial_label
+        label_fields = parse_trial_label(trial_label)
         this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         if time_series_analysis:
             if analysis_methods.get("filtering_method") == "sg_filter":
@@ -281,6 +340,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             'state_type': this_state_type,
             'trial_label': trial_label,
         })
+        for column_name, column_value in label_fields.items():
+            df_xy[column_name] = column_value
         df_trial = pd.DataFrame({
             'fname': [thisDir],
             'loss': loss,
@@ -298,6 +359,8 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             "temperature":temperature_this_trial[0],
             "humidity":humidity_this_trial[0]
         })
+        for column_name, column_value in label_fields.items():
+            df_trial[column_name] = column_value
         if plotting_trajectory == True:
             if state_type_summary==1:
                     ## if using plot instead of scatter plot

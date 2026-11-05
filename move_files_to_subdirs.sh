@@ -10,7 +10,7 @@ EXPERIMENT_DATE=$2
 EXPERIMENT_NAME="choices"
 SESSION_NUM="session1"
 # Base directory (update this if mounted differently on macOS)
-BASE_DIR="/Volumes/DATA/experiment_trackball_Optomotor/locustVR"
+BASE_DIR="/Volumes/DATA-1/experiment_trackball_Optomotor/locustVR"
 
 # Input validation
 if [ "$#" -ne 2 ]; then
