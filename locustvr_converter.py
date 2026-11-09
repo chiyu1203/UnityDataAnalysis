@@ -565,15 +565,16 @@ def analyse_focal_animal(
                 df_simulated = df_simulated_animal[id][0]
             else:
                 df_simulated = df_simulated_animal[id]
-                if "Current Time" in df_simulated.columns:
-                    df_simulated.set_index("Current Time", inplace=True)            
-            if ts.index.inferred_type == "datetime64":
+            if "Current Time" in df_simulated.columns:# check if Current Time exists in the simulated animal's dataframe. If so, use it as index to align with focal animal's index. If not, probably the original index is already set as timestamp.
+                df_simulated.set_index("Current Time", inplace=True)            
+            if ts.index.inferred_type == "datetime64":# check the format of focal animal's timestamp.
                 if df_simulated.index.is_monotonic_increasing ==False or ts.index.is_monotonic_increasing ==False:
-                    df_simulated = df_simulated.sort_index()## somehow the index is not sorted
+                    df_simulated = df_simulated.sort_index()## somehow the index was not sorted when the data was saved.
                     ts = ts.sort_index()
                 df_simulated = df_simulated.reindex(ts.index, method="nearest")
             else:
                 df_simulated = df_simulated.reindex(ts, method="nearest") ## when the temperature data is not available, ts index would be normal
+            num_agent_game_object=1
         elif (
             scene_name != "choice"
             and isinstance(df_simulated_animal[id], pd.DataFrame) == True
@@ -661,15 +662,18 @@ def analyse_focal_animal(
         f = [fchop] * len(dX)
         different_key_list = []
         if isinstance(condition, list):
-            diff_con = DeepDiff(condition[0], condition[1])
-            pprint(diff_con)
-            for different_key in diff_con.affected_root_keys:
-                different_key_list.append(different_key)
-            condition = condition[0]
-            if "type" in different_key_list:
-                value1 = diff_con["values_changed"]["root['type']"]["old_value"]
-                value2 = diff_con["values_changed"]["root['type']"]["new_value"]
-                condition["type"] = f"{value1}_x_{value2}"
+            if len(condition) > 1:
+                diff_con = DeepDiff(condition[0], condition[1])
+                pprint(diff_con)
+                for different_key in diff_con.affected_root_keys:
+                    different_key_list.append(different_key)
+                condition = condition[0]
+                if "type" in different_key_list:
+                    value1 = diff_con["values_changed"]["root['type']"]["old_value"]
+                    value2 = diff_con["values_changed"]["root['type']"]["new_value"]
+                    condition["type"] = f"{value1}_x_{value2}"
+            else:
+                condition = condition[0]
 
                 
         if 'speed' in condition.keys():
@@ -758,6 +762,8 @@ def analyse_focal_animal(
                         agent_dX = agent_rXY[0][newindex]
                         agent_dY = agent_rXY[1][newindex]
                     agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
+                num_agent_per_object=2# because this is an bifuration assay in the choice assay. Their position were logged in the same dataframe.
+
 
         # elif (
         #     isinstance(df_simulated_animal[id], pd.DataFrame) == True
@@ -1389,7 +1395,7 @@ if __name__ == "__main__":
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250801_075938"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_173358"
-    thisDir = r"D:\MatrexVR_2026_Data\RunData\20251125_085432"
+    thisDir = r"Z:\TRANSFER\Claire2Chiyu\20260731_124533"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_185029"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250702_095817"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
