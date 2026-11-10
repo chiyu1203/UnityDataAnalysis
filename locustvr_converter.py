@@ -216,22 +216,6 @@ def fill_missing_data(df):
             fill_rot = np.diff(
                 np.unwrap(np.flip(reference_heading[num_zero_fictrac:]), period=360)
             )
-            # if i==35868: not sure why 20260402_161851_Choice_VR4 needs this
-            #     df.loc[
-            #         missing_start + num_zero_fictrac + 1 : missing_end - 1,
-            #         "GameObjectRotY",
-            #     ] = np.flip(
-            #         np.unwrap(missing_heading[-1] + np.cumsum(fill_rot), period=360)
-            #     )
-            #     df.loc[
-            #         missing_start + num_zero_fictrac + 1 : missing_end - 1,
-            #         "GameObjectPosX",
-            #     ] = transformed_coordinates[num_zero_fictrac:-1, 0]
-            #     df.loc[
-            #         missing_start + num_zero_fictrac + 1 : missing_end - 1,
-            #         "GameObjectPosZ",
-            #     ] = transformed_coordinates[num_zero_fictrac:-1, 1]
-            # else:
             df.loc[
                 missing_start + num_zero_fictrac + 1 : missing_end + 1,
                 "GameObjectRotY",
@@ -548,17 +532,6 @@ def analyse_focal_animal(
     ) = ([], [], [], [], [])
     for id, condition in enumerate(conditions):
         this_range = (df["CurrentStep"] == id) & (df["CurrentTrial"] == 0)
-        # if isinstance(condition, list):
-        #     closed_loop_gain=condition[0]['translation_gain']
-        # else:
-        #     closed_loop_gain=condition['translation_gain']
-        # if closed_loop_gain==0:
-        #     ts,xy,rot_y,_,session_id = prepare_data(df,"SensPosX","SensPosY","SensRotY",this_range)
-        #     xy[0][np.isnan(xy[0])==True]=0
-        #     xy[1][np.isnan(xy[1])==True]=0
-        #     xy=xy*analysis_methods.get("trackball_radius_cm")
-        #     xy=xy-np.transpose(np.tile(xy[:,0],(xy.shape[1],1)))
-        # else:
         ts,xy,rot_y,_,session_id = prepare_data(df,"GameObjectPosX","GameObjectPosZ","GameObjectRotY",this_range)
         if len(ts) == 0:
             break
@@ -592,15 +565,16 @@ def analyse_focal_animal(
                 df_simulated = df_simulated_animal[id][0]
             else:
                 df_simulated = df_simulated_animal[id]
-                if "Current Time" in df_simulated.columns:
-                    df_simulated.set_index("Current Time", inplace=True)            
-            if ts.index.inferred_type == "datetime64":
+            if "Current Time" in df_simulated.columns:# check if Current Time exists in the simulated animal's dataframe. If so, use it as index to align with focal animal's index. If not, probably the original index is already set as timestamp.
+                df_simulated.set_index("Current Time", inplace=True)            
+            if ts.index.inferred_type == "datetime64":# check the format of focal animal's timestamp.
                 if df_simulated.index.is_monotonic_increasing ==False or ts.index.is_monotonic_increasing ==False:
-                    df_simulated = df_simulated.sort_index()## somehow the index is not sorted
+                    df_simulated = df_simulated.sort_index()## somehow the index was not sorted when the data was saved.
                     ts = ts.sort_index()
                 df_simulated = df_simulated.reindex(ts.index, method="nearest")
             else:
                 df_simulated = df_simulated.reindex(ts, method="nearest") ## when the temperature data is not available, ts index would be normal
+            num_agent_game_object=1
         elif (
             scene_name != "choice"
             and isinstance(df_simulated_animal[id], pd.DataFrame) == True
@@ -641,24 +615,6 @@ def analyse_focal_animal(
         )
         rXY = rot_matrix @ np.vstack((X, Y))
 
-        # if closed_loop_gain!=0:
-        #     theta = np.radians(-90)  # applying rotation matrix to rotate the coordinates
-        #     # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
-        #     rot_matrix = np.array(
-        #         [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-        #     )
-        #     rXY = rot_matrix @ np.vstack((X, Y))
-        # else:
-        #     theta = np.radians(277.3983-90)  # applying rotation matrix to rotate the coordinates
-        #     # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
-        #     rot_matrix = np.array(
-        #         [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-        #     )
-        #     rXY = np.vstack((X, Y))
-        # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), tight_layout=True)
-        # ax1.plot(rXY[0],rXY[1])
-        # ax2.plot(rXY_fictrac[1],rXY_fictrac[0])
-        # fig.savefig('test.png')
         if time_series_analysis:
             (dX, dY) = (rXY[0], rXY[1])
             # Ensure the angles remain in the range [-π, π]
@@ -705,15 +661,18 @@ def analyse_focal_animal(
         f = [fchop] * len(dX)
         different_key_list = []
         if isinstance(condition, list):
-            diff_con = DeepDiff(condition[0], condition[1])
-            pprint(diff_con)
-            for different_key in diff_con.affected_root_keys:
-                different_key_list.append(different_key)
-            condition = condition[0]
-            if "type" in different_key_list:
-                value1 = diff_con["values_changed"]["root['type']"]["old_value"]
-                value2 = diff_con["values_changed"]["root['type']"]["new_value"]
-                condition["type"] = f"{value1}_x_{value2}"
+            if len(condition) > 1:
+                diff_con = DeepDiff(condition[0], condition[1])
+                pprint(diff_con)
+                for different_key in diff_con.affected_root_keys:
+                    different_key_list.append(different_key)
+                condition = condition[0]
+                if "type" in different_key_list:
+                    value1 = diff_con["values_changed"]["root['type']"]["old_value"]
+                    value2 = diff_con["values_changed"]["root['type']"]["new_value"]
+                    condition["type"] = f"{value1}_x_{value2}"
+            else:
+                condition = condition[0]
 
                 
         if 'speed' in condition.keys():
@@ -772,11 +731,6 @@ def analyse_focal_animal(
         if scene_name.lower() == "choice" or scene_name.lower() == "band":
             df_curated["radial_distance"] = radial_distance
             df_curated["polar_angle"] = polar_angle
-            # Probably no need to save the following into curated database but just in case
-            # if scene_name.lower() == "band":
-            #     df_curated["visibleOffDuration"] = voff
-            #     df_curated["visibleOnDuration"] = von
-            #     df_curated["rotationAngle"] = f_angle
 
             ##load information about simulated locusts
         if scene_name.lower() == "choice":
@@ -802,11 +756,8 @@ def analyse_focal_animal(
                         agent_dX = agent_rXY[0][newindex]
                         agent_dY = agent_rXY[1][newindex]
                     agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
+                num_agent_per_object=2# because this is an bifuration assay in the choice assay. Their position were logged in the same dataframe.
 
-        # elif (
-        #     isinstance(df_simulated_animal[id], pd.DataFrame) == True
-        #     and "these_simulated_agents" in locals()
-        # ):
         elif "these_simulated_agents" in locals():
             pivot_table_column=int(len(these_simulated_agents.columns)/len(these_simulated_agents.columns.get_level_values(0).unique()))
             num_agent_per_object = int(these_simulated_agents.shape[1] / pivot_table_column/num_agent_game_object)
@@ -821,11 +772,6 @@ def analyse_focal_animal(
                             )
                         )
                         agent_rXY = rot_matrix @ np.vstack((agent_xy[0], agent_xy[1]))
-                        # if time_series_analysis:
-                        #     (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
-                        # else:
-                        #     agent_dX = agent_rXY[0][newindex]
-                        #     agent_dY = agent_rXY[1][newindex]
                         (agent_dX, agent_dY) = (agent_rXY[0], agent_rXY[1])
                         agent_dXY_list.append(np.vstack((agent_dX, agent_dY)))
             del these_simulated_agents
@@ -1081,8 +1027,6 @@ def preprocess_matrex_data(thisDir, json_file):
     scene_name = analysis_methods.get("experiment_name")
     ## here to load simulated agent's data
     for i in range(num_vr):
-        if i==3:
-            continue
         if analysis_methods.get("export_fictrac_data_only",False)==False:
             if scene_name.lower() == "swarm" or scene_name.lower() == "band" or scene_name.lower()== "kannadi":
                 agent_pattern = f"*SimulatedLocustsVR{i+1}*"
@@ -1435,7 +1379,7 @@ if __name__ == "__main__":
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250523_143428"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250801_075938"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_173358"
-    thisDir = r"D:\MatrexVR_2024_Data\RunData\20260402_161851"
+    thisDir = r"Z:\TRANSFER\Claire2Chiyu\20260731_124533"
     #thisDir = r"C:\Users\neuroLaptop\Documents\MatrexVR_2026_Data\RunData\20251114_185029"
     #thisDir = r"D:\MatrexVR_2024_Data\RunData\20250702_095817"
     #thisDir = r"D:\MatrexVR_2024_3_Data\RunData\20250709_155715"
