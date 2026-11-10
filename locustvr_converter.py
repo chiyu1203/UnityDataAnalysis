@@ -1082,8 +1082,6 @@ def preprocess_matrex_data(thisDir, json_file):
                                 )
 
                                 if num_object_on_scene > 1:
-                                    # if isinstance(result, pd.DataFrame) == True:
-                                    #     result.drop_duplicates(subset=["GameObjectPosZ"], keep='last',inplace=True)
                                     if this_object == 0:
                                         condition["duration"] = trial_sequence["sequences"][
                                             idx
@@ -1288,37 +1286,114 @@ def preprocess_matrex_data(thisDir, json_file):
                             this_range = (df["CurrentStep"] == idx) & (
                                 df["CurrentTrial"] == 0
                             )
-                            result, condition = read_agent_data(
-                                df[this_range],
-                                analysis_methods,
-                                trial_condition["objects"][0],
-                            )
-                            result_list.append(result)
+                            for this_object in range(num_object_on_scene):
+                                if num_object_on_scene > 1:
+                                    if this_object == 0:
+                                        condition["duration"] = trial_sequence["sequences"][
+                                            idx
+                                        ][
+                                            "duration"
+                                        ]  # may need to add condition to exclude some kind of data from choice assay.
+                                        condition_list.append(condition)
+                                    if (
+                                        (
+                                            trial_condition["objects"][0]["type"]
+                                            == trial_condition["objects"][1]["type"]
+                                        )
+                                        and (this_object == 1)
+                                        and (trial_condition["objects"][0]["type"] != "")
+                                    ):
+                                        theta = np.radians(trial_condition["objects"][1]['mu']+270)
+                                        # applying rotation matrix to rotate the coordinates
+                                        # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
+                                        rot_matrix = np.array(
+                                            [
+                                                [np.cos(theta), -np.sin(theta)],
+                                                [np.sin(theta), np.cos(theta)],
+                                            ]
+                                        )
+                                        rXY = rot_matrix @ np.vstack(
+                                            (
+                                                result["GameObjectPosX"].values,
+                                                result["GameObjectPosZ"].values,
+                                            )
+                                        )
+                                        result["GameObjectPosX"] = rXY[1]
+                                        result["GameObjectPosZ"] = rXY[0]
+                                    result_list.append(result)
+                                    if isinstance(result, pd.DataFrame) == True and (
+                                        this_object == 1
+                                    ):
+                                        if len(result_list[0]) >= len(result_list[1]):
+                                            matched_id = np.searchsorted(
+                                                result_list[0]["Current Time"].values,
+                                                result_list[1]["Current Time"].values,
+                                            )
+                                            if (
+                                                matched_id.shape[0]
+                                                == result_list[0].shape[0]
+                                            ):
+                                                pass
+                                            elif matched_id[-1] >= result_list[0].shape[0]:
+                                                result_list[0] = result_list[0].iloc[
+                                                    matched_id[:-1], :
+                                                ]
+                                            else:
+                                                result_list[0] = result_list[0].iloc[
+                                                    matched_id, :
+                                                ]
+                                        elif len(result_list[0]) < len(result_list[1]):
+                                            matched_id = np.searchsorted(
+                                                result_list[1]["Current Time"].values,
+                                                result_list[0]["Current Time"].values,
+                                            )
+                                            if (
+                                                matched_id.shape[0]
+                                                == result_list[1].shape[0]
+                                            ):
+                                                pass
+                                            elif matched_id[-1] >= result_list[1].shape[0]:
+                                                result_list[1] = result_list[1].iloc[
+                                                    matched_id[:-1], :
+                                                ]
+                                            else:
+                                                result_list[1] = result_list[1].iloc[
+                                                    matched_id, :
+                                                ]
+                                        df_agent = reshape_multiagent_data(
+                                            pd.concat(result_list), this_object
+                                        )
+                                        result_list = []
+                                        result_list.append(df_agent)
+                                    else:
+                                        df_agent = None
+                                else:
+                                    result_list.append(result)
+                        condition["duration"] = trial_sequence["sequences"][idx][
+                            "duration"
+                        ]  # may need to add condition to exclude some kind of data from choice assay.
+                        if type(trial_condition['closedLoopOrientation'])==bool:
+                            if trial_condition['closedLoopOrientation']==True:
+                                condition["rotation_gain"]=1.0
+                            else:
+                                condition["rotation_gain"]=0.0
+                        else:
+                            condition["rotation_gain"]=trial_condition['closedLoopOrientation']
+                        if type(trial_condition['closedLoopPosition'])==bool:
+                            if trial_condition['closedLoopPosition']==True:
+                                condition["translation_gain"]=1.0
+                            else:
+                                condition["translation_gain"]=0.0
+                        else:
+                            condition["translation_gain"]=trial_condition['closedLoopPosition']
 
-                            condition["duration"] = trial_sequence["sequences"][idx][
-                                "duration"
-                            ]  # may need to add condition to exclude some kind of data from choice assay.
-                            if type(trial_condition['closedLoopOrientation'])==bool:
-                                if trial_condition['closedLoopOrientation']==True:
-                                    condition["rotation_gain"]=1.0
-                                else:
-                                    condition["rotation_gain"]=0.0
-                            else:
-                                condition["rotation_gain"]=trial_condition['closedLoopOrientation']
-                            if type(trial_condition['closedLoopPosition'])==bool:
-                                if trial_condition['closedLoopPosition']==True:
-                                    condition["translation_gain"]=1.0
-                                else:
-                                    condition["translation_gain"]=0.0
-                            else:
-                                condition["translation_gain"]=trial_condition['closedLoopPosition']
-                            condition_list.append(condition)
-                            if num_object_on_scene == 1:
-                                conditions.append(condition_list[0])
-                                df_simulated_animal.append(result_list[0])
-                            else:
-                                conditions.append(condition_list)
-                                df_simulated_animal.append(result_list)
+                        condition_list.append(condition)
+                        if num_object_on_scene <= 1:
+                            conditions.append(condition_list[0])
+                            df_simulated_animal.append(result_list[0])
+                        else:
+                            conditions.append(condition_list)
+                            df_simulated_animal.append(result_list)
         else:
             df_simulated_animal=[]
             conditions=[]
