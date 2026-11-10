@@ -608,7 +608,10 @@ def analyse_focal_animal(
                 #plus1 = df_simulated_animal[id][1].reindex(ts.index, method="nearest")
                 these_simulated_agents=pd.concat(reindex_temp_list,axis=1)
                 #these_simulated_agents=these_simulated_agents.join(plus1)
-        theta = np.radians(-90)  # applying rotation matrix to rotate the coordinates
+        theta = np.radians(-90)  
+        # The additional -90 rotation is not needed, but it is added there because I wanted to be consistent with the plots in Sayin et al., 2025.
+        
+        # applying rotation matrix to rotate the coordinates
         # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
         rot_matrix = np.array(
             [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
@@ -1088,6 +1091,20 @@ def preprocess_matrex_data(thisDir, json_file):
                                         ][
                                             "duration"
                                         ]  # may need to add condition to exclude some kind of data from choice assay.
+                                        if type(trial_condition['closedLoopOrientation'])==bool:
+                                            if trial_condition['closedLoopOrientation']==True:
+                                                condition["rotation_gain"]=1.0
+                                            else:
+                                                condition["rotation_gain"]=0.0
+                                        else:
+                                            condition["rotation_gain"]=trial_condition['closedLoopOrientation']
+                                        if type(trial_condition['closedLoopPosition'])==bool:
+                                            if trial_condition['closedLoopPosition']==True:
+                                                condition["translation_gain"]=1.0
+                                            else:
+                                                condition["translation_gain"]=0.0
+                                        else:
+                                            condition["translation_gain"]=trial_condition['closedLoopPosition']
                                         condition_list.append(condition)
                                     if (
                                         (
@@ -1097,7 +1114,10 @@ def preprocess_matrex_data(thisDir, json_file):
                                         and (this_object == 1)
                                         and (trial_condition["objects"][0]["type"] != "")
                                     ):
-                                        theta = np.radians(trial_condition["objects"][1]['mu']+270)
+                                        theta = np.radians(trial_condition["objects"][1]['mu']-trial_condition["objects"][0]['mu']-90)
+                                        # calculate the difference in mu between the first and second object and then calculate how much to rotate the first object's coordinate to create the second object's coordinate.
+                                        # This is needed because in the choice assay, if two identical objects were present, the programme would only save the data of the first one.
+                                        # The additional -90 rotation is not needed, but it is added there because I wanted to be consistent with the plots in Sayin et al., 2025.
                                         # applying rotation matrix to rotate the coordinates
                                         # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
                                         rot_matrix = np.array(
@@ -1287,6 +1307,11 @@ def preprocess_matrex_data(thisDir, json_file):
                                 df["CurrentTrial"] == 0
                             )
                             for this_object in range(num_object_on_scene):
+                                result, condition = read_agent_data(
+                                    df[this_range],
+                                    analysis_methods,
+                                    trial_condition["objects"][this_object],
+                                )
                                 if num_object_on_scene > 1:
                                     if this_object == 0:
                                         condition["duration"] = trial_sequence["sequences"][
@@ -1294,6 +1319,20 @@ def preprocess_matrex_data(thisDir, json_file):
                                         ][
                                             "duration"
                                         ]  # may need to add condition to exclude some kind of data from choice assay.
+                                        if type(trial_condition['closedLoopOrientation'])==bool:
+                                            if trial_condition['closedLoopOrientation']==True:
+                                                condition["rotation_gain"]=1.0
+                                            else:
+                                                condition["rotation_gain"]=0.0
+                                        else:
+                                            condition["rotation_gain"]=trial_condition['closedLoopOrientation']
+                                        if type(trial_condition['closedLoopPosition'])==bool:
+                                            if trial_condition['closedLoopPosition']==True:
+                                                condition["translation_gain"]=1.0
+                                            else:
+                                                condition["translation_gain"]=0.0
+                                        else:
+                                            condition["translation_gain"]=trial_condition['closedLoopPosition']
                                         condition_list.append(condition)
                                     if (
                                         (
@@ -1303,7 +1342,10 @@ def preprocess_matrex_data(thisDir, json_file):
                                         and (this_object == 1)
                                         and (trial_condition["objects"][0]["type"] != "")
                                     ):
-                                        theta = np.radians(trial_condition["objects"][1]['mu']+270)
+                                        theta = np.radians(trial_condition["objects"][1]['mu']-trial_condition["objects"][0]['mu']-90)
+                                        # calculate the difference in mu between the first and second object and then calculate how much to rotate the first object's coordinate to create the second object's coordinate.
+                                        # This is needed because in the choice assay, if two identical objects were present, the programme would only save the data of the first one.
+                                        # The additional -90 rotation is not needed, but it is added there because I wanted to be consistent with the plots in Sayin et al., 2025.
                                         # applying rotation matrix to rotate the coordinates
                                         # includes a minus because the radian circle is clockwise in Unity, so 45 degree should be used as -45 degree in the regular radian circle
                                         rot_matrix = np.array(
