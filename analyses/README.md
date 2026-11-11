@@ -1,25 +1,25 @@
-# Experiment-specific analyses
+# Experiment analyses
 
-The repository contains two independent analysis workflows that share the extraction and utility code in the repository root.
+This directory contains the two maintained LocustVR analysis workflows. Both workflows use the shared extraction and utility code in the repository root, but keep their notebooks, settings and outputs separate.
 
 ## Collision experiment
 
-Run the notebooks in this order:
+The Collision workflow measures when a locust slows or stops while a virtual stimulus approaches at different speeds and with different textures.
 
-1. `collision/raw_data_preparation_collision.ipynb` when new raw sessions need HDF5 files.
-2. `collision/data_preparation_collision.ipynb` to build the combined collision dataset.
-3. `collision/time_series_collision.ipynb` to detect sustained stopping and run the censored statistical analysis.
-
-The statistical model is implemented in `collision/censored_statistics.py`. Generated tables and plots are written below `collision/results/`.
+See [`collision/README.md`](collision/README.md) for the execution order, stop definition, censoring rules and statistical outputs.
 
 ## Colour-preference experiment
 
-Run the notebooks in this order:
+The Colour Preference workflow compares choices between black, yellow and gregarious textures, including identical-texture control trials and an optional left/right side-bias view.
 
-1. `color_preference/raw_data_preparation_color_preference.ipynb` when new raw sessions need HDF5 files.
-2. `color_preference/data_preparation_color_preference.ipynb` to apply spreadsheet exclusions and build the combined dataset.
-3. `color_preference/visualising_color_choice.ipynb` to produce the colour-choice figures and summary tables.
+See [`color_preference/README.md`](color_preference/README.md) for the execution order, trial-label format, exclusion rules and figure definitions.
 
-Each workflow has its own `analysis_methods_*.json` file. This prevents settings for one experiment from changing the other experiment.
+## Shared code
 
-The older branches remain available as backups, but day-to-day work can now be performed from this single branch.
+The experiment folders import the following shared components from the repository root:
+
+- `locustvr_extractor.py`
+- `LocustVR_data_analysis/utils_local.py`
+- the sibling `utilities` directory
+
+Each workflow has its own `analysis_methods_*.json` file. Changing one experiment's settings therefore does not change the other experiment.
