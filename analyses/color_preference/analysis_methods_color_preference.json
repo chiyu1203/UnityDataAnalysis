@@ -8,6 +8,9 @@
   "plotting_trajectory": true,
   "load_individual_data": false,
   "select_animals_by_condition": false,
+  "exclude_animals_marked_for_exclusion": true,
+  "exclude_molting_after_24h": false,
+  "exclude_molting_after_48h": true,
   "monitor_fps": 100,
   "body_length": 4,
   "growth_condition": "G"

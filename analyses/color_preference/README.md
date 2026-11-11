@@ -42,7 +42,8 @@ The original `trial_label` is retained unchanged.
 - The spreadsheet column `Exclude trials after trial X:` defines an inclusive final trial for each animal. Later trials are excluded.
 - An empty cutoff cell keeps all available trials for that animal.
 - Invalid, negative or non-integer cutoff values stop the notebook with an error.
-- Whole-animal filtering is only applied when `load_individual_data` and `select_animals_by_condition` are enabled in the configuration.
+- Animals marked `T` in `Excluding this animal from analysis (Usually when animals die or molt, T/F)` are excluded by default. Set `exclude_animals_marked_for_exclusion` to `false` only when those animals should deliberately be restored.
+- Molting exclusion is controlled independently by `exclude_molting_after_24h` and `exclude_molting_after_48h`. The corresponding Google Sheet columns are applied even if the other individual-selection options are disabled.
 - The current notebook line `dir_lis_2026 = dir_list[-19:]` restricts loading to the final 19 discovered session folders. Review this line whenever animals are added or the folder order changes.
 
 ## Choice definition
@@ -87,3 +88,13 @@ Main figures include the trial-choice matrix, pairwise preference overview, choi
 Settings are stored in `analysis_methods_color_preference.json`.
 
 The current setting `"overwrite_curated_dataset": false` preserves existing HDF5 files during raw-data preparation and processes only sessions without curated output.
+
+Animal exclusion is configured with:
+
+```json
+"exclude_animals_marked_for_exclusion": true,
+"exclude_molting_after_24h": false,
+"exclude_molting_after_48h": false
+```
+
+The general exclusion flag is active by default. Enable either molting option when that time window should also be excluded. Because the 48-hour spreadsheet column is cumulative, its `T` values include animals already marked at 24 hours. Empty cells and `F` remain included.

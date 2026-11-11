@@ -65,3 +65,13 @@ The existing files in `results/locust_censored_results/` come from an earlier co
 Settings are stored in `analysis_methods_collision.json`.
 
 The current setting `"overwrite_curated_dataset": true` allows raw-data preparation to rebuild existing curated HDF5 files. Change this to `false` when only newly added sessions should be processed.
+
+Animal exclusion is configured with:
+
+```json
+"exclude_animals_marked_for_exclusion": true,
+"exclude_molting_after_24h": false,
+"exclude_molting_after_48h": false
+```
+
+Animals marked `T` in `Excluding this animal from analysis (Usually when animals die or molt, T/F)` are removed by default. The two molting options independently apply the 24- and cumulative 48-hour Google Sheet columns. Set an option to `false` to reverse that filter; empty cells and `F` remain included.

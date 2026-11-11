@@ -14,6 +14,78 @@ def access_utilities(utilities_name='utilities', resolve_parent_directories=0):
 
 #################################################################################################
 
+def exclude_flagged_animals(
+    data,
+    column_name,
+    enabled=False,
+    id_column='ID',
+):
+    """Optionally remove animals marked true in a spreadsheet flag column.
+
+    Column names are matched after trimming whitespace, because exported Google
+    Sheets may contain an unnoticed trailing space. Empty and false values keep
+    an animal. Unknown non-empty values raise an error instead of silently
+    changing the analysed cohort.
+    """
+    result = data.copy()
+    if not enabled:
+        print(f'Optional exclusion disabled for {column_name!r}.')
+        return result
+
+    requested_name = str(column_name).strip()
+    matching_columns = [
+        column for column in result.columns
+        if str(column).strip() == requested_name
+    ]
+    if len(matching_columns) != 1:
+        raise KeyError(
+            f'Expected exactly one spreadsheet column named {requested_name!r}; '
+            f'found {matching_columns!r}.'
+        )
+
+    actual_column = matching_columns[0]
+    normalized = (
+        result[actual_column]
+        .astype('string')
+        .fillna('')
+        .str.strip()
+        .str.casefold()
+    )
+    true_values = {'t', 'true', '1', '1.0', 'yes', 'y', 'ja', 'j', 'x'}
+    false_values = {
+        '', 'f', 'false', '0', '0.0', 'no', 'n', 'nein',
+        'n/a', 'na', 'not applicable',
+    }
+    unknown = ~normalized.isin(true_values | false_values)
+    if unknown.any():
+        columns = [actual_column]
+        if id_column in result.columns:
+            columns.insert(0, id_column)
+        examples = result.loc[unknown, columns].head(10).to_dict('records')
+        raise ValueError(
+            f'Unknown value(s) in spreadsheet column {actual_column!r}: '
+            f'{examples}. Use T/F, True/False, Yes/No, Ja/Nein, 1/0, X, '
+            'N/A, or empty.'
+        )
+
+    exclusion_mask = normalized.isin(true_values)
+    if id_column in result.columns:
+        excluded_ids = (
+            result.loc[exclusion_mask, id_column]
+            .dropna()
+            .astype(str)
+            .tolist()
+        )
+    else:
+        excluded_ids = result.index[exclusion_mask].astype(str).tolist()
+    print(
+        f'Excluded {int(exclusion_mask.sum())} animal(s) using '
+        f'{actual_column!r}: {excluded_ids}'
+    )
+    return result.loc[~exclusion_mask].copy()
+
+#################################################################################################
+
 def reindex_t_by_state_transition(df, transition_from=0, transition_to=(1, 2), index_col='ts', state_col='state_type'):
     import numpy as np
     df = df.copy()
