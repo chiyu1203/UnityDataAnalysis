@@ -1,5 +1,9 @@
 # Unity VR data analysis
 
+## Current experiment workflows
+
+The maintained Collision and Colour Preference analyses now coexist in the [`analyses`](analyses/) directory. Each experiment has its own notebooks and configuration file, while both reuse the extraction and utility code in the repository root. See [`analyses/README.md`](analyses/README.md) for the execution order.
+
 This repo includes codes to analyse data collected matrex VR, a unity-based VR system for insects (https://github.com/pvnkmrksk/matrexVR)
 
 ## Data base structure

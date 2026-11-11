@@ -1,0 +1,19 @@
+{
+  "input_file": "/Users/jonny/Desktop/Uni/Master/collevtive behavior/Locust analysis/UnityDataAnalysis/out_censored.csv",
+  "n_observations": 782,
+  "n_events": 501,
+  "n_censored": 281,
+  "fraction_censored": 0.3593350383631714,
+  "n_animals": 41,
+  "n_colours": 2,
+  "colour_levels": [
+    "black",
+    "gregarious"
+  ],
+  "speed_levels": [
+    "1.0",
+    "4.0"
+  ],
+  "trial_order_adjusted": true,
+  "rows_dropped_for_missing_values": 0
+}

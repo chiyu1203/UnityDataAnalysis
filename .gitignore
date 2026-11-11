@@ -1,6 +1,9 @@
 DrosophilaChoices/Data/*
 .ipynb_checkpoints/*
 __pycache__/*
+**/__pycache__/
+*.py[cod]
+.DS_Store
 *.svg
 *.png
 *.jpg

@@ -1,0 +1,14 @@
+{
+  "experiment_name": "locustvr",
+  "overwrite_curated_dataset": false,
+  "save_output": true,
+  "time_series_analysis": true,
+  "contain_prechoice_phase": true,
+  "filtering_method": "sg_filter",
+  "plotting_trajectory": true,
+  "load_individual_data": false,
+  "select_animals_by_condition": false,
+  "monitor_fps": 100,
+  "body_length": 4,
+  "growth_condition": "G"
+}
