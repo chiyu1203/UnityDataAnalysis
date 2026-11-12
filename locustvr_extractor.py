@@ -17,7 +17,6 @@ from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distan
 
 lock = Lock()
 def extract_locustvr_dat(thisDir, analysis_methods):
-    analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
     camera_fps = analysis_methods.get("camera_fps",100)
     plotting_trajectory = analysis_methods.get("plotting_trajectory", False)
@@ -26,10 +25,16 @@ def extract_locustvr_dat(thisDir, analysis_methods):
     overwrite_curated_dataset = analysis_methods.get("overwrite_curated_dataset", False)
     time_series_analysis = analysis_methods.get("time_series_analysis", False)
     experiment_name = analysis_methods.get("experiment_name")
+    exp_place = analysis_methods.get("exp_place")
     growth_condition = analysis_methods.get("growth_condition")
-    BODY_LENGTH3 = (
-        analysis_methods.get("body_length", 4) * 3
-    )
+    if exp_place.lower() == "locustvr":
+        BODY_LENGTH = (
+            analysis_methods.get("body_length", 4) * 6
+        )
+    else:
+        BODY_LENGTH = (
+            analysis_methods.get("body_length", 4) * 3
+        )
     if int(camera_fps/2)%2==0:
         filter_window_length=int(camera_fps/2)+1
     else:
@@ -243,7 +248,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             if len(X) == 0:
                 continue
             rXY = np.vstack((X, Y))
-            newindex = diskretize(x=list(rXY[0]), y=list(rXY[1]),diskretise_length=BODY_LENGTH3)
+            newindex = diskretize(x=list(rXY[0]), y=list(rXY[1]),diskretise_length=BODY_LENGTH)
             curated_X = rXY[0][newindex]
             curated_Y = rXY[1][newindex]
             angles = np.arctan2(np.diff(curated_Y), np.diff(curated_X)) ## in time series analysis, the angles should come from locustVR directly.
@@ -280,7 +285,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
         tdist = (
             np.nansum(euclidean_distance(X,Y))
             if time_series_analysis
-            else len(curated_X) * BODY_LENGTH3
+            else len(curated_X) * BODY_LENGTH
         )
         chop = str(thisDir).split('\\')[-1].split('_')[:2]
         fchop = '_'.join(chop)
@@ -365,7 +370,7 @@ def load_files(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25012\20250626\choices\session1"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25077\251128\collision\session1"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25042\251111\choices\session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)

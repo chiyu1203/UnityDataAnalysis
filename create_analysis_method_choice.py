@@ -2,6 +2,7 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
+    "exp_place": "MatrexVR",
     "experiment_name": "choice",
     "overwrite_curated_dataset": True,
     "export_fictrac_data_only":False,

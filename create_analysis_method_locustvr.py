@@ -2,7 +2,8 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
-    "experiment_name": "locustvr",
+    "exp_place": "locustvr",
+    "experiment_name": "choice",
     "overwrite_curated_dataset": True,
     "save_output": True,
     "time_series_analysis": True,

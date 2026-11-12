@@ -1,4 +1,5 @@
 {
+"exp_place": "MatrexVR",
  "experiment_name": "choice",
  "overwrite_curated_dataset": true,
  "export_fictrac_data_only": false,
