@@ -16,6 +16,29 @@ from useful_tools import find_file,find_nearest
 from data_cleaning import diskretize,remove_unreliable_tracking,euclidean_distance,remove_false_detection_heading,load_temperature_data
 
 lock = Lock()
+
+
+def _get_trial_label(trial_data):
+    """Return the last non-empty label without changing its components.
+
+    Early LocustVR recordings sometimes updated the label one row after the
+    trial began, so the final valid value is used.  Keeping the complete label
+    preserves extended fields such as left/right and bait textures while
+    remaining compatible with older label formats.
+    """
+    labels = (
+        trial_data['trial_label']
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+    labels = labels[labels.ne('')]
+    if labels.empty:
+        trial_id = trial_data['trial_id'].iloc[0]
+        raise ValueError(f'Missing trial label for trial {trial_id}.')
+    return labels.iloc[-1]
+
+
 def extract_locustvr_dat(thisDir, analysis_methods):
     analysis_methods.update({"experiment_name": "locustvr"})
     monitor_fps = analysis_methods.get("monitor_fps")
@@ -206,8 +229,7 @@ def extract_locustvr_dat(thisDir, analysis_methods):
             continue # if a trial only has 1 state type, that means that trial never enter the actual choice phase, skip this trial
         else:
             state_type_summary= df[df['trial_id'] == this_trial]['state_type'].unique()[1]
-        label_split=df[df['trial_id'] == this_trial]['trial_label'].values[-1].split("_")##get trial label this way because in the first version, trial label is updated one row later 
-        trial_label=f"{label_split[1]}_{label_split[2]}_{label_split[3]}"##remove T information because that is redundant 
+        trial_label = _get_trial_label(pd_this_trial)
         this_state_type=df[df['trial_id'] == this_trial]['state_type'].values
         if time_series_analysis:
             if analysis_methods.get("filtering_method") == "sg_filter":
