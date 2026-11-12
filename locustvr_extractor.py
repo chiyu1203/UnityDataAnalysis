@@ -89,9 +89,9 @@ def extract_locustvr_dat(thisDir, analysis_methods):
         exp_date=this_file.stem.split('_')[0]
         exp_hour=this_file.stem.split('_')[1]
     exp_time=f"{exp_date}_{exp_hour}"
-    exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M")
+    exp_time_dt = pd.to_datetime(exp_time, format="%Y%m%d_%H%M%S")
 
-    found_result = find_file(thisDir, "locustVR*.txt", "DL220THP*.csv")
+    found_result = find_file(thisDir, "locustVR*.txt", "LocustVR*.txt")
     ## here to load temperature data
     if found_result is None:
         temperature_df = None
@@ -355,7 +355,8 @@ def load_files(thisDir, json_file):
 if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25003\20250612_1416_1749730564_2choice"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\locustVR\GN25042\20251111\choices\session1"
-    thisDir = "/Volumes/DATA/experiment_trackball_Optomotor/locustVR/GN25042/251111/choices/session1"
+    #thisDir = "/Volumes/DATA/experiment_trackball_Optomotor/locustVR/GN25042/251111/choices/session1"
+    thisDir = "/Volumes/AG_Couzin-Fuchs/DATA/experiment_trackball_Optomotor/locustVR/GN26019/261104/choices/session1"
     json_file = "./analysis_methods_dictionary.json"
     tic = time.perf_counter()
     load_files(thisDir, json_file)
