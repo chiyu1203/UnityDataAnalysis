@@ -64,7 +64,7 @@ Open the anaconda prompt and create a virtual environment via conda
 Below is the command to install packages via conda environment 
 
 ```
-conda create --name unity_analysis --channel conda-forge python=3.11
+conda create --name unity_analysis --channel conda-forge python=3.14
 conda activate unity_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
@@ -85,7 +85,7 @@ It seems that environment.yml is better for environment with packages installed 
 
 If you want to install with uv but still under conda environment.
 ```
-conda create --name unity_analysis --channel conda-forge python=3.11
+conda create --name unity_analysis --channel conda-forge python=3.14
 conda activate unity_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
